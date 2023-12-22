@@ -1,0 +1,10 @@
+[package]
+name = "spin-quest"
+version = "1.0.0"
+edition = "2021"
+
+[dependencies]
+turbo = { version = "*", package = "turbo-genesis-sdk" }
+
+[lib]
+crate-type = ["cdylib"]
