@@ -1,3 +1,3 @@
 # SpinQuest
 
-![SpinQuest screenshot](./screenshot.png)
+![screenshot](./screenshot.png)
