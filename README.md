@@ -1,5 +1,7 @@
 # 🎮 Turbo Demo Games
 
+![banner](./banner.webp)
+
 Welcome to the official repository of Turbo Demo Games - a collection of sample games created using the Turbo game engine. These demos are designed to showcase the capabilities of Turbo and provide inspiration for your game development projects.
 
 ## Getting Started
