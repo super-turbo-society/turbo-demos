@@ -185,5 +185,5 @@ turbo::go! {
 
  - If you update sprites while your game is running, Turbo will immediately show the changes. Just be sure to restart Turbo when adding new sprites.
  - Using the keyboard shortcut `cmd+r / ctrl+r` will reset your game to its initial state
- - After you run the project, see if you can change the hearts in background to tacos! 🌮
+ - After you run the project, see if you can change the hearts in background to tacos! ![taco.png](sprites/taco.png)
 
