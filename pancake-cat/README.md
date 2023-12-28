@@ -1,13 +1,7 @@
 # Pancake Cat
 
-#### Prerequisites
+change directory into pancake-cat
 
-Before you begin, make sure you have`Turbo`installed and initialize a project `turbo init pancakegame` Also, create a sprites folder at the root of your Turbo project and add the required sprites: 
-- heart.png: ![heart.png](sprites/heart.png)
-- munch_cat.png: ![munch_cat.png](sprites/munch_cat.png)
-- taco.png: ![taco.png](sprites/taco.png)
-
-The following code should be added in your `src/lib.rs` file. Remove the boilerplate code and replace with the following
 #### Game Configuration  
 
 The game configuration is where you define metadata and settings for your game.
