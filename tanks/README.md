@@ -20,7 +20,7 @@ Run the following command:
 turbo-cli run -w .
 ```
 
-Use keyboard/gamepad controls to maneuver your tank, aim, and fire missiles.
+Use keyboard controls to maneuver your tank, aim, and fire missiles.
 
 ## Walkthrough
 
