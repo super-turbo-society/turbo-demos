@@ -21,7 +21,13 @@ Each demo game is contained in its own directory and includes source code and as
 From the root of the project, you can run the following command:
 
 ```bash
-turbo-cli run -w <demo name>
+turbo run -w <demo-name>
+```
+
+For example, to run the Bork Runner game demo:
+
+```bash
+turbo run -w bork-runner
 ```
 
 Feel free to run, modify, and use these demos as a starting point for your projects. For more information on how to use Turbo and work with these demos, check out [Turbo's Documentation](https://docs.turbo.computer).
