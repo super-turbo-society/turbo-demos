@@ -48,6 +48,4 @@ We welcome contributions to our demo collection! Please read our [Contributing G
 
 ## Support
 
-If you encounter any issues or have questions, please open an issue in this repository.
-
-See [CONTRIBUTING.md](./CONTRIBUTING.md) for details on how to submit your game.
+If you encounter any issues or have questions, please [open an issue](https://github.com/super-turbo-society/turbo-demos/issues) in this repository.
