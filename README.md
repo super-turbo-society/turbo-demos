@@ -32,14 +32,6 @@ turbo run -w bork-runner
 
 Feel free to run, modify, and use these demos as a starting point for your projects. For more information on how to use Turbo and work with these demos, check out [Turbo's Documentation](https://docs.turbo.computer).
 
-## Contributing
-
-We welcome contributions to our demo collection! Please read our [Contributing Guidelines](./CONTRIBUTING.md) for more information on how you can contribute.
-
-## Support
-
-If you encounter any issues or have questions, please open an issue in this repository.
-
 ## Demos
 
 [<img src="./hello-world/screenshot.png" width="200" style="height: 144px; object-fit: cover;" />](./hello-world/)
@@ -50,8 +42,12 @@ If you encounter any issues or have questions, please open an issue in this repo
 [<img src="./bork-runner/screenshot.png" width="200" style="height: 144px; object-fit: cover;" />](./bork-runner/)
 [<img src="./space-shooter/preview.gif" width="200" style="height: 144px; object-fit: cover;" />](./space-shooter/)
 
-## Built with Turbo 🚀
+## Contributing
 
-Check back here soon to see a list of games that were built with Turbo! 😎
+We welcome contributions to our demo collection! Please read our [Contributing Guidelines](./CONTRIBUTING.md) for more information on how you can contribute.
+
+## Support
+
+If you encounter any issues or have questions, please open an issue in this repository.
 
 See [CONTRIBUTING.md](./CONTRIBUTING.md) for details on how to submit your game.
