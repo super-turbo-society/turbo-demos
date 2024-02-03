@@ -42,26 +42,15 @@ If you encounter any issues or have questions, please open an issue in this repo
 
 ## Demos
 
-### Hello, World!
-[![hello world thumbnail](./hello-world/screenshot.png | width=100)](./hello-world/)
-
-### Pong
-[![pong thumbnail](./pong/screenshot.png | width=100)](./pong/)
-
-### Tanks
-[![tanks thumbnail](./tanks/screenshot.png | width=100)](./tanks/)
-
-### Pancake Cat
-[![pancake-cat thumbnail](./pancake-cat/screenshot.png | width=100)](./pancake-cat/)
-
-### Bork Runner
-[![bork-runner thumbnail](./bork-runner/screenshot.png | width=100)](./bork-runner/)
-
-### Space Shooter
-[![space-shooter thumbnail](./space-shooter/preview.gif | width=100)](./space-shooter/)
-
-### Spin Quest
-[![spin-quest thumbnail](./spin-quest/screenshot.png | width=100)](./spin-quest/)
+[<img src="./hello-world/screenshot.png" width="200" style="height: 144px; object-fit: cover;" />](./hello-world/)
+[<img src="./pong/screenshot.png" width="200" style="height: 144px; object-fit: cover;" />](./pong/)
+[<img src="./tanks/screenshot.png" width="200" style="height: 144px; object-fit: cover;" />](./tanks/)
+<br />
+[<img src="./pancake-cat/screenshot.png" width="200" style="height: 144px; object-fit: cover;" />](./pancake-cat/)
+[<img src="./bork-runner/screenshot.png" width="200" style="height: 144px; object-fit: cover;" />](./bork-runner/)
+[<img src="./space-shooter/preview.gif" width="200" style="height: 144px; object-fit: cover;" />](./space-shooter/)
+<br />
+[<img src="./spin-quest/screenshot.png" width="200" style="height: 144px; object-fit: cover;" />](./spin-quest/)
 
 ## Built with Turbo 🚀
 
