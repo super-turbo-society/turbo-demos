@@ -49,8 +49,6 @@ If you encounter any issues or have questions, please open an issue in this repo
 [<img src="./pancake-cat/screenshot.png" width="200" style="height: 144px; object-fit: cover;" />](./pancake-cat/)
 [<img src="./bork-runner/screenshot.png" width="200" style="height: 144px; object-fit: cover;" />](./bork-runner/)
 [<img src="./space-shooter/preview.gif" width="200" style="height: 144px; object-fit: cover;" />](./space-shooter/)
-<br />
-[<img src="./spin-quest/screenshot.png" width="200" style="height: 144px; object-fit: cover;" />](./spin-quest/)
 
 ## Built with Turbo 🚀
 
