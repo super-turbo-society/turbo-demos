@@ -42,12 +42,26 @@ If you encounter any issues or have questions, please open an issue in this repo
 
 ## Demos
 
-- [Hello, World](./hello-world/)
-- [Pong](./pong/)
-- [Tanks](./tanks)
-- [Pancake Cat](./pancake-cat/)
-- [Bork Runner](./bork-runner/)
-- [SpinQuest](./spin-quest)
+### Hello, World!
+[![hello world thumbnail](./hello-world/screenshot.png | width=100)](./hello-world/)
+
+### Pong
+[![pong thumbnail](./pong/screenshot.png | width=100)](./pong/)
+
+### Tanks
+[![tanks thumbnail](./tanks/screenshot.png | width=100)](./tanks/)
+
+### Pancake Cat
+[![pancake-cat thumbnail](./pancake-cat/screenshot.png | width=100)](./pancake-cat/)
+
+### Bork Runner
+[![bork-runner thumbnail](./bork-runner/screenshot.png | width=100)](./bork-runner/)
+
+### Space Shooter
+[![space-shooter thumbnail](./space-shooter/preview.gif | width=100)](./space-shooter/)
+
+### Spin Quest
+[![spin-quest thumbnail](./spin-quest/screenshot.png | width=100)](./spin-quest/)
 
 ## Built with Turbo 🚀
 
