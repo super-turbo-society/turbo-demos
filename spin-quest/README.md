@@ -1,3 +1,0 @@
-# SpinQuest
-
-![screenshot](./screenshot.png)
