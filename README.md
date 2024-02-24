@@ -11,7 +11,7 @@ First, [install Turbo](https://docs.turbo.computer/#/quick-start?id=installation
 Next, clone this repository to explore the demo games:
 
 ```bash
-git clone https://github.com/jozanza/turbo-demos.git
+git clone https://github.com/super-turbo-society/turbo-demos.git
 ```
 
 Each demo game is contained in its own directory and includes source code and assets.
