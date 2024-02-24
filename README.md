@@ -11,7 +11,7 @@ First, [install Turbo](https://docs.turbo.computer/#/quick-start?id=installation
 Next, clone this repository to explore the demo games:
 
 ```bash
-git clone https://github.com/super-turbo-society/turbo-demos.git
+git clone https://github.com/jozanza/turbo-demos.git
 ```
 
 Each demo game is contained in its own directory and includes source code and assets.
@@ -34,13 +34,13 @@ Feel free to run, modify, and use these demos as a starting point for your proje
 
 ## Demos
 
-[<img src="./hello-world/screenshot.png" width="200" style="height: 144px; object-fit: cover;" />](./hello-world/)
-[<img src="./pong/screenshot.png" width="200" style="height: 144px; object-fit: cover;" />](./pong/)
-[<img src="./tanks/screenshot.png" width="200" style="height: 144px; object-fit: cover;" />](./tanks/)
-[<img src="./pancake-cat/screenshot.png" width="200" style="height: 144px; object-fit: cover;" />](./pancake-cat/)
-[<img src="./bork-runner/screenshot.png" width="200" style="height: 144px; object-fit: cover;" />](./bork-runner/)
-[<img src="./space-shooter/preview.gif" width="200" style="height: 144px; object-fit: cover;" />](./space-shooter/)
-[<img src="./game-of-life/screenshot.png" width="200" style="height: 144px; object-fit: cover;" />](./game-of-life/)
+|                      Game of Life                       |                      Pong                       |                      Tanks                       |
+| :-----------------------------------------------------: | :---------------------------------------------: | :----------------------------------------------: |
+| <img width="880" src="./game-of-life/screenshot.png" /> | <img width="880" src="./pong/screenshot.png" /> | <img width="880" src="./tanks/screenshot.png" /> |
+
+|                      Space Shooter                       |                      Pancake Cat                       |                      Bork Runner                       |
+| :------------------------------------------------------: | :----------------------------------------------------: | :----------------------------------------------------: |
+| <img width="880" src="./space-shooter/screenshot.png" /> | <img width="880" src="./pancake-cat/screenshot.png" /> | <img width="880" src="./bork-runner/screenshot.png" /> |
 
 ## Contributing
 
