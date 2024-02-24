@@ -62,7 +62,6 @@ The game loop is the core of your game, handling user input, updating the game s
 
 ```rs
 turbo::go! {
-   turbo::go! {
     let mut state = GameState::load();
     let mut tanks = state.tanks.iter_mut();
     let mut tank1 = tanks.next().unwrap();
@@ -88,7 +87,6 @@ turbo::go! {
 
     // Save the game state
     state.save();
-}
 }
 ```
 

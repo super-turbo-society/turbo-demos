@@ -37,10 +37,10 @@ Feel free to run, modify, and use these demos as a starting point for your proje
 [<img src="./hello-world/screenshot.png" width="200" style="height: 144px; object-fit: cover;" />](./hello-world/)
 [<img src="./pong/screenshot.png" width="200" style="height: 144px; object-fit: cover;" />](./pong/)
 [<img src="./tanks/screenshot.png" width="200" style="height: 144px; object-fit: cover;" />](./tanks/)
-<br />
 [<img src="./pancake-cat/screenshot.png" width="200" style="height: 144px; object-fit: cover;" />](./pancake-cat/)
 [<img src="./bork-runner/screenshot.png" width="200" style="height: 144px; object-fit: cover;" />](./bork-runner/)
 [<img src="./space-shooter/preview.gif" width="200" style="height: 144px; object-fit: cover;" />](./space-shooter/)
+[<img src="./game-of-life/screenshot.png" width="200" style="height: 144px; object-fit: cover;" />](./game-of-life/)
 
 ## Contributing
 
