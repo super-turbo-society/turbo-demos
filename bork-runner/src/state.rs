@@ -41,7 +41,7 @@ impl Bork {
         //     y = self.y as i32,
         //     w = BORK_WIDTH as u32,
         //     h = BORK_HEIGHT as u32,
-        //     fill = 0xff0000ff
+        //     color = 0xff0000ff
         // );
     }
 }
@@ -81,7 +81,7 @@ impl Enemy {
         // rect!(
         //     w = ENEMY_WIDTH as u32,
         //     h = ENEMY_HEIGHT as u32,
-        //     fill = if self.hit { 0xff00ffff } else { 0x000000ff },
+        //     color = if self.hit { 0xff00ffff } else { 0x000000ff },
         //     x = self.x as i32,
         //     y = self.y as i32
         // );
@@ -115,7 +115,7 @@ impl Powerup {
                 rect!(
                     w = POWERUP_WIDTH as u32,
                     h = POWERUP_HEIGHT as u32,
-                    fill = 0xff000fff,
+                    color = 0xff000fff,
                     x = self.x as i32,
                     y = self.y as i32
                 );
@@ -125,7 +125,7 @@ impl Powerup {
                 rect!(
                     w = POWERUP_WIDTH as u32,
                     h = POWERUP_HEIGHT as u32,
-                    fill = 0xffff00ff,
+                    color = 0xffff00ff,
                     x = self.x as i32,
                     y = self.y as i32
                 );
@@ -135,7 +135,7 @@ impl Powerup {
                 rect!(
                     w = POWERUP_WIDTH as u32,
                     h = POWERUP_HEIGHT as u32,
-                    fill = 0xff00ffff,
+                    color = 0xff00ffff,
                     x = self.x as i32,
                     y = self.y as i32
                 );
@@ -145,7 +145,7 @@ impl Powerup {
                 // rect!(
                 //     w = POWERUP_WIDTH as u32,
                 //     h = POWERUP_HEIGHT as u32,
-                //     fill = 0x0000ffff,
+                //     color = 0x0000ffff,
                 //     x = self.x as i32,
                 //     y = self.y as i32
                 // );

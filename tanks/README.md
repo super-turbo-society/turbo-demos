@@ -69,7 +69,7 @@ turbo::go! {
     let mut tank2 = tanks.next().unwrap();
 
     // Draw elements
-    rect!(w = 256, h = 144, fill = 0x222222ff);
+    rect!(w = 256, h = 144, color = 0x222222ff);
     draw_blocks(&state.blocks);
     draw_tank(&tank1);
     draw_tank(&tank2);

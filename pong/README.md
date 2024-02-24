@@ -122,20 +122,20 @@ turbo::go! {
         y = state.paddle1.y as i32,
         w = 8,
         h = state.paddle1.height as u32,
-        fill = 0xffffffff
+        color = 0xffffffff
     );
     rect!(
         x = state.paddle2.x as i32,
         y = state.paddle2.y as i32,
         w = 8,
         h = state.paddle2.height as u32,
-        fill = 0xffffffff
+        color = 0xffffffff
     );
     circ!(
         x = state.ball.x as i32,
         y = state.ball.y as i32,
         d = state.ball.radius as u32,
-        fill = 0xffffffff
+        color = 0xffffffff
     );
 
     // Save game state for the next frame

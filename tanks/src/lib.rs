@@ -73,7 +73,7 @@ turbo::go! {
     let mut tank2 = tanks.next().unwrap();
 
     // Draw stuff
-    rect!(w = 256,h = 144,fill = 0x222222ff);
+    rect!(w = 256,h = 144, color = 0x222222ff);
     draw_blocks(&state.blocks);
     draw_tank(&tank1);
     draw_tank(&tank2);
@@ -186,7 +186,7 @@ fn draw_tank(tank: &Tank) {
             y = (missile.y - 3.) as i32,
             w = 6,
             h = 6,
-            fill = tank.color
+            color = tank.color
         );
     }
 
@@ -195,7 +195,7 @@ fn draw_tank(tank: &Tank) {
     let tank_y = tank.y as i32;
 
     // Draw tank body
-    circ!(x = tank_x - 8, y = tank_y - 8, d = 16, fill = tank.color);
+    circ!(x = tank_x - 8, y = tank_y - 8, d = 16, color = tank.color);
 
     // Draw tank turret
     for i in 8..16 {
@@ -207,7 +207,7 @@ fn draw_tank(tank: &Tank) {
             y = (turret_end_y - 2.) as i32,
             w = 4,
             h = 4,
-            fill = tank.color
+            color = tank.color
         );
     }
 }
@@ -219,7 +219,7 @@ fn draw_blocks(blocks: &[Block]) {
             y = block.y as i32,
             w = block.width,
             h = block.height,
-            fill = 0x777777ff
+            color = 0x777777ff
         );
     }
 }

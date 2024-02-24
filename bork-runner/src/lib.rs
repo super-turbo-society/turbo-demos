@@ -277,7 +277,7 @@ turbo::go! {
         let height = 1;
         let y_position = ((i * 28) % 144) as i32; // Vertical position of each line
         let x_position = (state.tick * speed) as i32 % (512) as i32 - 20; // Moving from right to left
-        rect!(w = line_width, h = height, x = 256 + -x_position, y = y_position, fill = 0xffffff88); // Draw the line
+        rect!(w = line_width, h = height, x = 256 + -x_position, y = y_position, color = 0xffffff88); // Draw the line
     }
     if state.last_game_over == 0 {
         let (balloons, doge) = match state.health {
@@ -306,7 +306,7 @@ turbo::go! {
     }
 
     // Display health and score
-    rect!(w = 256, h = 24, fill = 0xffffffaa);
+    rect!(w = 256, h = 24, color = 0xffffffaa);
     let seconds = if state.last_game_over > 0 { state.last_game_over } else { state.tick } / 60;
     let minutes = seconds / 60;
     let seconds = seconds % 60;
@@ -322,13 +322,13 @@ turbo::go! {
     // text!(&format!("Energy: {}", state.energy), x = 10, y = 30, font = Font::M, color = 0xffffffff);
 
     sprite!("energy", x = 4, y = 4);
-    let energy_fill = match state.energy as f32 / state.max_energy as f32 {
+    let energy_color = match state.energy as f32 / state.max_energy as f32 {
         n if n <= 0.25 => 0xff0000ff,
         n if n <= 0.75 => 0xec8915ff,
         _ => 0x00a0ffff,
     };
     text!("energy", x = 20, y = 3, color = 0x000000ff, font = Font::S);
-    rect!(w = 4 * state.energy, h = 6, fill = energy_fill, x = 18, y = 9);
+    rect!(w = 4 * state.energy, h = 6, color = energy_color, x = 18, y = 9);
 
     if state.tick < (60 / 2) {
         text!("3", x = 124, y = 64, font = Font::L, color = 0x000000ff);

@@ -667,7 +667,7 @@ fn draw_stars(state: &GameState, screen_w: u32, screen_h: u32) {
                 x = x % screen_w as i32,
                 y = y % screen_h as i32,
                 d = size,
-                fill = 0xFFFFFF44
+                color = 0xFFFFFF44
             ); // Adjust star size and color if needed
         }
     }
@@ -679,7 +679,7 @@ fn draw_player(player: &Player) {
         y = player.y as i32,
         w = player.width,
         h = player.height,
-        fill = player.color
+        color = player.color
     );
     if let Some(accessory) = &player.accessory {
         sprite!(accessory, x = player.x as i32, y = player.y as i32);
@@ -692,7 +692,7 @@ fn draw_enemy(enemy: &Enemy) {
         y = enemy.y as i32,
         w = enemy.width,
         h = enemy.height,
-        fill = 0xaaaaaaff
+        color = 0xaaaaaaff
     );
 }
 
@@ -705,7 +705,7 @@ fn draw_projectile(projectile: &Projectile) {
         x = projectile.x as i32,
         y = projectile.y as i32,
         d = projectile.width.max(projectile.height),
-        fill = color
+        color = color
     );
 }
 
@@ -715,7 +715,7 @@ fn draw_powerup(powerup: &Powerup, tick: u32) {
         x = (powerup.x - (n * 0.5)) as i32,
         y = (powerup.y - (n * 0.5)) as i32,
         d = powerup.width.max(powerup.height) + n as u32,
-        fill = match powerup.effect {
+        color = match powerup.effect {
             PowerupEffect::Heal => 0x00ff66ff,
             PowerupEffect::MaxHealthUp => 0x00ffffff,
             PowerupEffect::DamageBoost(_) => 0xff0066ff,
@@ -733,7 +733,7 @@ fn draw_hud(state: &GameState, screen_w: u32) {
         y = 0,
         w = screen_w,
         h = hud_height,
-        fill = 0x000000ff
+        color = 0x000000ff
     ); // Black background for the HUD
 
     // Drawing borders for the HUD section
@@ -743,7 +743,7 @@ fn draw_hud(state: &GameState, screen_w: u32) {
         w = screen_w,
         h = 1,
         // border = 1,
-        fill = 0xffffffff
+        color = 0xffffffff
     ); // White border
 
     // Displaying game information on the HUD
@@ -795,7 +795,7 @@ fn draw_notifications(state: &GameState, screen_w: u32, screen_h: u32) {
             h = 10,
             x = x as i32 - 2,
             y = 24 - 2,
-            fill = 0x22aaaaff
+            color = 0x22aaaaff
         );
         text!(
             notif,

@@ -214,9 +214,9 @@ Draw the falling pancakes
 
 ```rs
 for pancake in &state.pancakes {
-    circ!(x = pancake.x as i32, y = pancake.y as i32 + 1, d = (pancake.radius + 2.) as u32, fill = 0x000000aa); // Render the pancakes
-    circ!(x = pancake.x as i32, y = pancake.y as i32, d = (pancake.radius + 1.) as u32, fill = 0xf4d29cff); // Render the pancakes
-    circ!(x = pancake.x as i32, y = pancake.y as i32, d = pancake.radius as u32, fill = 0xdba463ff); // Render the pancakes
+    circ!(x = pancake.x as i32, y = pancake.y as i32 + 1, d = (pancake.radius + 2.) as u32, color = 0x000000aa); // Render the pancakes
+    circ!(x = pancake.x as i32, y = pancake.y as i32, d = (pancake.radius + 1.) as u32, color = 0xf4d29cff); // Render the pancakes
+    circ!(x = pancake.x as i32, y = pancake.y as i32, d = pancake.radius as u32, color = 0xdba463ff); // Render the pancakes
 }
 ```
 
