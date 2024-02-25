@@ -9,12 +9,16 @@ use turbo::solana::{
 };
 
 turbo::cfg! {r#"
+    [settings]
+    resolution = [256, 256]
     [solana]
     http-rpc-url = "http://localhost:8899"
     ws-rpc-url = "ws://localhost:8900"
 "#}
 
 turbo::go! {
+    clear!(0x95bea1ff);
+
     let level = "1";
 
     // Load  Data
@@ -35,16 +39,25 @@ turbo::go! {
     };
 }
 
-fn start_game_screen(level: &str, desc: &str) {
-    let mut y = 0;
+fn start_game_screen(level: &str, _desc: &str) {
+    sprite!("title_screen", y = -32);
+    text!(
+        "PRESS START",
+        x = 84,
+        y = 224,
+        font = Font::L,
+        color = 0x000000ff
+    );
 
-    let signer_pubkey = solana::signer();
-    let msg = &format!("Signer = {}", signer_pubkey);
-    text!(msg, y = y);
-    y += 8;
+    // let mut y = 240;
 
-    let msg = &format!("{} Start level {}", desc, level);
-    text!(msg, y = y);
+    // let signer_pubkey = solana::signer();
+    // let msg = &format!("Signer = {}", signer_pubkey);
+    // text!(msg, y = y);
+    // y += 8;
+
+    // let msg = &format!("{} Start level {}", desc, level);
+    // text!(msg, y = y);
 
     if gamepad(0).start.just_pressed() {
         init_player_and_game(level);
@@ -52,22 +65,44 @@ fn start_game_screen(level: &str, desc: &str) {
 }
 
 fn chopping_screen(level: &str, player_data: &PlayerData, game_data: &GameData) {
-    let mut y = 0;
-
-    let msg = &format!("Level = {}", level);
-    text!(msg, y = y);
+    let a = (tick() / 5) as f32;
+    let b = a.sin() * 3.0;
+    sprite!("lumberjack", x = 4, y = 4 + -b as i32, h = 92 + b as u32);
+    let mut y = 128;
+    let wood_msg = &format!("Wood: {}", player_data.wood);
+    let x = 128 - (wood_msg.chars().count() * 4) as i32;
+    text!(wood_msg, x = x, y = y, font = Font::L, color = 0x000000ff);
     y += 8;
-
-    let msg = &format!("{:#?}\n{:#?}", player_data, game_data);
-    text!(msg, y = y, font = Font::S);
-    let height = msg.lines().count() * 5;
-    y += height as i32;
-
-    let msg = &format!(
-        "Total Wood Available: {}",
+    let wood_left_msg = &format!(
+        "Wood Available: {}",
         MAX_WOOD_PER_TREE - game_data.total_wood_collected
     );
-    text!(msg, y = y, font = Font::S);
+    let x = 128 - (wood_left_msg.chars().count() * 4) as i32;
+    text!(
+        wood_left_msg,
+        x = x,
+        y = y,
+        font = Font::L,
+        color = 0x000000ff
+    );
+    
+    
+    // let mut y = 184;
+
+    // let msg = &format!("Level = {}", level);
+    // text!(msg, y = y);
+    // y += 8;
+
+    // let msg = &format!("{:#?}\n{:#?}", player_data, game_data);
+    // text!(msg, y = y, font = Font::S);
+    // let height = msg.lines().count() * 5;
+    // y += height as i32;
+
+    // let msg = &format!(
+    //     "Total Wood Available: {}",
+    //     MAX_WOOD_PER_TREE - game_data.total_wood_collected
+    // );
+    // text!(msg, y = y, font = Font::S);
 
     if gamepad(0).start.just_pressed() {
         chop_tree(level);
