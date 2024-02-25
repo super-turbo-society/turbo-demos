@@ -15,6 +15,27 @@ turbo::cfg! {r#"
 "#}
 
 turbo::go! {
+    let level = "1";
+
+    // Load  Data
+    match (get_player_data(), get_game_data(level)) {
+        // Player and game data exist
+        // - Allow player to chop wood
+        (Some(Ok(player_data)), Some(Ok(game_data))) => chopping_screen(level, &player_data, &game_data),
+
+        // No player data or no game data
+        // - Allow player to initialize
+        (None, _) => start_game_screen(level, "No Player Data..."),
+        (Some(Ok(_)), None) => start_game_screen(level, "No Game Data..."),
+
+        // Data fetching errors
+        // - NGMI (fix your code or RPC)
+        (Some(Err(err)),  _) => error_screen(level, "Player data fetch error", err),
+        (_, Some(Err(err))) => error_screen(level, "Game data fetch error", err),
+    };
+}
+
+fn start_game_screen(level: &str, desc: &str) {
     let mut y = 0;
 
     let signer_pubkey = solana::signer();
@@ -22,64 +43,41 @@ turbo::go! {
     text!(msg, y = y);
     y += 8;
 
-    let msg = &format!("Prog = {}", lumberjack::ID);
+    let msg = &format!("{} Start level {}", desc, level);
     text!(msg, y = y);
-    y += 8;
 
-    let level = "1";
+    if gamepad(0).start.just_pressed() {
+        init_player_and_game(level);
+    }
+}
+
+fn chopping_screen(level: &str, player_data: &PlayerData, game_data: &GameData) {
+    let mut y = 0;
+
     let msg = &format!("Level = {}", level);
     text!(msg, y = y);
     y += 8;
 
-    // Load  Data
-    match (get_player_data(), get_game_data(level)) {
-        // Player and game data exist
-        // - Allow player to chop wood
-        (Some(Ok(player_data)), Some(Ok(game_data))) => {
-            let msg = &format!("{:#?}\n{:#?}", player_data, game_data);
-            text!(msg, y = y, font = Font::S);
-            let height = msg.lines().count() * 5;
-            y += height as i32;
-            let msg = &format!("Total Wood Available: {}", MAX_WOOD_PER_TREE - game_data.total_wood_collected);
-            text!(msg, y = y, font = Font::S);
-            y += 5;
-            if gamepad(0).start.just_pressed() {
-                chop_tree(level);
-            }
-        }
-        // No player data yet
-        // - Allow player to initialize the game
-        (None, _) => {
-            text!("No Player Data...", y = y, font = Font::S);
-            y += 5;
-            if gamepad(0).start.just_pressed() {
-                init_player_and_game(level);
-            }
-        }
-        // Player data but not game data
-        // - Allow player to initialize the game
-        (Some(Ok(_)), None) => {
-            text!("No Game Data...", y = y, font = Font::S);
-            y += 5;
-            if gamepad(0).start.just_pressed() {
-                init_player_and_game(level);
-            }
-        }
-        // Data fetching errors
-        // - ngmi (fix your code or RPC)
-        (Some(Err(err)),  _) => {
-            let msg = &format!("Player data fetch error: {:#?}", err);
-            text!(msg, y = y, font = Font::S, color = 0xff0000ff);
-            let height = msg.lines().count() * 5;
-            y += height as i32;
-        }
-        (_, Some(Err(err))) => {
-            let msg = &format!("Game data fetch error: {:#?}", err);
-            text!(msg, y = y, font = Font::S, color = 0xff0000ff);
-            let height = msg.lines().count() * 5;
-            y += height as i32;
-        }
-    };
+    let msg = &format!("{:#?}\n{:#?}", player_data, game_data);
+    text!(msg, y = y, font = Font::S);
+    let height = msg.lines().count() * 5;
+    y += height as i32;
+
+    let msg = &format!(
+        "Total Wood Available: {}",
+        MAX_WOOD_PER_TREE - game_data.total_wood_collected
+    );
+    text!(msg, y = y, font = Font::S);
+
+    if gamepad(0).start.just_pressed() {
+        chop_tree(level);
+    }
+}
+
+fn error_screen(level: &str, label: &str, err: std::io::Error) {
+    let y = 0;
+    let msg = &format!("Level {} - {}: {:#?}", level, label, err);
+    text!(msg, y = y, font = Font::S, color = 0xff0000ff);
 }
 
 fn get_player_pubkey() -> Pubkey {
