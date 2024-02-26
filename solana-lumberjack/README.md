@@ -1,4 +1,4 @@
-# Lumberjack
+# Solana Lumberjack
 
 ![screenshot](./screenshot.png)
 
@@ -14,7 +14,7 @@ A fully on-chain game where you chop wood. LFG 😤
 You may choose to develop your game with the Solana Lumberjack program on devnet or deploy it locally depending on your needs:
 
 <details>
-<summary><h2>Devnet</h2></summary>
+<summary><strong>Using Devnet</strong></summary>
 
 If you want to focus on your game code and have no intention of modifying the Solana lumberjack program, you can follow the steps in this section.
 
@@ -50,8 +50,7 @@ TURBO_SOL_SIGNER=<YOUR_BASE58_ACCOUNT_PRIVATE_KEY> turbo run -w .
 </details>
 
 <details>
-
-<summary><h2>Local</h2></summary>
+<summary><strong>Using Localhost</strong></summary>
 
 1. **Configuration**
 
