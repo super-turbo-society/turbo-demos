@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 turbo = { version = "1.1.1", package = "turbo-genesis-sdk", features = ["solana"] }
-lumberjack = { version = "*", package = "lumberjack", path = "./solana/lumberjack" }
+lumberjack = { version = "*", package = "lumberjack", path = "./solana" }
 
 [patch.crates-io]
 cc = { git = "https://github.com/jozanza/cc-rs.git", branch = "wasm-patch" }

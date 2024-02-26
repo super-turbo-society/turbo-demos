@@ -6,7 +6,7 @@ pub mod instructions;
 pub mod state;
 use instructions::*;
 
-declare_id!("6rNeW7XtFo2f1bYGdP2g2gF8LPFBH2PjKA8x7E5a7yyN");
+declare_id!("HvGnquJPQ37WpwoCoByDe7bbaWSoZyQMsj9iTtHat6xo");
 
 #[program]
 pub mod lumberjack {

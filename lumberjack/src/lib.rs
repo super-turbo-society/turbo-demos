@@ -9,6 +9,7 @@ use turbo::solana::{
 };
 
 turbo::cfg! {r#"
+    name = "Solana Lumberjack"
     [settings]
     resolution = [256, 256]
     [solana]
@@ -19,18 +20,18 @@ turbo::cfg! {r#"
 turbo::go! {
     clear!(0x95bea1ff);
 
-    let level = "1";
+    let level = "Forest";
 
     // Load  Data
     match (get_player_data(), get_game_data(level)) {
-        // Player and game data exist
-        // - Allow player to chop wood
-        (Some(Ok(player_data)), Some(Ok(game_data))) => chopping_screen(level, &player_data, &game_data),
-
         // No player data or no game data
         // - Allow player to initialize
         (None, _) => start_game_screen(level, "No Player Data..."),
         (Some(Ok(_)), None) => start_game_screen(level, "No Game Data..."),
+
+        // Player and game data exist
+        // - Allow player to chop wood
+        (Some(Ok(player_data)), Some(Ok(game_data))) => chopping_screen(level, &player_data, &game_data),
 
         // Data fetching errors
         // - NGMI (fix your code or RPC)
@@ -39,74 +40,139 @@ turbo::go! {
     };
 }
 
-fn start_game_screen(level: &str, _desc: &str) {
-    sprite!("title_screen", y = -32);
-    text!(
-        "PRESS START",
-        x = 84,
-        y = 224,
-        font = Font::L,
-        color = 0x000000ff
-    );
+fn start_game_screen(level: &str, desc: &str) {
+    // Draw background image
+    sprite!("title_screen");
 
-    // let mut y = 240;
+    // Blinking start message
+    if tick() / 30 % 2 == 0 {
+        text!(
+            "PRESS START",
+            x = 84,
+            y = 232,
+            font = Font::L,
+            color = 0x000000ff
+        );
+    }
 
-    // let signer_pubkey = solana::signer();
-    // let msg = &format!("Signer = {}", signer_pubkey);
-    // text!(msg, y = y);
-    // y += 8;
-
-    // let msg = &format!("{} Start level {}", desc, level);
-    // text!(msg, y = y);
-
+    // Start game
     if gamepad(0).start.just_pressed() {
         init_player_and_game(level);
+    }
+
+    // Logs debug information
+    if gamepad(0).select.just_pressed() {
+        let signer_pubkey = solana::signer();
+        log!("-----------------------------------------------------");
+        log!("DEBUG");
+        log!("-----------------------------------------------------");
+        log!("Signer = {signer_pubkey}");
+        log!("Level  = {level}");
+        log!("Status = {desc}");
+        log!("-----------------------------------------------------");
     }
 }
 
 fn chopping_screen(level: &str, player_data: &PlayerData, game_data: &GameData) {
-    let a = (tick() / 5) as f32;
-    let b = a.sin() * 3.0;
-    sprite!("lumberjack", x = 4, y = 4 + -b as i32, h = 92 + b as u32);
-    let mut y = 128;
+    sprite!("forest", x = 0);
+    let mut x = 0;
+    let mut y = 0;
+    set_cam!(x = 0, y = 0);
+    rect!(w = 128, h = 16, color = 0x555533ff);
+    rect!(w = 128, h = 16, color = 0x335555ff, x = 128);
+    text!(
+        &format!("LEVEL: {level}",),
+        font = Font::L,
+        x = 4,
+        y = 4,
+        color = 0xffffffff
+    );
+    let chopped = (game_data.total_wood_collected as f32 / MAX_WOOD_PER_TREE as f32) * 100.;
+    text!(
+        &format!("CHOPPED: {chopped:.2}%",),
+        font = Font::L,
+        x = 132,
+        y = 4,
+        color = 0xffffffff
+    );
+
+    y += 4;
+    y += 128;
+    if gamepad(0).start == Button::Released {
+        set_cam!(x = 0, y = 0);
+        let n = if tick() / 20 % 2 == 0 { 3 } else { 0 };
+        sprite!("lumberjack_swing1", x = 156, y = y + n, h = 100 - n as u32);
+    } else if player_data.energy == 0 {
+        sprite!("lumberjack_sweat", x = 156, y = y, h = 100);
+    } else {
+        set_cam!(
+            x = (tick() as i32 % 6) as i32 - 3,
+            y = (tick() as i32 % 6) as i32 - 3,
+        );
+        sprite!("lumberjack_swing2", x = 156, y = y, h = 100);
+    }
+    // x = 132;
+    // y += 8;
+    x = 64;
+    y = 20;
+    text!(
+        &format!("Energy: {}/100", player_data.energy),
+        font = Font::L,
+        x = x,
+        y = y,
+        color = 0x000000ff
+    );
+    y += 10;
+    stat_bar((player_data.energy, 100), x, y, 128, 0x008899ff, 0x000000ff);
+    y += 16;
     let wood_msg = &format!("Wood: {}", player_data.wood);
     let x = 128 - (wood_msg.chars().count() * 4) as i32;
     text!(wood_msg, x = x, y = y, font = Font::L, color = 0x000000ff);
     y += 8;
-    let wood_left_msg = &format!(
-        "Wood Available: {}",
-        MAX_WOOD_PER_TREE - game_data.total_wood_collected
-    );
-    let x = 128 - (wood_left_msg.chars().count() * 4) as i32;
-    text!(
-        wood_left_msg,
-        x = x,
-        y = y,
-        font = Font::L,
-        color = 0x000000ff
-    );
-    
-    
-    // let mut y = 184;
 
-    // let msg = &format!("Level = {}", level);
-    // text!(msg, y = y);
-    // y += 8;
-
-    // let msg = &format!("{:#?}\n{:#?}", player_data, game_data);
-    // text!(msg, y = y, font = Font::S);
-    // let height = msg.lines().count() * 5;
-    // y += height as i32;
-
-    // let msg = &format!(
-    //     "Total Wood Available: {}",
-    //     MAX_WOOD_PER_TREE - game_data.total_wood_collected
-    // );
-    // text!(msg, y = y, font = Font::S);
-
+    // Chop the tree
     if gamepad(0).start.just_pressed() {
         chop_tree(level);
     }
+
+    // Logs debug information
+    if gamepad(0).select.just_pressed() {
+        log!("-----------------------------------------------------");
+        log!("DEBUG");
+        log!("-----------------------------------------------------");
+        log!("{player_data:#?}");
+        log!("{game_data:#?}");
+        log!("-----------------------------------------------------");
+    }
+}
+
+fn stat_bar(value: (u64, u64), x: i32, y: i32, w: u32, color: u32, border_color: u32) {
+    rect!(
+        x = x,
+        y = y,
+        w = w,
+        h = 12,
+        color = 0x000000ff,
+        border_radius = 2
+    );
+    rect!(
+        x = x,
+        y = y + 2,
+        w = (w as f32 * (value.0 as f32 / value.1 as f32)) as u32,
+        h = 8,
+        color = color,
+        border_radius = 2
+    );
+    rect!(
+        x = x,
+        y = y,
+        w = w,
+        h = 12,
+        color = 0x00000000,
+        border_radius = 2,
+        border_width = 2,
+        border_color = border_color
+    );
 }
 
 fn error_screen(level: &str, label: &str, err: std::io::Error) {
