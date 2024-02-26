@@ -42,6 +42,10 @@ Feel free to run, modify, and use these demos as a starting point for your proje
 | :-------------------------------------------------------------------------: | :----------------------------------------------------------------------: | :---------------------------------------------------------------------: |
 | [<img width="880" src="./space-shooter/screenshot.png" />](./space-shooter) | [<img width="880" src="./pancake-cat/screenshot.png" />](./pancake-cat/) | [<img width="880" src="./bork-runner/screenshot.png" />](./bork-runner) |
 
+|                      [Solana Lumberjack](./solana-lumberjack)               |     |     |
+| :-------------------------------------------------------------------------: | :-: | :-: |
+| [<img width="880" src="./solana-lumberjack/screenshot.png" />](./solana-lumberjack) |  [<img width="880" height="1" src="./solana-lumberjack/screenshot.png" />](./solana-lumberjack)   |  [<img width="880" height="1" src="./solana-lumberjack/screenshot.png" />](./solana-lumberjack)   |
+
 ## Contributing
 
 We welcome contributions to our demo collection! Please read our [Contributing Guidelines](./CONTRIBUTING.md) for more information on how you can contribute.
