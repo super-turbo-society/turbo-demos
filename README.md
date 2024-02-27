@@ -42,9 +42,9 @@ Feel free to run, modify, and use these demos as a starting point for your proje
 | :-------------------------------------------------------------------------: | :----------------------------------------------------------------------: | :---------------------------------------------------------------------: |
 | [<img width="880" src="./space-shooter/screenshot.png" />](./space-shooter) | [<img width="880" src="./pancake-cat/screenshot.png" />](./pancake-cat/) | [<img width="880" src="./bork-runner/screenshot.png" />](./bork-runner) |
 
-|                      [Solana Lumberjack](./solana-lumberjack)               |     |     |
-| :-------------------------------------------------------------------------: | :-: | :-: |
-| [<img width="880" src="./solana-lumberjack/screenshot.png" />](./solana-lumberjack) |  [<img width="880" height="1" src="./solana-lumberjack/screenshot.png" />](./solana-lumberjack)   |  [<img width="880" height="1" src="./solana-lumberjack/screenshot.png" />](./solana-lumberjack)   |
+|                      [Solana Lumberjack](./solana-lumberjack)                       |                      [Space Invaders](./space-invaders)                       |                                        |
+| :---------------------------------------------------------------------------------: | :---------------------------------------------------------------------------: | :------------------------------------: |
+| [<img width="880" src="./solana-lumberjack/screenshot.png" />](./solana-lumberjack) | [<img width="880" src="./space-invaders/screenshot.png" />](./space-invaders) | <img width="880" src="./spacer.png" /> |
 
 ## Contributing
 
