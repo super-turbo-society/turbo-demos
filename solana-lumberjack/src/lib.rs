@@ -77,7 +77,7 @@ fn chopping_screen(level: &str, player_data: &PlayerData, game_data: &GameData) 
     sprite!("forest", x = 0);
     let mut x = 0;
     let mut y = 0;
-    set_cam!(x = 0, y = 0);
+    set_cam!(x = x, y = 0);
     rect!(w = 128, h = 16, color = 0x555533ff);
     rect!(w = 128, h = 16, color = 0x335555ff, x = 128);
     text!(
@@ -106,8 +106,8 @@ fn chopping_screen(level: &str, player_data: &PlayerData, game_data: &GameData) 
         sprite!("lumberjack_sweat", x = 156, y = y, h = 100);
     } else {
         set_cam!(
-            x = (tick() as i32 % 6) as i32 - 3,
-            y = (tick() as i32 % 6) as i32 - 3,
+            x = (tick() as i32 % 4) as i32 - 2,
+            y = (tick() as i32 % 4) as i32 - 2,
         );
         sprite!("lumberjack_swing2", x = 156, y = y, h = 100);
     }
@@ -128,7 +128,6 @@ fn chopping_screen(level: &str, player_data: &PlayerData, game_data: &GameData) 
     let wood_msg = &format!("Wood: {}", player_data.wood);
     let x = 128 - (wood_msg.chars().count() * 4) as i32;
     text!(wood_msg, x = x, y = y, font = Font::L, color = 0x000000ff);
-    y += 8;
 
     // Chop the tree
     if gamepad(0).start.just_pressed() {
