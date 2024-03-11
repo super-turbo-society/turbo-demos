@@ -11,7 +11,7 @@ Move a cat left and right to catch and each pancakes as they fall from the sky. 
 From the project dir, run the following command:
 
 ```sh
-turbo-cli run -w .
+turbo run -w .
 ```
 **Development Tips:**
 - If you update sprites while your game is running, Turbo will immediately show the changes. Just be sure to restart Turbo when adding new sprites.
