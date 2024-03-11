@@ -86,6 +86,13 @@ impl GameState {
 
 turbo::go! {
     let mut state = GameState::load();
+    if gamepad(0).b.pressed() {
+        let health = state.player.health;
+        let xy = (state.player.x, state.player.y);
+        let score = state.score;
+        let res = canvas_size!();
+        log!("- Health = {health}\n- Position: {xy:?}\n- Score: {score}\n- Resolution: {res:?}");
+    }
 
     let [screen_w, screen_h] = resolution();
 
@@ -113,7 +120,7 @@ turbo::go! {
         }
 
         // Shooting projectiles
-        if gamepad(0).start.just_pressed() || gamepad(0).a.just_pressed() {
+        if gamepad(1).start.just_pressed() || gamepad(1).a.just_pressed() {
             state.projectiles.push(Projectile {
                 x: state.player.x + ((state.player.width / 2) as f32) - 2.0,
                 y: state.player.y,
