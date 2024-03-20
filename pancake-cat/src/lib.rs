@@ -41,13 +41,26 @@ turbo::go! {
     // Load the game state
     let mut state = GameState::load();
 
-    // Handle user input
-    if gamepad(0).left.pressed() {
+  // Handle user input
+let game_input = gamepad(0);
+let mouse_input = mouse(0);
+
+// Move the cat based on mouse position if the mouse is active
+if (mouse_input.left.pressed() || mouse_input.right.pressed()) && (mouse_input.position[0] < state.cat_x as i32 || mouse_input.position[0] > state.cat_x as i32) {
+    if mouse_input.position[0] < state.cat_x as i32 {
         state.cat_x -= 2.;
-    }
-    if gamepad(0).right.pressed() {
+    } else {
         state.cat_x += 2.;
     }
+} else {
+    // Move the cat based on keyboard arrow keys
+    if game_input.left.pressed() {
+        state.cat_x -= 2.;
+    }
+    if game_input.right.pressed() {
+        state.cat_x += 2.;
+    }
+}
 
     // Generate new pancakes at random intervals
     if rand() % 64 == 0 {
