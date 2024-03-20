@@ -1,6 +1,6 @@
 # Brick Breaker
 
-![Turbo game window with bricks, a paddle, and a ball](screenshot.png)
+![Turbo game window with bricks, a paddle, and a ball](Screenshot.png)
 
 ## Description
 
