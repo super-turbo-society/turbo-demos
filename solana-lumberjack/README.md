@@ -28,7 +28,7 @@ turbo::cfg! {r#"
     [settings]
     resolution = [256, 256]
     [solana]
-    http-rpc-url = "http://api.devnet.solana.com"
+    http-rpc-url = "https://api.devnet.solana.com"
     ws-rpc-url = "wss://api.devnet.solana.com"
 "#}
 ```
