@@ -315,7 +315,7 @@ turbo::go! {
     text!(mmss, x = 108, y = 9, font = Font::L, color = 0x000000aa);
     text!(mmss, x = 108, y = 8, font = Font::L, color = 0x000000ff);
 
-    text!("BONK points", x = 190, y = 3, color = 0x000000ff, font = Font::S);
+    text!("BORK points", x = 190, y = 3, color = 0x000000ff, font = Font::S);
     text!(&format!("${:06}", state.score), x = 190, y = 9, font = Font::L, color = 0x000000aa);
     text!(&format!("${:06}", state.score), x = 190, y = 8, font = Font::L, color = 0x000000ff);
     // text!(&format!("Health: {}", state.health), x = 10, y = 20, font = Font::M, color = 0xffffffff);
