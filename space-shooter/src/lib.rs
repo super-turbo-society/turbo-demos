@@ -755,7 +755,7 @@ fn draw_hud(state: &GameState, screen_w: u32) {
 
     // Displaying game information on the HUD
     let hud_padding = 4; // Padding inside the HUD
-    let text_color = 0xfffffff; // White text color
+    let text_color = 0xffffffff; // White text color
 
     // Display Score
     let score_text = format!("LVL: 1");

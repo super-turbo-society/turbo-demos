@@ -111,14 +111,12 @@ In this walkthrough, we will cover:
 The following code handles the left and right movements of the cat via player 1's gamepad:
 
 ```rs
-// Handle user input
 if gamepad(0).left.pressed() {
     state.cat_x -= 2.;
 }
 if gamepad(0).right.pressed() {
     state.cat_x += 2.;
 }
-
 ```
 
 #### Pancake Generation

@@ -1044,13 +1044,13 @@ fn draw_powerup(powerup: &Powerup, tick: u32) {
         color = match powerup.effect {
             PowerupEffect::Heal => 0x00ff6666,
             PowerupEffect::MaxHealthUp => 0x00ffff66,
-            PowerupEffect::DamageBoost => 0xff0066,
+            PowerupEffect::DamageBoost => 0xff006666,
             PowerupEffect::SpeedBoost => 0x6600ff66,
         },
         border_color = match powerup.effect {
             PowerupEffect::Heal => 0x00ff6699,
             PowerupEffect::MaxHealthUp => 0x00ffff99,
-            PowerupEffect::DamageBoost => 0xff0066,
+            PowerupEffect::DamageBoost => 0xff006699,
             PowerupEffect::SpeedBoost => 0x6600ff99,
         },
         border_width = 1,
