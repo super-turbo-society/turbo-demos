@@ -223,6 +223,7 @@ for pancake in &state.pancakes {
 #### Drawing the Score
 
 Draw the score (aka number of pancakes eaten):
+
 ```rs
 text!(&format!("Score: {}", state.score), x = 10, y = 10, font = Font::L, color = 0xffffffff); // Render the score
 ```
