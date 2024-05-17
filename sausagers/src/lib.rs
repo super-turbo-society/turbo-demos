@@ -989,13 +989,13 @@ fn draw_enemy(enemy: &Enemy) {
     );
     let percent_hp = enemy.health as f32 / enemy.max_health as f32;
     let color = match percent_hp {
-        n if n <= 0.25 => 0xff00ff,
-        n if n <= 0.5 => 0xff00ff,
+        n if n <= 0.25 => 0xff0000ff,
+        n if n <= 0.5 => 0xff9900ff,
         _ => 0x00ff00ff,
     };
     rect!(
         color = color,
-        w = ((enemy.health as f32 / enemy.max_health as f32) * 10.),
+        w = (enemy.health as f32 / enemy.max_health as f32) * 10.,
         h = 2,
         x = x + (enemy.width / 2) as i32 - 5,
         y = y - 4
@@ -1009,7 +1009,7 @@ fn draw_projectile(projectile: &Projectile) {
             sprite!("projectile_ketchup", x = projectile.x, y = projectile.y);
         }
         ProjectileType::Fragment => {
-            let color = 0xff00ff;
+            let color = 0xff0000ff;
             ellipse!(
                 x = projectile.x,
                 y = projectile.y,
@@ -1019,7 +1019,7 @@ fn draw_projectile(projectile: &Projectile) {
             );
         }
         _ => {
-            let color = 0xffff00;
+            let color = 0xffff00ff;
             ellipse!(
                 x = projectile.x,
                 y = projectile.y,

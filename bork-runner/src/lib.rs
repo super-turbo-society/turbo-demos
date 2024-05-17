@@ -290,10 +290,10 @@ turbo::go! {
         } else {
             8
         };
-        sprite!(balloons, x = (state.dog_x - DOGE_WIDTH), y = (state.dog_y - 16.), fps = fps::SLOW);
-        sprite!(doge, x = (state.dog_x - DOGE_WIDTH), y = state.dog_y, fps = fps);
+        sprite!(balloons, x = state.dog_x - DOGE_WIDTH, y = state.dog_y - 16., fps = fps::SLOW);
+        sprite!(doge, x = state.dog_x - DOGE_WIDTH, y = state.dog_y, fps = fps);
     } else {
-        sprite!("sad_doge", x = (state.dog_x - DOGE_WIDTH), y = state.dog_y, fps = fps::FAST);
+        sprite!("sad_doge", x = state.dog_x - DOGE_WIDTH, y = state.dog_y, fps = fps::FAST);
     }
     for bork in state.borks.iter() {
         bork.draw();

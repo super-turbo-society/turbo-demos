@@ -182,8 +182,8 @@ fn draw_tank(tank: &Tank) {
     // Draw tank's missiles
     for missile in &tank.missiles {
         rect!(
-            x = (missile.x - 3.),
-            y = (missile.y - 3.),
+            x = missile.x - 3.,
+            y = missile.y - 3.,
             w = 6,
             h = 6,
             color = tank.color
@@ -203,8 +203,8 @@ fn draw_tank(tank: &Tank) {
         let turret_end_x = tank_x as f32 + turret_length * tank.rot.cos();
         let turret_end_y = tank_y as f32 + turret_length * tank.rot.sin();
         rect!(
-            x = (turret_end_x - 2.),
-            y = (turret_end_y - 2.),
+            x = turret_end_x - 2.,
+            y = turret_end_y - 2.,
             w = 4,
             h = 4,
             color = tank.color

@@ -13,14 +13,16 @@ From the project dir, run the following command:
 ```sh
 turbo run -w .
 ```
+
 **Development Tips:**
+
 - If you update sprites while your game is running, Turbo will immediately show the changes. Just be sure to restart Turbo when adding new sprites.
 - Using the keyboard shortcut `cmd+r / ctrl+r` will reset your game to its initial state
 - After you run the project, see if you can change the hearts in background to tacos! ![taco.png](sprites/taco.png)
 
 ## Walkthrough
 
-### Game Configuration  
+### Game Configuration
 
 The `turbo::cfg!` macro is used to define metadata and settings for your game.
 
@@ -36,7 +38,7 @@ turbo::cfg! {r#"
     description = "Catch falling pancakes!"
     [settings]
     resolution = [256, 144]
-"#} 
+"#}
 ```
 
 ### Game State Initialization
@@ -106,13 +108,16 @@ In this walkthrough, we will cover:
 
 #### Cat movement
 
-The following code handles the left and right and mouse movements of the cat via player 1's gamepad:
+The following code handles the left and right movements of the cat via player 1's gamepad:
 
 ```rs
 // Handle user input
-let game_input = gamepad(0);
-
-let mouse_input = mouse(0);
+if gamepad(0).left.pressed() {
+    state.cat_x -= 2.;
+}
+if gamepad(0).right.pressed() {
+    state.cat_x += 2.;
+}
 
 ```
 

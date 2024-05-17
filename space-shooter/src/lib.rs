@@ -705,8 +705,8 @@ fn draw_enemy(enemy: &Enemy) {
 
 fn draw_projectile(projectile: &Projectile) {
     let color = match projectile.projectile_type {
-        ProjectileType::Splatter | ProjectileType::Fragment => 0xff000ff,
-        ProjectileType::Basic | ProjectileType::Bomb | ProjectileType::Laser => 0xfff00ff,
+        ProjectileType::Splatter | ProjectileType::Fragment => 0xff0000ff,
+        ProjectileType::Basic | ProjectileType::Bomb | ProjectileType::Laser => 0xffff00ff,
     };
     circ!(
         x = projectile.x,
@@ -725,7 +725,7 @@ fn draw_powerup(powerup: &Powerup, tick: u32) {
         color = match powerup.effect {
             PowerupEffect::Heal => 0x00ff66ff,
             PowerupEffect::MaxHealthUp => 0x00ffffff,
-            PowerupEffect::DamageBoost(_) => 0xff0066f,
+            PowerupEffect::DamageBoost(_) => 0xff0066ff,
             PowerupEffect::SpeedBoost => 0x6600ffff,
         }
     );

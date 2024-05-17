@@ -93,7 +93,7 @@ turbo::go! {
     clear(0x00ffffff);
 
     // Draw a tiled background of moving sprites
-    let frame = (state.frame ) / 2;
+    let frame = state.frame / 2;
     for col in 0..9 {
         for row in 0..6 {
             let x = col * 32;
@@ -106,21 +106,21 @@ turbo::go! {
 
     // Draw a speech bubble when the cat eats a pancake
     if state.frame >= 64 && state.frame.saturating_sub(state.last_munch_at) <= 60 {
-        rect!(w = 30, h = 10, x = state.cat_x  + 32.0, y = state.cat_y );
-        circ!(d = 10, x = state.cat_x  + 28.0, y = state.cat_y );
-        rect!(w = 10, h = 5, x = state.cat_x  + 28.0, y = state.cat_y  + 5.0);
-        circ!(d = 10, x = state.cat_x  + 56.0, y = state.cat_y );
-        text!("MUNCH!", x = state.cat_x  + 33.0, y = state.cat_y  + 3.0, font = Font::S, color = 0x000000ff);
+        rect!(w = 30, h = 10, x = state.cat_x + 32.0, y = state.cat_y);
+        circ!(d = 10, x = state.cat_x + 28.0, y = state.cat_y);
+        rect!(w = 10, h = 5, x = state.cat_x + 28.0, y = state.cat_y + 5.0);
+        circ!(d = 10, x = state.cat_x + 56.0, y = state.cat_y);
+        text!("MUNCH!", x = state.cat_x + 33.0, y = state.cat_y + 3.0, font = Font::S, color = 0x000000ff);
     }
 
     // Draw the cat
-    sprite!("munch_cat", x = (state.cat_x - state.cat_r), y = (state.cat_y - 16.), fps = fps::FAST);
+    sprite!("munch_cat", x = state.cat_x - state.cat_r, y = state.cat_y - 16., fps = fps::FAST);
 
     // Draw the falling pancakes
     for pancake in &state.pancakes {
-        circ!(x = pancake.x , y = pancake.y + 1.0, d = (pancake.radius + 2.), color = 0x000000aa); // Render the pancakes
-        circ!(x = pancake.x , y = pancake.y, d = (pancake.radius + 1.), color = 0xf4d29cff); // Render the pancakes
-        circ!(x = pancake.x , y = pancake.y, d = pancake.radius, color = 0xdba463ff); // Render the pancakes
+        circ!(x = pancake.x, y = pancake.y + 1.0, d = pancake.radius + 2., color = 0x000000aa); // Render the pancakes
+        circ!(x = pancake.x, y = pancake.y, d = pancake.radius + 1., color = 0xf4d29cff); // Render the pancakes
+        circ!(x = pancake.x, y = pancake.y, d = pancake.radius, color = 0xdba463ff); // Render the pancakes
     }
 
     // Draw the score
