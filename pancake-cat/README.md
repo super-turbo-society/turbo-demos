@@ -13,6 +13,7 @@ From the project dir, run the following command:
 ```sh
 turbo run -w .
 ```
+
 **Development Tips:**
 - If you update sprites while your game is running, Turbo will immediately show the changes. Just be sure to restart Turbo when adding new sprites.
 - Using the keyboard shortcut `cmd+r / ctrl+r` will reset your game to its initial state
@@ -20,7 +21,7 @@ turbo run -w .
 
 ## Walkthrough
 
-### Game Configuration  
+### Game Configuration
 
 The `turbo::cfg!` macro is used to define metadata and settings for your game.
 
@@ -36,7 +37,7 @@ turbo::cfg! {r#"
     description = "Catch falling pancakes!"
     [settings]
     resolution = [256, 144]
-"#} 
+"#}
 ```
 
 ### Game State Initialization
