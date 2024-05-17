@@ -38,16 +38,16 @@ turbo::init! {
 
 // Implement the game loop using the turbo::go! macro
 turbo::go! {
-    // Load the game state
-    let mut state = GameState::load();
+      // Load the game state
+      let mut state = GameState::load();
 
-    // Handle user input
-       if gamepad(0).left.pressed() {
-           state.cat_x -= 2.;
-       }
-       if gamepad(0).right.pressed() {
-           state.cat_x += 2.;
-       }
+      // Handle user input
+      if gamepad(0).left.pressed() {
+          state.cat_x -= 2.;
+      }
+      if gamepad(0).right.pressed() {
+          state.cat_x += 2.;
+      }  
 
     // Generate new pancakes at random intervals
     if rand() % 64 == 0 {
