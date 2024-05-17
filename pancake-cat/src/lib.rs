@@ -49,7 +49,6 @@ turbo::go! {
         state.cat_x += 2.;
     }
 
-
     // Generate new pancakes at random intervals
     if rand() % 64 == 0 {
         // Create a new pancake with random attributes
