@@ -35,7 +35,7 @@ impl Bork {
 
     // Method to draw the bork
     pub fn draw(&self) {
-        sprite!("bork", x = self.x as i32, y = self.y as i32);
+        sprite!("bork", x = self.x, y = self.y);
         // rect!(
         //     x = self.x as i32,
         //     y = self.y as i32,
@@ -77,7 +77,7 @@ impl Enemy {
 
     // Method to draw the enemy
     pub fn draw(&self) {
-        sprite!("enemy", x = self.x as i32, y = self.y as i32, fps = fps::FAST);
+        sprite!("enemy", x = self.x, y = self.y, fps = fps::FAST);
         // rect!(
         //     w = ENEMY_WIDTH as u32,
         //     h = ENEMY_HEIGHT as u32,
@@ -111,37 +111,37 @@ impl Powerup {
     pub fn draw(&self) {
         match self.powerup_type {
             PowerupType::DoubleJump => {
-                sprite!("double_jump", x = self.x as i32, y = self.y as i32);
+                sprite!("double_jump", x = self.x, y = self.y);
                 rect!(
-                    w = POWERUP_WIDTH as u32,
-                    h = POWERUP_HEIGHT as u32,
+                    w = POWERUP_WIDTH,
+                    h = POWERUP_HEIGHT,
                     color = 0xff000fff,
-                    x = self.x as i32,
-                    y = self.y as i32
+                    x = self.x,
+                    y = self.y
                 );
             }
             PowerupType::SpeedBoost => {
-                sprite!("speed_boost", x = self.x as i32, y = self.y as i32);
+                sprite!("speed_boost", x = self.x, y = self.y);
                 rect!(
-                    w = POWERUP_WIDTH as u32,
-                    h = POWERUP_HEIGHT as u32,
+                    w = POWERUP_WIDTH,
+                    h = POWERUP_HEIGHT,
                     color = 0xffff00ff,
-                    x = self.x as i32,
-                    y = self.y as i32
+                    x = self.x,
+                    y = self.y
                 );
             }
             PowerupType::MultiBork => {
-                sprite!("multi_bork", x = self.x as i32, y = self.y as i32);
+                sprite!("multi_bork", x = self.x, y = self.y);
                 rect!(
-                    w = POWERUP_WIDTH as u32,
-                    h = POWERUP_HEIGHT as u32,
+                    w = POWERUP_WIDTH,
+                    h = POWERUP_HEIGHT,
                     color = 0xff00ffff,
-                    x = self.x as i32,
-                    y = self.y as i32
+                    x = self.x,
+                    y = self.y
                 );
             }
             PowerupType::Bat => {
-                sprite!("coin", x = self.x as i32, y = self.y as i32);
+                sprite!("coin", x = self.x, y = self.y);
                 // rect!(
                 //     w = POWERUP_WIDTH as u32,
                 //     h = POWERUP_HEIGHT as u32,

@@ -682,21 +682,21 @@ fn draw_stars(state: &GameState, screen_w: u32, screen_h: u32) {
 
 fn draw_player(player: &Player) {
     rect!(
-        x = player.x as i32,
-        y = player.y as i32,
+        x = player.x,
+        y = player.y,
         w = player.width,
         h = player.height,
         color = player.color
     );
     if let Some(accessory) = &player.accessory {
-        sprite!(accessory, x = player.x as i32, y = player.y as i32);
+        sprite!(accessory, x = player.x, y = player.y);
     }
 }
 
 fn draw_enemy(enemy: &Enemy) {
     rect!(
-        x = enemy.x as i32,
-        y = enemy.y as i32,
+        x = enemy.x,
+        y = enemy.y,
         w = enemy.width,
         h = enemy.height,
         color = 0xaaaaaaff
@@ -705,12 +705,12 @@ fn draw_enemy(enemy: &Enemy) {
 
 fn draw_projectile(projectile: &Projectile) {
     let color = match projectile.projectile_type {
-        ProjectileType::Splatter | ProjectileType::Fragment => 0xff0000ff,
-        ProjectileType::Basic | ProjectileType::Bomb | ProjectileType::Laser => 0xffff00ff,
+        ProjectileType::Splatter | ProjectileType::Fragment => 0xff000ff,
+        ProjectileType::Basic | ProjectileType::Bomb | ProjectileType::Laser => 0xfff00ff,
     };
     circ!(
-        x = projectile.x as i32,
-        y = projectile.y as i32,
+        x = projectile.x,
+        y = projectile.y,
         d = projectile.width.max(projectile.height),
         color = color
     );
@@ -725,7 +725,7 @@ fn draw_powerup(powerup: &Powerup, tick: u32) {
         color = match powerup.effect {
             PowerupEffect::Heal => 0x00ff66ff,
             PowerupEffect::MaxHealthUp => 0x00ffffff,
-            PowerupEffect::DamageBoost(_) => 0xff0066ff,
+            PowerupEffect::DamageBoost(_) => 0xff0066f,
             PowerupEffect::SpeedBoost => 0x6600ffff,
         }
     );
@@ -746,7 +746,7 @@ fn draw_hud(state: &GameState, screen_w: u32) {
     // Drawing borders for the HUD section
     rect!(
         x = 0,
-        y = hud_height as i32,
+        y = hud_height,
         w = screen_w,
         h = 1,
         // border = 1,
@@ -755,7 +755,7 @@ fn draw_hud(state: &GameState, screen_w: u32) {
 
     // Displaying game information on the HUD
     let hud_padding = 4; // Padding inside the HUD
-    let text_color = 0xffffffff; // White text color
+    let text_color = 0xfffffff; // White text color
 
     // Display Score
     let score_text = format!("LVL: 1");
@@ -797,20 +797,8 @@ fn draw_notifications(state: &GameState, screen_w: u32, screen_h: u32) {
         let len = notif.chars().count();
         let w = len * 5;
         let x = (screen_w as usize / 2) - (w / 2);
-        rect!(
-            w = w as u32 + 4,
-            h = 10,
-            x = x as i32 - 2,
-            y = 24 - 2,
-            color = 0x22aaaaff
-        );
-        text!(
-            notif,
-            x = x as i32,
-            y = 24,
-            font = Font::M,
-            color = 0xffffffff
-        );
+        rect!(w = w + 4, h = 10, x = x - 2, y = 24 - 2, color = 0x22aaaaff);
+        text!(notif, x = x, y = 24, font = Font::M, color = 0xffffffff);
         break;
     }
 }
@@ -818,15 +806,15 @@ fn draw_notifications(state: &GameState, screen_w: u32, screen_h: u32) {
 fn draw_game_over(state: &GameState, screen_w: u32, screen_h: u32) {
     text!(
         "GAME OVER",
-        x = (screen_w as i32 / 2) - 32,
-        y = (screen_h as i32 / 2) - 4,
+        x = (screen_w / 2) - 32,
+        y = (screen_h / 2) - 4,
         font = Font::L
     );
     if state.tick / 4 % 8 < 4 {
         text!(
             "PRESS START",
-            x = (screen_w as i32 / 2) - 24,
-            y = (screen_h as i32 / 2) - 4 + 16,
+            x = (screen_w / 2) - 24,
+            y = (screen_h / 2) - 4 + 16,
             font = Font::M
         );
     }
