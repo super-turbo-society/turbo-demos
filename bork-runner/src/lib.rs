@@ -290,10 +290,10 @@ turbo::go! {
         } else {
             8
         };
-        sprite!(balloons, x = (state.dog_x - DOGE_WIDTH) as i32, y = (state.dog_y - 16.) as i32, fps = fps::SLOW);
-        sprite!(doge, x = (state.dog_x - DOGE_WIDTH) as i32, y = state.dog_y as i32, fps = fps);
+        sprite!(balloons, x = state.dog_x - DOGE_WIDTH, y = state.dog_y - 16., fps = fps::SLOW);
+        sprite!(doge, x = state.dog_x - DOGE_WIDTH, y = state.dog_y, fps = fps);
     } else {
-        sprite!("sad_doge", x = (state.dog_x - DOGE_WIDTH) as i32, y = state.dog_y as i32, fps = fps::FAST);
+        sprite!("sad_doge", x = state.dog_x - DOGE_WIDTH, y = state.dog_y, fps = fps::FAST);
     }
     for bork in state.borks.iter() {
         bork.draw();
@@ -316,8 +316,8 @@ turbo::go! {
     text!(mmss, x = 108, y = 8, font = Font::L, color = 0x000000ff);
 
     text!("BORK points", x = 190, y = 3, color = 0x000000ff, font = Font::S);
-    text!(&format!("${:06}", state.score), x = 190, y = 9, font = Font::L, color = 0x000000aa);
-    text!(&format!("${:06}", state.score), x = 190, y = 8, font = Font::L, color = 0x000000ff);
+    text!("${:06}", state.score; x = 190, y = 9, font = Font::L, color = 0x000000aa);
+    text!("${:06}", state.score; x = 190, y = 8, font = Font::L, color = 0x000000ff);
     // text!(&format!("Health: {}", state.health), x = 10, y = 20, font = Font::M, color = 0xffffffff);
     // text!(&format!("Energy: {}", state.energy), x = 10, y = 30, font = Font::M, color = 0xffffffff);
 

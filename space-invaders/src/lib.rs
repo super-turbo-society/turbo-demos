@@ -85,7 +85,7 @@ turbo::go! {
                 y: state.player_y, // Starting from the player's position
             });
         }
-        
+
         // Update bullet positions
         state.bullets.retain_mut(|bullet| {
             bullet.y -= 4.0; // Move the bullet upwards
@@ -144,23 +144,23 @@ turbo::go! {
     }
 
     // Draw the player
-    sprite!("player", x = state.player_x as i32 - 8, y = state.player_y as i32);
+    sprite!("player", x = state.player_x - 8.0, y = state.player_y);
 
     // Draw the invaders
     for invader in &state.invaders {
         // Change sprite every .5s
         let sprite_index = if state.tick % 60 < 30 { 0 } else { 1 };
         let sprite_name = &invader.sprites[sprite_index];
-        sprite!(sprite_name, x = invader.x as i32, y = invader.y as i32);
+        sprite!(sprite_name, x = invader.x, y = invader.y);
     }
 
     // Draw the bullets
     for bullet in &state.bullets {
-        rect!(x = bullet.x as i32, y = bullet.y as i32, w = 2, h = 2, color = 0xffffffff);
+        rect!(x = bullet.x, y = bullet.y, w = 2, h = 2, color = 0xffffffff);
     }
 
     // Draw the score
-    text!(&format!("SCORE: {:0>5}", state.score), x = 10, y = 10, font = Font::L, color = 0xffffffff);
+    text!("SCORE: {:0>5}", state.score; x = 10, y = 10, font = Font::L, color = 0xffffffff);
 
     if won_game {
         // TODO: draw game over text

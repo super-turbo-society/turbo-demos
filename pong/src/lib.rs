@@ -110,27 +110,27 @@ turbo::go! {
 
     // Draw paddles and ball
     rect!(
-        x = state.paddle1.x as i32,
-        y = state.paddle1.y as i32,
+        x = state.paddle1.x,
+        y = state.paddle1.y,
         w = 8,
-        h = state.paddle1.height as u32,
+        h = state.paddle1.height,
         color = 0xffffffff
     );
     rect!(
-        x = state.paddle2.x as i32,
-        y = state.paddle2.y as i32,
+        x = state.paddle2.x,
+        y = state.paddle2.y,
         w = 8,
-        h = state.paddle2.height as u32,
+        h = state.paddle2.height,
         color = 0xffffffff
     );
     circ!(
-        x = state.ball.x as i32,
-        y = state.ball.y as i32,
-        d = state.ball.radius as u32,
+        x = state.ball.x,
+        y = state.ball.y,
+        d = state.ball.radius,
         color = 0xffffffff
     );
-    text!(&format!("P1: {}", state.p1_score), font = Font::L, x = 64);
-    text!(&format!("P2: {}", state.p2_score), font = Font::L, x = (screen_w as i32 / 2) + 64);
+    text!("P1: {}", state.p1_score; font = Font::L, x = 64);
+    text!("P2: {}", state.p2_score; font = Font::L, x = (screen_w / 2.0) + 64.0);
 
     // Save game state for the next frame
     state.save();

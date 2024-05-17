@@ -146,12 +146,7 @@ fn draw_title_screen(state: &GameState) {
             let t = state.tick as i32 / 2;
             let xoff = -32 + (t % 32);
             let yoff = -32 + (t % 32);
-            sprite!(
-                "hotdog",
-                x = (col * 32) + xoff,
-                y = (row * 32) + yoff,
-                opacity = 1.0
-            );
+            sprite!("hotdog", x = (col * 32) + xoff, y = (row * 32) + yoff);
         }
     }
 
@@ -172,7 +167,7 @@ fn draw_title_screen(state: &GameState) {
             border_radius = 2,
         );
         text!(
-            &format!("P{} joined", player.id + 1),
+           "P{} joined", player.id + 1;
             font = Font::M,
             x = left + 4 + (i as i32 * (52)),
             y = screen_h - 12
@@ -191,13 +186,7 @@ fn draw_title_screen(state: &GameState) {
         // sprite!("logo", x = x - xoff, y = y + yoff, scale_x = scale, scale_y = scale);
         let x = (screen_w / 2) - ((11 * 8) / 2);
         let y = screen_h / 2;
-        rect!(
-            w = screen_w as u32,
-            h = 32,
-            x = 0,
-            y = y - 12,
-            color = 0x000333ff
-        );
+        rect!(w = screen_w, h = 32, x = 0, y = y - 12, color = 0x000333ff);
         if state.tick % 60 < 30 {
             text!("PRESS START", font = Font::L, x = x, y = y);
         }
@@ -977,7 +966,7 @@ fn draw_player(player: &Player, show_number: bool) {
     );
     if show_number {
         text!(
-            &format!("{}", player.id + 1),
+            "{}", player.id + 1;
             x = player.x as i32 + 8,
             y = player.y as i32 + 24,
             font = Font::S,
@@ -1006,7 +995,7 @@ fn draw_enemy(enemy: &Enemy) {
     };
     rect!(
         color = color,
-        w = ((enemy.health as f32 / enemy.max_health as f32) * 10.) as u32,
+        w = (enemy.health as f32 / enemy.max_health as f32) * 10.,
         h = 2,
         x = x + (enemy.width / 2) as i32 - 5,
         y = y - 4
@@ -1017,17 +1006,13 @@ fn draw_enemy(enemy: &Enemy) {
 fn draw_projectile(projectile: &Projectile) {
     match projectile.projectile_type {
         ProjectileType::Splatter => {
-            sprite!(
-                "projectile_ketchup",
-                x = projectile.x as i32,
-                y = projectile.y as i32
-            );
+            sprite!("projectile_ketchup", x = projectile.x, y = projectile.y);
         }
         ProjectileType::Fragment => {
             let color = 0xff0000ff;
             ellipse!(
-                x = projectile.x as i32,
-                y = projectile.y as i32,
+                x = projectile.x,
+                y = projectile.y,
                 w = projectile.width,
                 h = projectile.height,
                 color = color
@@ -1036,8 +1021,8 @@ fn draw_projectile(projectile: &Projectile) {
         _ => {
             let color = 0xffff00ff;
             ellipse!(
-                x = projectile.x as i32,
-                y = projectile.y as i32,
+                x = projectile.x,
+                y = projectile.y,
                 w = projectile.width,
                 h = projectile.height,
                 color = color
@@ -1076,7 +1061,7 @@ fn draw_powerup(powerup: &Powerup, tick: u32) {
         PowerupEffect::DamageBoost => "powerup_damage_boost",
         PowerupEffect::SpeedBoost => "powerup_speed_boost",
     };
-    sprite!(key, x = powerup.x as i32, y = powerup.y as i32);
+    sprite!(key, x = powerup.x, y = powerup.y);
 }
 
 fn draw_hud(state: &GameState, screen_w: u32) {
@@ -1117,20 +1102,14 @@ fn draw_notifications(state: &GameState, screen_w: u32, _screen_h: u32) {
         rect!(
             w = w as u32 + 4,
             h = 14,
-            x = x as i32 - 2,
+            x = x - 2,
             y = 24 - 2,
             color = 0x68386cff,
             border_radius = 4,
             border_width = 1,
             border_color = 0xb55088ff,
         );
-        text!(
-            notif,
-            x = x as i32,
-            y = 26,
-            font = Font::L,
-            color = 0xf6757aff
-        );
+        text!(notif, x = x, y = 26, font = Font::L, color = 0xf6757aff);
         break;
     }
 }
@@ -1138,16 +1117,16 @@ fn draw_notifications(state: &GameState, screen_w: u32, _screen_h: u32) {
 fn draw_game_over(state: &GameState, screen_w: u32, screen_h: u32) {
     text!(
         "GAME OVER",
-        x = (screen_w as i32 / 2) - 32,
-        y = (screen_h as i32 / 2) - 4,
+        x = (screen_w / 2) - 32,
+        y = (screen_h / 2) - 4,
         font = Font::L
     );
     if state.hit_timer == 0 {
         if state.tick / 4 % 8 < 4 {
             text!(
                 "PRESS START",
-                x = (screen_w as i32 / 2) - 24,
-                y = (screen_h as i32 / 2) - 4 + 16,
+                x = (screen_w / 2) - 24,
+                y = (screen_h / 2) - 4 + 16,
                 font = Font::M
             );
         }
