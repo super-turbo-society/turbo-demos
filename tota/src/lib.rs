@@ -27,6 +27,13 @@ turbo::cfg! {r#"
 // const CELL_RIGHT_BOTTOM_LEFT: u8 = 0b00001110; // 14 - Right, Bottom, and Left edges are sticky
 // const CELL_ALL: u8 = 0b00001111; // 15 - All edges are sticky
 
+const GRID_COLUMN_WIDTH: i32 = 48;
+const GRID_ROW_HEIGHT: i32 = 48;
+const GRID_ROW_LOW: i32 = 110; // Position of the truck
+const GRID_ROW_HIGH: i32 = 62; // Position of the plane. We can make these less magic numbery later.
+const GRID_COLUMN_OFFSET: i32 = 152;
+
+
 // Define the game state initialization using the turbo::init! macro
 turbo::init! {
     struct GameState {
@@ -52,6 +59,17 @@ turbo::init! {
                     },
                 }>,
                 upgrades: Vec<Upgrade>,                
+            }),
+            Battle(struct BattleScreen {
+                upgrades: Vec<Upgrade>,
+                enemies: Vec<struct Enemy {
+                    kind: enum EnemyKind {
+                        Car,
+                        Plane,
+                    },
+                    grid_position: (i32, i32),
+                }>,
+                selected_index: usize,
             }),
         },
     } = {
@@ -456,6 +474,10 @@ impl Shape {
 turbo::go!({
     // Load the game state
     let mut state = GameState::load();
+    //temp vars to get around 'borrowing' issue that I don't totally understand
+    let mut transition_to_battle = false;
+    let mut upgrades_for_battle = vec![];
+
     match &mut state.screen {
         Screen::Title(screen) => {
             clear!(0xfad6b8ff);
@@ -502,22 +524,20 @@ turbo::go!({
                 // text!("empty = {}\noverlap = {}\nstick = {}", is_empty, is_overlapping, is_stickable; y = 128, font = Font::L);
                 can_place_upgrade = !is_overlapping && is_stickable;
                 if can_place_upgrade {
-                    if gamepad(0).start.just_pressed() {
+                    if gamepad(0).a.just_pressed() {
                         can_place_upgrade = false;
                         screen.upgrades.push(upgrade.clone());
                         let upgrade_shapes = screen.upgrades.iter().map(|u| u.shape.clone()).collect::<Vec<_>>();
                         screen.upgrade = Upgrade::random_placeable(&upgrade_shapes);
-                        turbo::println!("NEXT = {:?}", screen.upgrade);
+                       // turbo::println!("NEXT = {:?}", screen.upgrade);
                     }
                 }
             }
-            // if screen.upgrade.is_none() {
-            //     screen.upgrade = next_upgrade;
-            // }
-    
-            // Set the background color
-            // clear(0x000000ff);
-    
+            
+            if gamepad(0).start.just_pressed() && screen.upgrade.is_none() {
+                transition_to_battle = true;
+                upgrades_for_battle = screen.upgrades.clone();
+            }
             // Draw the grid
             for y in 0..8 {
                 for x in 0..8 {
@@ -560,6 +580,91 @@ turbo::go!({
                 upgrade.shape.draw(true, can_place_upgrade);
             }
         }
+        Screen::Battle(screen) => {
+            clear!(0xffa500ff); // Orange background
+
+            // Draw road sprite
+            sprite!(
+                "road",
+                x = 0,
+                y = 110
+            );
+        
+            // Handle input for cycling through upgrades
+            if gamepad(0).up.just_pressed() || gamepad(0).right.just_pressed() {
+                let mut next_index = screen.selected_index;
+                loop {
+                    next_index = (next_index + 1) % screen.upgrades.len();
+                    if screen.upgrades[next_index].kind.to_str() != "truck" {
+                        break;
+                    }
+                }
+                screen.selected_index = next_index;
+            }
+            if gamepad(0).down.just_pressed() || gamepad(0).left.just_pressed() {
+                let mut prev_index = screen.selected_index;
+                loop {
+                    if prev_index == 0 {
+                        prev_index = screen.upgrades.len() - 1;
+                    } else {
+                        prev_index -= 1;
+                    }
+                    if screen.upgrades[prev_index].kind.to_str() != "truck" {
+                        break;
+                    }
+                }
+                screen.selected_index = prev_index;
+            }
+        
+            for (index, upgrade) in screen.upgrades.iter().enumerate() {
+                let is_selected = index == screen.selected_index;
+                sprite!(
+                    upgrade.kind.to_str(),
+                    x = upgrade.shape.offset.0 * 16,
+                    y = upgrade.shape.offset.1 * 16,
+                    opacity = 1
+                );
+                upgrade.shape.draw(is_selected, true); // Draw with green rectangle if selected
+            }
+        
+           // Draw enemies
+            for enemy in &screen.enemies {
+                let (column, row) = enemy.grid_position;
+                let sprite_name = match enemy.kind {
+                    EnemyKind::Car => "car_enemy",
+                    EnemyKind::Plane => "plane_enemy",
+                };
+                let y_position = match row {
+                    0 => GRID_ROW_HIGH,
+                    1 => GRID_ROW_LOW,
+                    _ => 0, // Default case, should not happen
+                };
+               // turbo::println!("Enemy: {:?}, Column: {}, Row: {}, X: {}, Y: {}",
+               // enemy.kind, column, row, GRID_COLUMN_OFFSET + column * GRID_COLUMN_WIDTH, y_position);
+               // turbo::println!("Drawing sprite: {}, at X: {}, Y: {}",
+                // sprite_name, GRID_COLUMN_OFFSET + column * GRID_COLUMN_WIDTH, y_position);
+                sprite!(
+                    sprite_name,
+                    x = GRID_COLUMN_OFFSET + column * GRID_COLUMN_WIDTH,
+                    y = y_position
+                );
+            }
+        }
+
+    }
+    //Using this to move the upgrades variable into the battle screen
+    if transition_to_battle {
+        state.screen = Screen::Battle(BattleScreen {
+            upgrades: upgrades_for_battle,
+            //replace this with enemy wave data eventually
+            enemies: vec![
+                Enemy { kind: EnemyKind::Car, grid_position: (0, 1) },
+                Enemy { kind: EnemyKind::Plane, grid_position: (1, 0) },
+                Enemy { kind: EnemyKind::Car, grid_position: (2, 1) },
+                Enemy { kind: EnemyKind::Car, grid_position: (3, 1) },
+            ], // Initialize with some enemies
+            selected_index: 1, // Initialize selected_index to 1
+        });
     }
 
     state.save();
