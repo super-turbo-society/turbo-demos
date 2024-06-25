@@ -477,7 +477,7 @@ turbo::go!({
             }
         },
         Screen::Garage(screen) => {
-            clear!(0x000000ff);
+            clear!(0xffffffff);
             let mut can_place_upgrade = false;
             // let mut next_upgrade = None;
             if let Some(upgrade) = &mut screen.upgrade {
