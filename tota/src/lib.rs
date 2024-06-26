@@ -41,6 +41,8 @@ turbo::init! {
                             edges: [bool; 4], // [top, right, bottom, left]
                         }>
                     },
+                    cooldown_counter: i32,
+                    cooldown_max: i32
                 }>,
                 upgrades: Vec<Upgrade>,                
             }),
@@ -56,7 +58,9 @@ turbo::init! {
                 }>,
                 selected_index: usize,
                 battle_state: enum BattleState {
-                    ChooseAttack,
+                    ChooseAttack{
+                        first_frame: bool,
+                    },
                     AnimateAttack {
                         weapon_sprite: String,
                         weapon_position: (f32, f32),
@@ -93,8 +97,8 @@ impl GarageScreen {
 }
 
 impl Upgrade {
-    pub fn new(kind: UpgradeKind, shape: Shape) -> Self {
-        Self { kind, shape }
+    pub fn new(kind: UpgradeKind, shape: Shape, cooldown_max: i32) -> Self {
+        Self { kind, shape, cooldown_counter: 0, cooldown_max }
     }
     pub fn random() -> Self {
         match rand() % 4 {
@@ -156,7 +160,7 @@ impl Upgrade {
             cells.insert((7, 2), Cell { edges: [false, false, false, false] });
     
             Shape::new(cells)
-        })
+        }, 5)
     }
     #[rustfmt::skip]
     fn new_skull_box() -> Self {
@@ -167,7 +171,7 @@ impl Upgrade {
             cells.insert((0, 1), Cell { edges: [true, true, true, true] });
             cells.insert((1, 1), Cell { edges: [true, true, true, true] });
             Shape::new(cells)
-        })
+        }, 5)
     }
     #[rustfmt::skip]
     fn new_auto_rifle() -> Self {
@@ -176,7 +180,7 @@ impl Upgrade {
             cells.insert((0, 0), Cell { edges: [false, true, false, false] });
             cells.insert((1, 0), Cell { edges: [false, false, false, false] });
             Shape::new(cells)
-        })
+        }, 3)
     }
     #[rustfmt::skip]
     fn new_harpoon() -> Self {
@@ -186,7 +190,7 @@ impl Upgrade {
             cells.insert((1, 0), Cell { edges: [false, false, false, false] });
             cells.insert((2, 0), Cell { edges: [false, false, false, false] });
             Shape::new(cells)
-        })
+        }, 4)
     }
     #[rustfmt::skip]
     fn new_laser_gun() -> Self {
@@ -195,7 +199,7 @@ impl Upgrade {
             cells.insert((0, 0), Cell { edges: [false, true, false, false] });
             cells.insert((1, 0), Cell { edges: [false, false, false, false] });
             Shape::new(cells)
-        })
+        }, 4)
     }
 }
 
@@ -594,13 +598,24 @@ turbo::go!({
 
             // Match the whole battle_state with &mut
             match &mut screen.battle_state {
-                BattleState::ChooseAttack => {
+                BattleState::ChooseAttack {ref mut first_frame} => {
+                
+                    // Decrease cooldown counters
+                    if *first_frame {
+                        for upgrade in &mut screen.upgrades {
+                            if upgrade.cooldown_counter > 0 {
+                                upgrade.cooldown_counter -= 1;
+                            }
+                        }
+                        *first_frame = false;
+                    }
+                
                     // Handle input for cycling through upgrades
                     if gamepad(0).up.just_pressed() || gamepad(0).right.just_pressed() {
                         let mut next_index = screen.selected_index;
                         loop {
                             next_index = (next_index + 1) % screen.upgrades.len();
-                            if screen.upgrades[next_index].kind != UpgradeKind::Truck && screen.upgrades[next_index].kind != UpgradeKind::SkullBox {
+                            if screen.upgrades[next_index].cooldown_counter == 0 && screen.upgrades[next_index].kind != UpgradeKind::Truck && screen.upgrades[next_index].kind != UpgradeKind::SkullBox {
                                 break;
                             }
                         }
@@ -614,7 +629,7 @@ turbo::go!({
                             } else {
                                 prev_index -= 1;
                             }
-                            if screen.upgrades[prev_index].kind != UpgradeKind::Truck && screen.upgrades[prev_index].kind != UpgradeKind::SkullBox {
+                            if screen.upgrades[prev_index].cooldown_counter == 0 && screen.upgrades[prev_index].kind != UpgradeKind::Truck && screen.upgrades[prev_index].kind != UpgradeKind::SkullBox {
                                 break;
                             }
                         }
@@ -662,31 +677,73 @@ turbo::go!({
                             h = GRID_ROW_HEIGHT,
                             x = GRID_COLUMN_OFFSET + column * GRID_COLUMN_WIDTH,
                             y = y_position,
-                            color = 0xff0000aa // Red rectangle
+                            color = 0xff0000aa // More solid red rectangle with higher opacity
                         );
+                    }
+                
+                    // Highlight upgrades with cooldown
+                    for upgrade in &screen.upgrades {
+                        if upgrade.cooldown_counter > 0 {
+                            rect!(
+                                w = upgrade.shape.size.0 as i32 * 16,
+                                h = upgrade.shape.size.1 as i32 * 16,
+                                x = upgrade.shape.offset.0 as i32 * 16,
+                                y = upgrade.shape.offset.1 as i32 * 16,
+                                color = 0xff0000aa // More solid red rectangle with higher opacity
+                            );
+                        }
                     }
                 
                     // Handle attack selection
                     if gamepad(0).start.just_pressed() {
-                        let selected_upgrade = &screen.upgrades[screen.selected_index];
+                        let selected_upgrade = &mut screen.upgrades[screen.selected_index];
+                        if selected_upgrade.cooldown_counter == 0 {
+                            let mut target_enemies = vec![];
                 
-                        screen.battle_state = BattleState::AnimateAttack {
-                            weapon_sprite: selected_upgrade.kind.to_str().to_string(),
-                            weapon_position: (
-                                selected_upgrade.shape.offset.0 as f32 * 16.0,
-                                selected_upgrade.shape.offset.1 as f32 * 16.0
-                            ),
-                            target_position: (
-                                screen.enemies[target_enemies[0]].grid_position.0 as f32 * GRID_COLUMN_WIDTH as f32 + GRID_COLUMN_OFFSET as f32,
-                                screen.enemies[target_enemies[0]].grid_position.1 as f32 * GRID_ROW_HEIGHT as f32 + if screen.enemies[target_enemies[0]].grid_position.1 == 0 { GRID_ROW_HIGH as f32 } else { GRID_ROW_LOW as f32 } - (GRID_ROW_HEIGHT as f32 / 2.0)
-                            ),
-                            target_enemies,
-                            active: true,
-                            weapon_kind: selected_upgrade.kind.clone(),
-                            applied_damage: false,
-                        };
+                            match selected_upgrade.kind {
+                                UpgradeKind::AutoRifle => {
+                                    if let Some((index, _)) = screen.enemies.iter().enumerate().min_by_key(|(_, enemy)| enemy.grid_position.0) {
+                                        target_enemies.push(index);
+                                    }
+                                },
+                                UpgradeKind::Harpoon => {
+                                    for (index, enemy) in screen.enemies.iter().enumerate() {
+                                        if enemy.grid_position.1 == 1 {
+                                            target_enemies.push(index);
+                                        }
+                                    }
+                                },
+                                UpgradeKind::LaserGun => {
+                                    for (index, enemy) in screen.enemies.iter().enumerate() {
+                                        if enemy.grid_position.1 == 0 {
+                                            target_enemies.push(index);
+                                        }
+                                    }
+                                },
+                                _ => {}
+                            }
+                
+                            selected_upgrade.cooldown_counter = selected_upgrade.cooldown_max;
+                
+                            screen.battle_state = BattleState::AnimateAttack {
+                                weapon_sprite: selected_upgrade.kind.to_str().to_string(),
+                                weapon_position: (
+                                    selected_upgrade.shape.offset.0 as f32 * 16.0,
+                                    selected_upgrade.shape.offset.1 as f32 * 16.0
+                                ),
+                                target_position: (
+                                    screen.enemies[target_enemies[0]].grid_position.0 as f32 * GRID_COLUMN_WIDTH as f32 + GRID_COLUMN_OFFSET as f32,
+                                    screen.enemies[target_enemies[0]].grid_position.1 as f32 * GRID_ROW_HEIGHT as f32 + if screen.enemies[target_enemies[0]].grid_position.1 == 0 { GRID_ROW_HIGH as f32 } else { GRID_ROW_LOW as f32 } - (GRID_ROW_HEIGHT as f32 / 2.0)
+                                ),
+                                target_enemies,
+                                active: true,
+                                weapon_kind: selected_upgrade.kind.clone(),
+                                applied_damage: false,
+                            };
+                        }
                     }
                 }
+                
                 BattleState::AnimateAttack { 
                     ref mut weapon_sprite, 
                     ref mut weapon_position, 
@@ -753,7 +810,7 @@ turbo::go!({
 
                 BattleState::EnemiesAttack => {
                     // Placeholder for enemies attack
-                    screen.battle_state = BattleState::ChooseAttack;
+                    screen.battle_state = BattleState::ChooseAttack {first_frame: true};
                 },
             }
         }
@@ -771,7 +828,7 @@ turbo::go!({
                 Enemy { kind: EnemyKind::Car, grid_position: (3, 1), health: 3 },
             ], // Initialize with some enemies
             selected_index: 1, // Initialize selected_index to 1
-            battle_state: BattleState::ChooseAttack, // Initialize battle state
+            battle_state: BattleState::ChooseAttack {first_frame: true}, // Initialize battle state
         });
     }
 
