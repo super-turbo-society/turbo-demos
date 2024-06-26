@@ -10,29 +10,12 @@ turbo::cfg! {r#"
     resolution = [384, 216]
 "#}
 
-// const CELL_EMPTY: u8 = 0b00000000; // 0 - No edges are sticky
-// const CELL_TOP: u8 = 0b00000001; // 1 - Top edge is sticky
-// const CELL_RIGHT: u8 = 0b00000010; // 2 - Right edge is sticky
-// const CELL_BOTTOM: u8 = 0b00000100; // 4 - Bottom edge is sticky
-// const CELL_LEFT: u8 = 0b00001000; // 8 - Left edge is sticky
-// const CELL_TOP_RIGHT: u8 = 0b00000011; // 3 - Top and Right edges are sticky
-// const CELL_TOP_BOTTOM: u8 = 0b00000101; // 5 - Top and Bottom edges are sticky
-// const CELL_TOP_LEFT: u8 = 0b00001001; // 9 - Top and Left edges are sticky
-// const CELL_RIGHT_BOTTOM: u8 = 0b00000110; // 6 - Right and Bottom edges are sticky
-// const CELL_RIGHT_LEFT: u8 = 0b00001010; // 10 - Right and Left edges are sticky
-// const CELL_BOTTOM_LEFT: u8 = 0b00001100; // 12 - Bottom and Left edges are sticky
-// const CELL_TOP_RIGHT_BOTTOM: u8 = 0b00000111; // 7 - Top, Right, and Bottom edges are sticky
-// const CELL_TOP_RIGHT_LEFT: u8 = 0b00001011; // 11 - Top, Right, and Left edges are sticky
-// const CELL_TOP_BOTTOM_LEFT: u8 = 0b00001101; // 13 - Top, Bottom, and Left edges are sticky
-// const CELL_RIGHT_BOTTOM_LEFT: u8 = 0b00001110; // 14 - Right, Bottom, and Left edges are sticky
-// const CELL_ALL: u8 = 0b00001111; // 15 - All edges are sticky
-
 const GRID_COLUMN_WIDTH: i32 = 48;
 const GRID_ROW_HEIGHT: i32 = 48;
 const GRID_ROW_LOW: i32 = 110; // Position of the truck
 const GRID_ROW_HIGH: i32 = 62; // Position of the plane. We can make these less magic numbery later.
 const GRID_COLUMN_OFFSET: i32 = 152;
-
+const BULLET_SPEED: f32 = 4.0;
 
 // Define the game state initialization using the turbo::init! macro
 turbo::init! {
@@ -68,8 +51,21 @@ turbo::init! {
                         Plane,
                     },
                     grid_position: (i32, i32),
+                    health: i32, // Added health for enemies
                 }>,
                 selected_index: usize,
+                battle_state: enum BattleState {
+                    ChooseAttack,
+                    AnimateAttack {
+                        weapon_sprite: String,
+                        weapon_position: (f32, f32),
+                        target_position: (f32, f32),
+                        target_enemy: usize,
+                        active: bool,
+                        weapon_kind: UpgradeKind,
+                    },
+                    EnemiesAttack,
+                },
             }),
         },
     } = {
@@ -124,7 +120,7 @@ impl Upgrade {
                 for j in 0..=max_y {
                     u.shape.offset = (i, j);
                     if !u.shape.overlaps_any(&shapes) && u.shape.can_stick_any(&shapes) {
-                        turbo::println!("NO OVERLAP AND CAN STICK! {:?}", u.shape.offset);
+                        //turbo::println!("NO OVERLAP AND CAN STICK! {:?}", u.shape.offset);
                         return Some(u.clone());
                     }
                 }
@@ -257,7 +253,6 @@ impl Shape {
 
         Self::new(cells)
     }
-
 
     #[rustfmt::skip]
     fn new_weird_slash() -> Self {
@@ -392,22 +387,6 @@ impl Shape {
         } else {
             0xff000044u32
         };
-        // let (w, h) = self.size;
-        // let w1 = w.saturating_sub((x + w).saturating_sub(8));
-        // let h1 = h.saturating_sub((y + h).saturating_sub(8));
-        // if is_active {
-        //     rect!(
-        //         w = w1 * 16,
-        //         h = h1 * 16,
-        //         x = x * 16,
-        //         y = y * 16,
-        //         color = if can_place {
-        //             0x00ff0044u32
-        //         } else {
-        //             0xff000044u32
-        //         }
-        //     );
-        // }
         for (pos, cell) in &self.cells {
             let (x, y) = (x + pos.0, y + pos.1);
             if x < 8 && y < 8 {
@@ -435,6 +414,7 @@ impl Shape {
             }
         }
     }
+
     fn draw_mini(&self) {
         rect!(
             w = 8 * 6,
@@ -501,7 +481,6 @@ turbo::go!({
         Screen::Garage(screen) => {
             clear!(0xffffffff);
             let mut can_place_upgrade = false;
-            // let mut next_upgrade = None;
             if let Some(upgrade) = &mut screen.upgrade {
                 // Handle user input for shape movement
                 if gamepad(0).up.just_pressed() {
@@ -516,12 +495,11 @@ turbo::go!({
                 if gamepad(0).right.just_pressed() {
                     upgrade.shape.move_right()
                 }
-    
-                let is_empty = screen.upgrades.is_empty();
+
+                let _is_empty = screen.upgrades.is_empty();
                 let upgrade_shapes = screen.upgrades.iter().map(|u| u.shape.clone()).collect::<Vec<_>>();
                 let is_overlapping = upgrade.shape.overlaps_any(&upgrade_shapes);
                 let is_stickable = upgrade.shape.can_stick_any(&upgrade_shapes);
-                // text!("empty = {}\noverlap = {}\nstick = {}", is_empty, is_overlapping, is_stickable; y = 128, font = Font::L);
                 can_place_upgrade = !is_overlapping && is_stickable;
                 if can_place_upgrade {
                     if gamepad(0).a.just_pressed() {
@@ -529,11 +507,10 @@ turbo::go!({
                         screen.upgrades.push(upgrade.clone());
                         let upgrade_shapes = screen.upgrades.iter().map(|u| u.shape.clone()).collect::<Vec<_>>();
                         screen.upgrade = Upgrade::random_placeable(&upgrade_shapes);
-                       // turbo::println!("NEXT = {:?}", screen.upgrade);
                     }
                 }
             }
-            
+
             if gamepad(0).start.just_pressed() && screen.upgrade.is_none() {
                 transition_to_battle = true;
                 upgrades_for_battle = screen.upgrades.clone();
@@ -541,11 +518,6 @@ turbo::go!({
             // Draw the grid
             for y in 0..8 {
                 for x in 0..8 {
-                    // let color = if screen.grid[y][x] == 0 {
-                    //     0x222222ff
-                    // } else {
-                    //     0xff0000ff
-                    // };
                     rect!(
                         w = 14,
                         h = 14,
@@ -555,8 +527,8 @@ turbo::go!({
                     );
                 }
             }
-    
-            let mut x = 0;
+
+            let mut _x = 0;
             for upgrade in &screen.upgrades {
                 sprite!(
                     upgrade.kind.to_str(),
@@ -565,10 +537,7 @@ turbo::go!({
                     opacity = 1
                 );
                 upgrade.shape.draw(false, false);
-                // set_cam!(x = x * 6, y = 216 - (6 * 8));
-                // upgrade.shape.draw_mini();
-                // set_cam!(x = 0, y = 0);
-                x += 9;
+                _x += 9;
             }
             // Draw the current shape
             if let Some(upgrade) = &screen.upgrade {
@@ -589,33 +558,8 @@ turbo::go!({
                 x = 0,
                 y = 110
             );
-        
-            // Handle input for cycling through upgrades
-            if gamepad(0).up.just_pressed() || gamepad(0).right.just_pressed() {
-                let mut next_index = screen.selected_index;
-                loop {
-                    next_index = (next_index + 1) % screen.upgrades.len();
-                    if screen.upgrades[next_index].kind.to_str() != "truck" {
-                        break;
-                    }
-                }
-                screen.selected_index = next_index;
-            }
-            if gamepad(0).down.just_pressed() || gamepad(0).left.just_pressed() {
-                let mut prev_index = screen.selected_index;
-                loop {
-                    if prev_index == 0 {
-                        prev_index = screen.upgrades.len() - 1;
-                    } else {
-                        prev_index -= 1;
-                    }
-                    if screen.upgrades[prev_index].kind.to_str() != "truck" {
-                        break;
-                    }
-                }
-                screen.selected_index = prev_index;
-            }
-        
+
+            // Draw upgrades and enemies
             for (index, upgrade) in screen.upgrades.iter().enumerate() {
                 let is_selected = index == screen.selected_index;
                 sprite!(
@@ -626,8 +570,8 @@ turbo::go!({
                 );
                 upgrade.shape.draw(is_selected, true); // Draw with green rectangle if selected
             }
-        
-           // Draw enemies
+
+            // Draw enemies
             for enemy in &screen.enemies {
                 let (column, row) = enemy.grid_position;
                 let sprite_name = match enemy.kind {
@@ -639,31 +583,154 @@ turbo::go!({
                     1 => GRID_ROW_LOW,
                     _ => 0, // Default case, should not happen
                 };
-               // turbo::println!("Enemy: {:?}, Column: {}, Row: {}, X: {}, Y: {}",
-               // enemy.kind, column, row, GRID_COLUMN_OFFSET + column * GRID_COLUMN_WIDTH, y_position);
-               // turbo::println!("Drawing sprite: {}, at X: {}, Y: {}",
-                // sprite_name, GRID_COLUMN_OFFSET + column * GRID_COLUMN_WIDTH, y_position);
                 sprite!(
                     sprite_name,
                     x = GRID_COLUMN_OFFSET + column * GRID_COLUMN_WIDTH,
                     y = y_position
                 );
             }
-        }
 
+            // Match the whole battle_state with &mut
+            match &mut screen.battle_state {
+                BattleState::ChooseAttack => {
+                    // Handle input for cycling through upgrades
+                    if gamepad(0).up.just_pressed() || gamepad(0).right.just_pressed() {
+                        let mut next_index = screen.selected_index;
+                        loop {
+                            next_index = (next_index + 1) % screen.upgrades.len();
+                            if screen.upgrades[next_index].kind != UpgradeKind::Truck && screen.upgrades[next_index].kind != UpgradeKind::SkullBox {
+                                break;
+                            }
+                        }
+                        screen.selected_index = next_index;
+                    }
+                    if gamepad(0).down.just_pressed() || gamepad(0).left.just_pressed() {
+                        let mut prev_index = screen.selected_index;
+                        loop {
+                            if prev_index == 0 {
+                                prev_index = screen.upgrades.len() - 1;
+                            } else {
+                                prev_index -= 1;
+                            }
+                            if screen.upgrades[prev_index].kind != UpgradeKind::Truck && screen.upgrades[prev_index].kind != UpgradeKind::SkullBox {
+                                break;
+                            }
+                        }
+                        screen.selected_index = prev_index;
+                    }
+
+                    // Handle attack selection
+                    if gamepad(0).start.just_pressed() {
+                        let selected_upgrade = &screen.upgrades[screen.selected_index];
+                        let target_enemy = match selected_upgrade.kind {
+                            UpgradeKind::Harpoon => screen.enemies.iter().find(|enemy| enemy.grid_position.1 == 1),
+                            UpgradeKind::LaserGun => screen.enemies.iter().find(|enemy| enemy.grid_position.1 == 0),
+                            UpgradeKind::AutoRifle => screen.enemies.iter().min_by_key(|enemy| enemy.grid_position.0),
+                            _ => None,
+                        };
+                        if let Some(enemy) = target_enemy {
+                            screen.battle_state = BattleState::AnimateAttack {
+                                weapon_sprite: "bullet".to_string(),
+                                weapon_position: (selected_upgrade.shape.offset.0 as f32 * 16.0, selected_upgrade.shape.offset.1 as f32 * 16.0),
+                                target_position: (
+                                    enemy.grid_position.0 as f32 * GRID_COLUMN_WIDTH as f32 + GRID_COLUMN_OFFSET as f32,
+                                    enemy.grid_position.1 as f32 * GRID_ROW_HEIGHT as f32 + if enemy.grid_position.1 == 0 { GRID_ROW_HIGH as f32 } else { GRID_ROW_LOW as f32 } - (GRID_ROW_HEIGHT as f32 / 2.0)
+                                ),
+                                target_enemy: screen.enemies.iter().position(|e| e == enemy).unwrap(),
+                                active: true,
+                                weapon_kind: selected_upgrade.kind.clone(),
+                            };
+                        }
+                    }
+                },
+                BattleState::AnimateAttack { ref mut weapon_sprite, ref mut weapon_position, ref target_position, target_enemy, ref mut active, ref weapon_kind } => {
+                    if *active {
+                        let (wx, wy) = weapon_position;
+                        let (tx, ty) = target_position;
+                        let dx = *tx - *wx;
+                        let dy = *ty - *wy;
+                        let distance = (dx * dx + dy * dy).sqrt();
+                        if distance > 1.0 {
+                            let direction_x = dx / distance;
+                            let direction_y = dy / distance;
+                            *wx += direction_x * BULLET_SPEED;
+                            *wy += direction_y * BULLET_SPEED;
+                        } else {
+                            *wx = *tx;
+                            *wy = *ty;
+                        }
+
+                        let angle = dy.atan2(dx);
+
+                        sprite!(
+                            weapon_sprite,
+                            x = *wx,
+                            y = *wy,
+                            rotate = angle.to_degrees() + 90.0,
+                            scale_x = 0.175,
+                            scale_y = 0.175
+                        );
+
+                        if (*wx - *tx).abs() < BULLET_SPEED && (*wy - *ty).abs() < BULLET_SPEED {
+                            // Apply damage based on weapon kind
+                            match *weapon_kind {
+                                UpgradeKind::AutoRifle => {
+                                    let target_enemy_health;
+                                    {
+                                        let enemy = &mut screen.enemies[*target_enemy];
+                                        enemy.health -= 1;
+                                        target_enemy_health = enemy.health;
+                                    }
+                                    if target_enemy_health <= 0 {
+                                        screen.enemies.retain(|e| e.health > 0);
+                                    }
+                                },
+                                UpgradeKind::Harpoon => {
+                                    for enemy in screen.enemies.iter_mut().filter(|e| e.grid_position.1 == 1) {
+                                        enemy.health -= 1;
+                                    }
+                                    screen.enemies.retain(|e| e.health > 0);
+                                    *wx += BULLET_SPEED; // Keep moving off screen
+                                },
+                                UpgradeKind::LaserGun => {
+                                    for enemy in screen.enemies.iter_mut().filter(|e| e.grid_position.1 == 0) {
+                                        enemy.health -= 1;
+                                    }
+                                    screen.enemies.retain(|e| e.health > 0);
+                                    *wx += BULLET_SPEED; // Keep moving off screen
+                                },
+                                _ => {}
+                            }
+
+                            // Transition to the next state if the bullet is off screen
+                            if *wx > canvas_size!()[0] as f32 {
+                                *active = false;
+                                screen.battle_state = BattleState::EnemiesAttack;
+                            }
+                        }
+                    }
+                },                    
+                BattleState::EnemiesAttack => {
+                    // Placeholder for enemies attack
+                    screen.battle_state = BattleState::ChooseAttack;
+                },
+            }
+        }
     }
-    //Using this to move the upgrades variable into the battle screen
+
+    // Using this to move the upgrades variable into the battle screen
     if transition_to_battle {
         state.screen = Screen::Battle(BattleScreen {
             upgrades: upgrades_for_battle,
-            //replace this with enemy wave data eventually
+            // Replace this with enemy wave data eventually
             enemies: vec![
-                Enemy { kind: EnemyKind::Car, grid_position: (0, 1) },
-                Enemy { kind: EnemyKind::Plane, grid_position: (1, 0) },
-                Enemy { kind: EnemyKind::Car, grid_position: (2, 1) },
-                Enemy { kind: EnemyKind::Car, grid_position: (3, 1) },
+                Enemy { kind: EnemyKind::Car, grid_position: (0, 1), health: 3 },
+                Enemy { kind: EnemyKind::Plane, grid_position: (1, 0), health: 2 },
+                Enemy { kind: EnemyKind::Car, grid_position: (2, 1), health: 3 },
+                Enemy { kind: EnemyKind::Car, grid_position: (3, 1), health: 3 },
             ], // Initialize with some enemies
             selected_index: 1, // Initialize selected_index to 1
+            battle_state: BattleState::ChooseAttack, // Initialize battle state
         });
     }
 
