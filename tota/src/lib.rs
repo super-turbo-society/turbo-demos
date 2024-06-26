@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::collections::HashSet;
 
 // Define the game configuration using the turbo::cfg! macro
 turbo::cfg! {r#"
@@ -63,6 +64,7 @@ turbo::init! {
                         target_enemy: usize,
                         active: bool,
                         weapon_kind: UpgradeKind,
+                        applied_damage: bool,
                     },
                     EnemiesAttack,
                 },
@@ -639,11 +641,23 @@ turbo::go!({
                                 target_enemy: screen.enemies.iter().position(|e| e == enemy).unwrap(),
                                 active: true,
                                 weapon_kind: selected_upgrade.kind.clone(),
+                                applied_damage: false,
                             };
                         }
                     }
                 },
-                BattleState::AnimateAttack { ref mut weapon_sprite, ref mut weapon_position, ref target_position, target_enemy, ref mut active, ref weapon_kind } => {
+
+                BattleState::AnimateAttack { 
+                    ref mut weapon_sprite, 
+                    ref mut weapon_position, 
+                    ref mut target_position, 
+                    target_enemy, 
+                    ref mut active, 
+                    ref weapon_kind, 
+                    ref mut applied_damage 
+                } => {
+                    let mut new_battle_state = None; // Temporary variable to hold the new battle state
+                
                     if *active {
                         let (wx, wy) = weapon_position;
                         let (tx, ty) = target_position;
@@ -659,9 +673,9 @@ turbo::go!({
                             *wx = *tx;
                             *wy = *ty;
                         }
-
+                
                         let angle = dy.atan2(dx);
-
+                
                         sprite!(
                             weapon_sprite,
                             x = *wx,
@@ -670,46 +684,66 @@ turbo::go!({
                             scale_x = 0.175,
                             scale_y = 0.175
                         );
-
+                
                         if (*wx - *tx).abs() < BULLET_SPEED && (*wy - *ty).abs() < BULLET_SPEED {
-                            // Apply damage based on weapon kind
-                            match *weapon_kind {
-                                UpgradeKind::AutoRifle => {
-                                    let target_enemy_health;
-                                    {
-                                        let enemy = &mut screen.enemies[*target_enemy];
-                                        enemy.health -= 1;
-                                        target_enemy_health = enemy.health;
-                                    }
-                                    if target_enemy_health <= 0 {
+                            if !*applied_damage {
+                                match *weapon_kind {
+                                    UpgradeKind::AutoRifle => {
+                                        let target_enemy_health;
+                                        {
+                                            let enemy = &mut screen.enemies[*target_enemy];
+                                            enemy.health -= 1;
+                                            target_enemy_health = enemy.health;
+                                        }
+                                        if target_enemy_health <= 0 {
+                                            screen.enemies.retain(|e| e.health > 0);
+                                        }
+                                        new_battle_state = Some(BattleState::EnemiesAttack);
+                                        *active = false;
+                                    },
+                                    UpgradeKind::Harpoon | UpgradeKind::LaserGun => {
+                                        let filter_row = if *weapon_kind == UpgradeKind::Harpoon { 1 } else { 0 };
+                                        let mut last_enemy_position = None;
+                                        let mut enemies_hit = false;
+                
+                                        for enemy in screen.enemies.iter_mut() {
+                                            if enemy.grid_position.1 == filter_row {
+                                                if !*applied_damage {
+                                                    enemy.health -= 1;
+                                                    *applied_damage = true;
+                                                }
+                                                enemies_hit = true;
+                                                last_enemy_position = Some((
+                                                    enemy.grid_position.0 as f32 * GRID_COLUMN_WIDTH as f32 + GRID_COLUMN_OFFSET as f32,
+                                                    enemy.grid_position.1 as f32 * GRID_ROW_HEIGHT as f32 + if filter_row == 0 { GRID_ROW_HIGH as f32 } else { GRID_ROW_LOW as f32 } - (GRID_ROW_HEIGHT as f32 / 2.0)
+                                                ));
+                                            }
+                                        }
+                
                                         screen.enemies.retain(|e| e.health > 0);
-                                    }
-                                },
-                                UpgradeKind::Harpoon => {
-                                    for enemy in screen.enemies.iter_mut().filter(|e| e.grid_position.1 == 1) {
-                                        enemy.health -= 1;
-                                    }
-                                    screen.enemies.retain(|e| e.health > 0);
-                                    *wx += BULLET_SPEED; // Keep moving off screen
-                                },
-                                UpgradeKind::LaserGun => {
-                                    for enemy in screen.enemies.iter_mut().filter(|e| e.grid_position.1 == 0) {
-                                        enemy.health -= 1;
-                                    }
-                                    screen.enemies.retain(|e| e.health > 0);
-                                    *wx += BULLET_SPEED; // Keep moving off screen
-                                },
-                                _ => {}
+                
+                                        if !enemies_hit {
+                                            new_battle_state = Some(BattleState::EnemiesAttack);
+                                            *active = false;
+                                        } else if let Some(last_pos) = last_enemy_position {
+                                            *target_position = last_pos;
+                                            *applied_damage = false; // Reset applied damage for the next enemy
+                                        }
+                                    },
+                                    _ => {}
+                                }
                             }
-
-                            // Transition to the next state if the bullet is off screen
-                            if *wx > canvas_size!()[0] as f32 {
-                                *active = false;
-                                screen.battle_state = BattleState::EnemiesAttack;
-                            }
+                        } else {
+                            *applied_damage = false; // Reset the flag when moving to the next enemy
                         }
                     }
-                },                    
+                
+                    if let Some(new_state) = new_battle_state {
+                        screen.battle_state = new_state;
+                    }
+                }
+                      
+
                 BattleState::EnemiesAttack => {
                     // Placeholder for enemies attack
                     screen.battle_state = BattleState::ChooseAttack;
