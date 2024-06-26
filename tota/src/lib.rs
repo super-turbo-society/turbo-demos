@@ -66,9 +66,9 @@ turbo::init! {
                         weapon_position: (f32, f32),
                         target_position: (f32, f32),
                         target_enemies: Vec<usize>,
+                        num_enemies_hit: usize,
                         active: bool,
                         weapon_kind: UpgradeKind,
-                        applied_damage: bool,
                     },
                     EnemiesAttack,
                 }                
@@ -456,6 +456,13 @@ impl Shape {
     }
 }
 
+fn calculate_target_position(grid_position: (i32, i32)) -> (f32, f32) {
+    let (column, row) = grid_position;
+    let x = column as f32 * GRID_COLUMN_WIDTH as f32 + GRID_COLUMN_OFFSET as f32;
+    let y = row as f32 * GRID_ROW_HEIGHT as f32 + if row == 0 { GRID_ROW_HIGH as f32 } else { GRID_ROW_LOW as f32 } - (GRID_ROW_HEIGHT as f32 / 2.0);
+    (x, y)
+}
+
 // Implement the game loop using the turbo::go! macro
 turbo::go!({
     // Load the game state
@@ -731,27 +738,24 @@ turbo::go!({
                                     selected_upgrade.shape.offset.0 as f32 * 16.0,
                                     selected_upgrade.shape.offset.1 as f32 * 16.0
                                 ),
-                                target_position: (
-                                    screen.enemies[target_enemies[0]].grid_position.0 as f32 * GRID_COLUMN_WIDTH as f32 + GRID_COLUMN_OFFSET as f32,
-                                    screen.enemies[target_enemies[0]].grid_position.1 as f32 * GRID_ROW_HEIGHT as f32 + if screen.enemies[target_enemies[0]].grid_position.1 == 0 { GRID_ROW_HIGH as f32 } else { GRID_ROW_LOW as f32 } - (GRID_ROW_HEIGHT as f32 / 2.0)
-                                ),
+                                target_position: calculate_target_position(screen.enemies[target_enemies[0]].grid_position),
                                 target_enemies,
+                                num_enemies_hit: 0,
                                 active: true,
                                 weapon_kind: selected_upgrade.kind.clone(),
-                                applied_damage: false,
                             };
                         }
                     }
                 }
                 
-                BattleState::AnimateAttack { 
-                    ref mut weapon_sprite, 
-                    ref mut weapon_position, 
-                    ref mut target_position, 
-                    ref mut target_enemies, 
-                    ref mut active, 
-                    ref weapon_kind, 
-                    ref mut applied_damage 
+                BattleState::AnimateAttack {
+                    ref mut weapon_sprite,
+                    ref mut weapon_position,
+                    ref mut target_position,
+                    ref mut target_enemies,
+                    ref mut num_enemies_hit,
+                    ref mut active,
+                    ref weapon_kind
                 } => {
                     let mut new_battle_state = None; // Temporary variable to hold the new battle state
                 
@@ -783,21 +787,31 @@ turbo::go!({
                         );
                 
                         if (*wx - *tx).abs() < BULLET_SPEED && (*wy - *ty).abs() < BULLET_SPEED {
-                            if !*applied_damage {
-                                for &enemy_index in target_enemies.iter() {
-                                    let target_enemy_health;
-                                    {
-                                        let enemy = &mut screen.enemies[enemy_index];
-                                        enemy.health -= 1;
-                                        target_enemy_health = enemy.health;
-                                    }
-                                    if target_enemy_health <= 0 {
-                                        screen.enemies.retain(|e| e.health > 0);
-                                    }
+                            if !target_enemies.is_empty() {
+                                let enemy_index = target_enemies[*num_enemies_hit];
+                                let target_enemy_health;
+                                {
+                                    let enemy = &mut screen.enemies[enemy_index];
+                                    enemy.health -= 1;
+                                    target_enemy_health = enemy.health;
                                 }
+                               // if target_enemy_health <= 0 {
+                                //    screen.enemies.retain(|e| e.health > 0);
+                               // }
+                
+                                *num_enemies_hit += 1;
+                
+                                if target_enemies.len() > *num_enemies_hit {
+                                    *target_position = calculate_target_position(screen.enemies[target_enemies[*num_enemies_hit]].grid_position);
+                                } else {
+                                    //remove any enemies with 0 health or less
+                                    screen.enemies.retain(|e| e.health > 0);
+                                    new_battle_state = Some(BattleState::EnemiesAttack);
+                                    *active = false;
+                                }
+                            } else {
                                 new_battle_state = Some(BattleState::EnemiesAttack);
                                 *active = false;
-                                *applied_damage = true;
                             }
                         }
                     }
@@ -806,6 +820,7 @@ turbo::go!({
                         screen.battle_state = new_state;
                     }
                 }
+                
                          
 
                 BattleState::EnemiesAttack => {
