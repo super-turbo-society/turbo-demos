@@ -56,6 +56,12 @@ turbo::init! {
                     grid_position: (i32, i32),
                     health: i32, // Added health for enemies
                 }>,
+                bullets: Vec<struct Bullet {
+                    x: f32,
+                    y: f32,
+                    target_x: f32,
+                    target_y: f32,
+                }>,
                 explosions: Vec<struct Explosion {
                     x: f32,
                     y: f32,
@@ -75,7 +81,9 @@ turbo::init! {
                         active: bool,
                         weapon_kind: UpgradeKind,
                     },
-                    EnemiesAttack,
+                    EnemiesAttack {
+                        first_frame: bool,
+                    },
                     End,
                 }                
             }),
@@ -468,6 +476,50 @@ fn calculate_target_position(grid_position: (i32, i32)) -> (f32, f32) {
     let y = row as f32 * GRID_ROW_HEIGHT as f32 + GRID_ROW_HIGH as f32;
     (x, y)
 }
+
+fn create_enemy_bullet(bullets: &mut Vec<Bullet>, x: f32, y: f32, target_x: f32, target_y: f32) {
+    bullets.push(Bullet {
+        x,
+        y,
+        target_x,
+        target_y,
+    });
+}
+
+fn move_bullets(bullets: &mut Vec<Bullet>, explosions: &mut Vec<Explosion>, target_x: f32, target_y: f32) {
+    bullets.retain_mut(|bullet| {
+        let dx = bullet.target_x - bullet.x;
+        let dy = bullet.target_y - bullet.y;
+        let distance = (dx * dx + dy * dy).sqrt();
+        if distance > 1.0 {
+            let direction_x = dx / distance;
+            let direction_y = dy / distance;
+            bullet.x += direction_x * BULLET_SPEED;
+            bullet.y += direction_y * BULLET_SPEED;
+        } else {
+            bullet.x = bullet.target_x;
+            bullet.y = bullet.target_y;
+        }
+
+        let angle = dy.atan2(dx);
+        sprite!(
+            "bullet",
+            x = bullet.x,
+            y = bullet.y,
+            rotate = angle.to_degrees() + 90.0,
+            scale_x = 0.175,
+            scale_y = 0.175
+        );
+
+        if (bullet.x - bullet.target_x).abs() < BULLET_SPEED && (bullet.y - bullet.target_y).abs() < BULLET_SPEED {
+            create_explosion(explosions, bullet.x, bullet.y); // Create explosion
+            false // Remove bullet
+        } else {
+            true // Keep bullet
+        }
+    });
+}
+
 //called when you apply damage, 
 fn create_explosion(explosions: &mut Vec<Explosion>, x: f32, y: f32) {
     explosions.push(Explosion {
@@ -832,11 +884,11 @@ turbo::go!({
                                 if target_enemies.len() > *num_enemies_hit {
                                     *target_position = calculate_target_position(screen.enemies[target_enemies[*num_enemies_hit]].grid_position);
                                 } else {
-                                    new_battle_state = Some(BattleState::EnemiesAttack);
+                                    new_battle_state = Some(BattleState::EnemiesAttack { first_frame: true });
                                     *active = false;
                                 }
                             } else {
-                                new_battle_state = Some(BattleState::EnemiesAttack);
+                                new_battle_state = Some(BattleState::EnemiesAttack { first_frame: true });
                                 *active = false;
                             }
                         }
@@ -847,11 +899,29 @@ turbo::go!({
                     }
                 }
 
-                BattleState::EnemiesAttack => {
+                BattleState::EnemiesAttack { ref mut first_frame } => {
                     if screen.enemies.is_empty() {
                         screen.battle_state = BattleState::End;
                     } else {
-                        screen.battle_state = BattleState::ChooseAttack { first_frame: true };
+                        if *first_frame {
+                            // Set the truck position
+                            let (truck_x, truck_y) = (50.0, 75.0);
+                            
+                            // Create bullets for each enemy
+                            for enemy in &screen.enemies {
+                                let (enemy_x, enemy_y) = calculate_target_position(enemy.grid_position);
+                                create_enemy_bullet(&mut screen.bullets, enemy_x, enemy_y, truck_x, truck_y);
+                            }
+                            
+                            *first_frame = false;
+                        }
+                
+                        // Move bullets
+                        move_bullets(&mut screen.bullets, &mut screen.explosions, 50.0, 150.0);
+                        
+                        if screen.bullets.is_empty() {
+                            screen.battle_state = BattleState::ChooseAttack { first_frame: true };
+                        }
                     }
                 },
 
@@ -886,6 +956,7 @@ turbo::go!({
                 Enemy { kind: EnemyKind::Car, grid_position: (2, 1), health: 3 },
                 Enemy { kind: EnemyKind::Car, grid_position: (3, 1), health: 3 },
             ], // Initialize with some enemies
+            bullets: vec![], // Initialize with no bullets
             explosions: vec![], // Initialize with no explosions
             selected_index: 1, // Initialize selected_index to 1
             battle_state: BattleState::ChooseAttack { first_frame: true }, // Initialize battle state
