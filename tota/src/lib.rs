@@ -71,6 +71,7 @@ turbo::init! {
                         weapon_kind: UpgradeKind,
                     },
                     EnemiesAttack,
+                    End,
                 }                
             }),
         },
@@ -824,9 +825,24 @@ turbo::go!({
                          
 
                 BattleState::EnemiesAttack => {
-                    // Placeholder for enemies attack
-                    screen.battle_state = BattleState::ChooseAttack {first_frame: true};
+                    if screen.enemies.is_empty() {
+                        screen.battle_state = BattleState::End;
+                    } else {
+                        screen.battle_state = BattleState::ChooseAttack { first_frame: true };
+                    }
                 },
+                
+                BattleState::End => {
+                    clear!(0x000000ff); // Black background
+                    let [canvas_w, canvas_h] = canvas_size!();
+                    text!(
+                        "You Win", 
+                        x = (canvas_w/2), 
+                        y = (canvas_h / 2) - 10, 
+                        font = Font::L, 
+                        color = 0xffffffff // White text
+                    );
+                }
             }
         }
     }
