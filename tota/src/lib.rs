@@ -808,6 +808,13 @@ turbo::go!({
                                 },
                                 _ => {}
                             }
+                            //have the harpoons shoot a different sprite
+                            let weapon_sprite = match selected_upgrade.kind {
+                                UpgradeKind::Harpoon => "harpoon_bullet".to_string(),
+                                //change this later if we get a new sprite for the laser
+                                UpgradeKind::LaserGun => "bullet".to_string(),
+                                _ => "bullet".to_string(),
+                            };
 
                             selected_upgrade.cooldown_counter = selected_upgrade.cooldown_max;
 
@@ -829,11 +836,11 @@ turbo::go!({
 
                 BattleState::AnimateAttack { 
                     ref mut weapon_sprite, 
-                    ref mut weapon_position, 
+                    ref mut weapon_position,
                     ref mut target_position, 
-                    ref mut target_enemies, 
+                    ref mut target_enemies,
                     ref mut num_enemies_hit, 
-                    ref mut active, 
+                    ref mut active,
                     ref weapon_kind 
                 } => {
                     let mut new_battle_state = None; // Temporary variable to hold the new battle state
@@ -861,8 +868,8 @@ turbo::go!({
                             x = *wx,
                             y = *wy,
                             rotate = angle.to_degrees(),
-                            scale_x = 0.175,
-                            scale_y = 0.175
+                            scale_x = 0.25,
+                            scale_y = 0.25
                         );
 
                         if (*wx - *tx).abs() < BULLET_SPEED && (*wy - *ty).abs() < BULLET_SPEED {
@@ -874,10 +881,10 @@ turbo::go!({
                                     enemy.health -= 1;
                                     target_enemy_health = enemy.health;
                                 }
-                                create_explosion(&mut screen.explosions, *tx, *ty); // Create explosion
-                                if target_enemy_health <= 0 {
-                                    screen.enemies.retain(|e| e.health > 0);
-                                }
+                                create_explosion(&mut screen.explosions, *tx, *ty);
+                                //if target_enemy_health <= 0 {
+                                //   
+                               // }
 
                                 *num_enemies_hit += 1;
 
@@ -888,6 +895,7 @@ turbo::go!({
                                     *active = false;
                                 }
                             } else {
+
                                 new_battle_state = Some(BattleState::EnemiesAttack { first_frame: true });
                                 *active = false;
                             }
@@ -895,6 +903,10 @@ turbo::go!({
                     }
 
                     if let Some(new_state) = new_battle_state {
+                        //remove any enemies with 0 health
+                        screen.enemies.retain(|e| e.health > 0);
+                        turbo::println!("enemy length {:?}", screen.enemies.len().to_string());
+                        //transition to new state
                         screen.battle_state = new_state;
                     }
                 }
