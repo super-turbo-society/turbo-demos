@@ -56,6 +56,11 @@ turbo::init! {
                     grid_position: (i32, i32),
                     health: i32, // Added health for enemies
                 }>,
+                explosions: Vec<struct Explosion {
+                    x: f32,
+                    y: f32,
+                    timer: u32,
+                }>,
                 selected_index: usize,
                 battle_state: enum BattleState {
                     ChooseAttack{
@@ -460,15 +465,37 @@ impl Shape {
 fn calculate_target_position(grid_position: (i32, i32)) -> (f32, f32) {
     let (column, row) = grid_position;
     let x = column as f32 * GRID_COLUMN_WIDTH as f32 + GRID_COLUMN_OFFSET as f32;
-    let y = row as f32 * GRID_ROW_HEIGHT as f32 + if row == 0 { GRID_ROW_HIGH as f32 } else { GRID_ROW_LOW as f32 } - (GRID_ROW_HEIGHT as f32 / 2.0);
+    let y = row as f32 * GRID_ROW_HEIGHT as f32 + GRID_ROW_HIGH as f32;
     (x, y)
 }
+//called when you apply damage, 
+fn create_explosion(explosions: &mut Vec<Explosion>, x: f32, y: f32) {
+    explosions.push(Explosion {
+        x,
+        y: y - 20.0, //the exact position of the car is too low,
+        timer: 0,
+    });
+}
 
-// Implement the game loop using the turbo::go! macro
+//cycle through explosion animation
+fn advance_explosion_animation(explosions: &mut Vec<Explosion>) {
+    explosions.retain_mut(|explosion| {
+        explosion.timer += 1;
+        if explosion.timer <= 5 {
+            sprite!("explosion_frame_1", x = explosion.x, y = explosion.y);
+        } else if explosion.timer <= 10 {
+            sprite!("explosion_frame_2", x = explosion.x, y = explosion.y);
+        } else if explosion.timer <= 15 {
+            sprite!("explosion_frame_3", x = explosion.x, y = explosion.y);
+        }
+        explosion.timer <= 20 // Keep the explosion if the timer is 20 or less
+    });
+}
+
 turbo::go!({
     // Load the game state
     let mut state = GameState::load();
-    //temp vars to get around 'borrowing' issue that I don't totally understand
+    // temp vars to get around 'borrowing' issue that I don't totally understand
     let mut transition_to_battle = false;
     let mut upgrades_for_battle = vec![];
 
@@ -606,8 +633,7 @@ turbo::go!({
 
             // Match the whole battle_state with &mut
             match &mut screen.battle_state {
-                BattleState::ChooseAttack {ref mut first_frame} => {
-                
+                BattleState::ChooseAttack { ref mut first_frame } => {
                     // Decrease cooldown counters
                     if *first_frame {
                         for upgrade in &mut screen.upgrades {
@@ -617,7 +643,7 @@ turbo::go!({
                         }
                         *first_frame = false;
                     }
-                
+
                     // Handle input for cycling through upgrades
                     if gamepad(0).up.just_pressed() || gamepad(0).right.just_pressed() {
                         let mut next_index = screen.selected_index;
@@ -643,11 +669,11 @@ turbo::go!({
                         }
                         screen.selected_index = prev_index;
                     }
-                
+
                     // Determine the target enemies based on the selected weapon
                     let selected_upgrade = &screen.upgrades[screen.selected_index];
                     let mut target_enemies = vec![];
-                
+
                     match selected_upgrade.kind {
                         UpgradeKind::AutoRifle => {
                             if let Some((index, _)) = screen.enemies.iter().enumerate().min_by_key(|(_, enemy)| enemy.grid_position.0) {
@@ -670,7 +696,7 @@ turbo::go!({
                         },
                         _ => {}
                     }
-                
+
                     // Highlight target enemies
                     for &enemy_index in &target_enemies {
                         let enemy = &screen.enemies[enemy_index];
@@ -688,7 +714,7 @@ turbo::go!({
                             color = 0xff0000aa // More solid red rectangle with higher opacity
                         );
                     }
-                
+
                     // Highlight upgrades with cooldown
                     for upgrade in &screen.upgrades {
                         if upgrade.cooldown_counter > 0 {
@@ -701,13 +727,13 @@ turbo::go!({
                             );
                         }
                     }
-                
+
                     // Handle attack selection
                     if gamepad(0).start.just_pressed() {
                         let selected_upgrade = &mut screen.upgrades[screen.selected_index];
                         if selected_upgrade.cooldown_counter == 0 {
                             let mut target_enemies = vec![];
-                
+
                             match selected_upgrade.kind {
                                 UpgradeKind::AutoRifle => {
                                     if let Some((index, _)) = screen.enemies.iter().enumerate().min_by_key(|(_, enemy)| enemy.grid_position.0) {
@@ -730,9 +756,9 @@ turbo::go!({
                                 },
                                 _ => {}
                             }
-                
+
                             selected_upgrade.cooldown_counter = selected_upgrade.cooldown_max;
-                
+
                             screen.battle_state = BattleState::AnimateAttack {
                                 weapon_sprite: selected_upgrade.kind.to_str().to_string(),
                                 weapon_position: (
@@ -748,18 +774,18 @@ turbo::go!({
                         }
                     }
                 }
-                
-                BattleState::AnimateAttack {
-                    ref mut weapon_sprite,
-                    ref mut weapon_position,
-                    ref mut target_position,
-                    ref mut target_enemies,
-                    ref mut num_enemies_hit,
-                    ref mut active,
-                    ref weapon_kind
+
+                BattleState::AnimateAttack { 
+                    ref mut weapon_sprite, 
+                    ref mut weapon_position, 
+                    ref mut target_position, 
+                    ref mut target_enemies, 
+                    ref mut num_enemies_hit, 
+                    ref mut active, 
+                    ref weapon_kind 
                 } => {
                     let mut new_battle_state = None; // Temporary variable to hold the new battle state
-                
+
                     if *active {
                         let (wx, wy) = weapon_position;
                         let (tx, ty) = target_position;
@@ -775,18 +801,18 @@ turbo::go!({
                             *wx = *tx;
                             *wy = *ty;
                         }
-                
+
                         let angle = dy.atan2(dx);
-                
+
                         sprite!(
                             weapon_sprite,
                             x = *wx,
                             y = *wy,
-                            rotate = angle.to_degrees() + 90.0,
+                            rotate = angle.to_degrees(),
                             scale_x = 0.175,
                             scale_y = 0.175
                         );
-                
+
                         if (*wx - *tx).abs() < BULLET_SPEED && (*wy - *ty).abs() < BULLET_SPEED {
                             if !target_enemies.is_empty() {
                                 let enemy_index = target_enemies[*num_enemies_hit];
@@ -796,17 +822,16 @@ turbo::go!({
                                     enemy.health -= 1;
                                     target_enemy_health = enemy.health;
                                 }
-                               // if target_enemy_health <= 0 {
-                                //    screen.enemies.retain(|e| e.health > 0);
-                               // }
-                
+                                create_explosion(&mut screen.explosions, *tx, *ty); // Create explosion
+                                if target_enemy_health <= 0 {
+                                    screen.enemies.retain(|e| e.health > 0);
+                                }
+
                                 *num_enemies_hit += 1;
-                
+
                                 if target_enemies.len() > *num_enemies_hit {
                                     *target_position = calculate_target_position(screen.enemies[target_enemies[*num_enemies_hit]].grid_position);
                                 } else {
-                                    //remove any enemies with 0 health or less
-                                    screen.enemies.retain(|e| e.health > 0);
                                     new_battle_state = Some(BattleState::EnemiesAttack);
                                     *active = false;
                                 }
@@ -816,13 +841,11 @@ turbo::go!({
                             }
                         }
                     }
-                
+
                     if let Some(new_state) = new_battle_state {
                         screen.battle_state = new_state;
                     }
                 }
-                
-                         
 
                 BattleState::EnemiesAttack => {
                     if screen.enemies.is_empty() {
@@ -831,18 +854,23 @@ turbo::go!({
                         screen.battle_state = BattleState::ChooseAttack { first_frame: true };
                     }
                 },
-                
+
                 BattleState::End => {
                     clear!(0x000000ff); // Black background
                     let [canvas_w, canvas_h] = canvas_size!();
                     text!(
                         "You Win", 
-                        x = (canvas_w/2), 
+                        x = (canvas_w - 100), 
                         y = (canvas_h / 2) - 10, 
                         font = Font::L, 
                         color = 0xffffffff // White text
                     );
-                }
+                },
+            }
+
+            // Advance explosion animations
+            if !screen.explosions.is_empty() {
+                advance_explosion_animation(&mut screen.explosions);
             }
         }
     }
@@ -858,8 +886,9 @@ turbo::go!({
                 Enemy { kind: EnemyKind::Car, grid_position: (2, 1), health: 3 },
                 Enemy { kind: EnemyKind::Car, grid_position: (3, 1), health: 3 },
             ], // Initialize with some enemies
+            explosions: vec![], // Initialize with no explosions
             selected_index: 1, // Initialize selected_index to 1
-            battle_state: BattleState::ChooseAttack {first_frame: true}, // Initialize battle state
+            battle_state: BattleState::ChooseAttack { first_frame: true }, // Initialize battle state
         });
     }
 
