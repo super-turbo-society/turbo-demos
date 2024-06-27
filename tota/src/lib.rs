@@ -781,7 +781,7 @@ turbo::go!({
                     }
 
                     // Handle attack selection
-                    if gamepad(0).start.just_pressed() {
+                    if gamepad(0).a.just_pressed() {
                         let selected_upgrade = &mut screen.upgrades[screen.selected_index];
                         if selected_upgrade.cooldown_counter == 0 {
                             let mut target_enemies = vec![];
@@ -944,9 +944,10 @@ turbo::go!({
                 BattleState::End => {
                     clear!(0x000000ff); // Black background
                     let [canvas_w, canvas_h] = canvas_size!();
+                    let text_width = 8 * 8; // Approximate width for "You Win" text (8 characters, each 8 pixels wide)
                     text!(
                         "You Win", 
-                        x = (canvas_w - 100), 
+                        x = (canvas_w / 2) - (text_width / 2), 
                         y = (canvas_h / 2) - 10, 
                         font = Font::L, 
                         color = 0xffffffff // White text
