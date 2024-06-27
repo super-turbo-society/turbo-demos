@@ -816,6 +816,13 @@ turbo::go!({
                                 _ => "bullet".to_string(),
                             };
 
+                            let target_position = if target_enemies.is_empty() {
+                                let [canvas_w, _canvas_h] = canvas_size!();
+                                (canvas_w as f32, selected_upgrade.shape.offset.1 as f32 * 16.0)
+                            } else {
+                                calculate_target_position(screen.enemies[target_enemies[0]].grid_position)
+                            };
+
                             selected_upgrade.cooldown_counter = selected_upgrade.cooldown_max;
 
                             screen.battle_state = BattleState::AnimateAttack {
@@ -824,7 +831,7 @@ turbo::go!({
                                     selected_upgrade.shape.offset.0 as f32 * 16.0,
                                     selected_upgrade.shape.offset.1 as f32 * 16.0
                                 ),
-                                target_position: calculate_target_position(screen.enemies[target_enemies[0]].grid_position),
+                                target_position,
                                 target_enemies,
                                 num_enemies_hit: 0,
                                 active: true,
@@ -882,9 +889,6 @@ turbo::go!({
                                     target_enemy_health = enemy.health;
                                 }
                                 create_explosion(&mut screen.explosions, *tx, *ty);
-                                //if target_enemy_health <= 0 {
-                                //   
-                               // }
 
                                 *num_enemies_hit += 1;
 
