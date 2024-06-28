@@ -89,6 +89,13 @@ turbo::init! {
                     End,
                 },                
                 scroll_pos: i32,
+                bg_objects: Vec<struct ScrollingObject {
+                    scroll_pos: i32,
+                    sprite_name: String,
+                    scroll_speed: i32,
+                    bg_width: i32,
+                    y: i32,
+                }>,
             }),
         },
     } = {
@@ -473,6 +480,49 @@ impl Shape {
     }
 }
 
+impl ScrollingObject {
+    // Constructor for ScrollingObject
+    fn new(sprite_name: String, scroll_speed: i32, bg_width: i32, y: i32) -> Self {
+        Self {
+            scroll_pos: 0,
+            sprite_name,
+            scroll_speed,
+            bg_width,
+            y,
+        }
+    }
+
+    // Update the scroll position
+    fn update(&mut self) {
+        self.scroll_pos -= self.scroll_speed;
+        if self.scroll_pos <= -self.bg_width {
+            self.scroll_pos += self.bg_width;
+        }
+    }
+
+    // Draw the scrolling background
+    fn draw(&self) {
+        sprite!(&self.sprite_name, x = self.scroll_pos, y = self.y);
+        sprite!(&self.sprite_name, x = self.scroll_pos + self.bg_width, y = self.y);
+        sprite!(&self.sprite_name, x = self.scroll_pos + 2 * self.bg_width, y = self.y);
+    }
+}
+
+// Function to update and draw all scrolling objects
+fn scroll_bg_objects(objects: &mut [ScrollingObject]) {
+    for object in objects {
+        object.update();
+        object.draw();
+    }
+}
+
+fn scroll_bg_object(objects: &mut [ScrollingObject], index: usize) {
+    if let Some(object) = objects.get_mut(index) {
+        object.update();
+        object.draw();
+    }
+}
+
 fn draw_truck(x: i32, y: i32) {
     let x = 0;
     let y = 80;
@@ -483,25 +533,20 @@ fn draw_truck(x: i32, y: i32) {
 }
 
 // New function to draw the scrolling background
-fn draw_background(scroll_pos: i32, y: i32) {
+fn draw_background(objects: &mut [ScrollingObject]) {
     //draw the sun
     circ!(color = 0xfcf7b3ff, x=60, y=12, d=120);
-    //draw static mountain bg
-    sprite!("desert_bg", x = 0, y = y);
-    sprite!("desert_bg", x = BG_WIDTH, y = y);
+    //Scroll mountain bg (it's actually static though, just implemented this way for now)
+    scroll_bg_object(objects, 0);
     //draw rolling middle bg
-    sprite!("mid_dunes", x = (scroll_pos as f32 * 1.0) as i32, y = 62);
-    sprite!("mid_dunes", x = (scroll_pos as f32 * 1.0) as i32 + BG_WIDTH, y = 62);
-    sprite!("mid_dunes", x = (scroll_pos as f32 * 1.0) as i32 + BG_WIDTH * 2, y = 62);
-    sprite!("mid_dunes", x = (scroll_pos as f32 * 1.0) as i32 + BG_WIDTH * 3, y = 62);
+    scroll_bg_object(objects, 1);
     //draw a rect for the rest of the road
     rect!(color = 0xE1BF89ff, x = 0, y = canvas_size()[1] - 130, w = canvas_size()[0], h = 130);
     //draw scrolling road in middle
-    sprite!("fg_path", x = scroll_pos, y = y+85);
-    sprite!("fg_path", x = scroll_pos + BG_WIDTH, y = y+85);
-    sprite!("fg_path", x = scroll_pos + BG_WIDTH * 2, y = y+85);
-    sprite!("fg_path", x = scroll_pos + BG_WIDTH * 3, y = y+85);
-
+    scroll_bg_object(objects, 2);
+    //draw the dunes at the bottom
+    scroll_bg_object(objects,3 );
+    scroll_bg_object(objects,4);
 }
 
 
@@ -681,15 +726,7 @@ turbo::go!({
         Screen::Battle(screen) => {
             clear!(0xFFE0B7ff); // Orange background
 
-            // Draw scrolling background
-            draw_background(screen.scroll_pos, 0);
-
-            // Update scroll position
-            screen.scroll_pos -= BG_SCROLL_SPEED;
-            //let canvas_w = canvas_size!()[0] as i32;
-            if screen.scroll_pos <= -(BG_WIDTH*2) {
-                screen.scroll_pos += BG_WIDTH*2;
-            }
+            draw_background(&mut screen.bg_objects);
             // Draw upgrades and enemies
             for (index, upgrade) in screen.upgrades.iter().enumerate() {
                 let is_selected = index == screen.selected_index;
@@ -1020,6 +1057,13 @@ turbo::go!({
             selected_index: 1, // Initialize selected_index to 1
             battle_state: BattleState::ChooseAttack { first_frame: true },
             scroll_pos: 0, // Initialize battle state
+            bg_objects: vec![
+            ScrollingObject::new("desert_bg".to_string(), 0, 256, 0),
+            ScrollingObject::new("mid_dunes".to_string(), 1, 256, 60),
+            ScrollingObject::new("fg_path".to_string(), 2, 256, 85),
+            ScrollingObject::new("mid_dunes".to_string(), 3, 256, 152),
+            ScrollingObject::new("mid_dunes".to_string(), 4, 256, 175),
+        ],
         });
     }
 
