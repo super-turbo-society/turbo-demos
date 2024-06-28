@@ -570,7 +570,7 @@ fn create_enemy_bullet(bullets: &mut Vec<Bullet>, x: f32, y: f32, target_x: f32,
     });
 }
 
-fn move_bullets(bullets: &mut Vec<Bullet>, explosions: &mut Vec<Explosion>, target_x: f32, target_y: f32) {
+fn move_bullets(bullets: &mut Vec<Bullet>, explosions: &mut Vec<Explosion>, target_x: f32, target_y: f32, player_health: &mut i32) {
     bullets.retain_mut(|bullet| {
         let dx = bullet.target_x - bullet.x;
         let dy = bullet.target_y - bullet.y;
@@ -596,6 +596,7 @@ fn move_bullets(bullets: &mut Vec<Bullet>, explosions: &mut Vec<Explosion>, targ
         );
 
         if (bullet.x - bullet.target_x).abs() < BULLET_SPEED && (bullet.y - bullet.target_y).abs() < BULLET_SPEED {
+            *player_health -=2;
             create_explosion(explosions, bullet.x, bullet.y); // Create explosion
             false // Remove bullet
         } else {
@@ -1021,7 +1022,7 @@ turbo::go!({
                         }
                 
                         // Move bullets
-                        move_bullets(&mut screen.bullets, &mut screen.explosions, 50.0, 150.0);
+                        move_bullets(&mut screen.bullets, &mut screen.explosions, 50.0, 150.0, &mut screen.player_health);
                         
                         if screen.bullets.is_empty() {
                             screen.battle_state = BattleState::ChooseAttack { first_frame: true };
