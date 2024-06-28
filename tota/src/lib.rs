@@ -526,7 +526,8 @@ fn scroll_bg_object(objects: &mut [ScrollingObject], index: usize) {
 fn draw_truck(x: i32, y: i32) {
     let x = 0;
     let y = 80;
-    sprite!("truck_base", x = x, y = y, sw = 128, fps = fps::FAST);
+    sprite!("truck_base", x = x, y = y, sw = 128);
+    sprite!("suzee", x=76, y=y);
     sprite!("truck_tires", x = x, y = y, sw = 128, fps = fps::FAST);
     sprite!("truck_shadow", x=x, y=y, sw = 128, fps = fps::FAST);
     
