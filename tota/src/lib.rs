@@ -87,8 +87,7 @@ turbo::init! {
                         first_frame: bool,
                     },
                     End,
-                },                
-                scroll_pos: i32,
+                },
                 bg_objects: Vec<struct ScrollingObject {
                     scroll_pos: i32,
                     sprite_name: String,
@@ -96,6 +95,7 @@ turbo::init! {
                     bg_width: i32,
                     y: i32,
                 }>,
+                player_health: i32
             }),
         },
     } = {
@@ -508,19 +508,22 @@ impl ScrollingObject {
     }
 }
 
-// Function to update and draw all scrolling objects
-fn scroll_bg_objects(objects: &mut [ScrollingObject]) {
-    for object in objects {
-        object.update();
-        object.draw();
-    }
-}
-
 fn scroll_bg_object(objects: &mut [ScrollingObject], index: usize) {
     if let Some(object) = objects.get_mut(index) {
         object.update();
         object.draw();
     }
+}
+
+// Function to show player health
+fn show_health(player_health: i32) {
+    text!(
+        &format!("Health: {}", player_health),
+        x = 10,
+        y = 10,
+        font = Font::L,
+        color = 0x000000ff // White color
+    );
 }
 
 fn draw_truck(x: i32, y: i32) {
@@ -725,9 +728,13 @@ turbo::go!({
             }
         }
         Screen::Battle(screen) => {
-            clear!(0xFFE0B7ff); // Orange background
+            clear!(0xFFE0B7ff); //beige sky
 
             draw_background(&mut screen.bg_objects);
+
+            // Show player health
+            show_health(screen.player_health);
+            
             // Draw upgrades and enemies
             for (index, upgrade) in screen.upgrades.iter().enumerate() {
                 let is_selected = index == screen.selected_index;
@@ -803,6 +810,7 @@ turbo::go!({
                     }
 
                     // Determine the target enemies based on the selected weapon
+                    // Would be good to get this out of being 'every frame' eventually
                     let selected_upgrade = &screen.upgrades[screen.selected_index];
                     let mut target_enemies = vec![];
 
@@ -847,7 +855,7 @@ turbo::go!({
                         );
                     }
 
-                    // Highlight upgrades with cooldown
+                    // Highlight upgrades that have positive cooldown (e.g. turn red bc you can't use them)
                     for upgrade in &screen.upgrades {
                         if upgrade.cooldown_counter > 0 {
                             rect!(
@@ -1057,7 +1065,6 @@ turbo::go!({
             explosions: vec![], // Initialize with no explosions
             selected_index: 1, // Initialize selected_index to 1
             battle_state: BattleState::ChooseAttack { first_frame: true },
-            scroll_pos: 0, // Initialize battle state
             bg_objects: vec![
             ScrollingObject::new("desert_bg".to_string(), 0, 256, 0),
             ScrollingObject::new("mid_dunes".to_string(), 1, 256, 60),
@@ -1065,6 +1072,7 @@ turbo::go!({
             ScrollingObject::new("mid_dunes".to_string(), 3, 256, 152),
             ScrollingObject::new("mid_dunes".to_string(), 4, 256, 175),
         ],
+        player_health: 100,
         });
     }
 
