@@ -909,7 +909,7 @@ turbo::go!({
                     if let Some(new_state) = new_battle_state {
                         //remove any enemies with 0 health
                         screen.enemies.retain(|e| e.health > 0);
-                        turbo::println!("enemy length {:?}", screen.enemies.len().to_string());
+                        //turbo::println!("enemy length {:?}", screen.enemies.len().to_string());
                         //transition to new state
                         screen.battle_state = new_state;
                     }
