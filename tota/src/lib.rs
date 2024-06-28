@@ -17,6 +17,8 @@ const GRID_ROW_LOW: i32 = 110; // Position of the truck
 const GRID_ROW_HIGH: i32 = 62; // Position of the plane. We can make these less magic numbery later.
 const GRID_COLUMN_OFFSET: i32 = 152;
 const BULLET_SPEED: f32 = 4.0;
+const BG_SCROLL_SPEED: i32 = 1;
+const BG_WIDTH: i32 = 256;
 
 // Define the game state initialization using the turbo::init! macro
 turbo::init! {
@@ -85,7 +87,8 @@ turbo::init! {
                         first_frame: bool,
                     },
                     End,
-                }                
+                },                
+                scroll_pos: i32,
             }),
         },
     } = {
@@ -470,6 +473,38 @@ impl Shape {
     }
 }
 
+fn draw_truck(x: i32, y: i32) {
+    let x = 0;
+    let y = 80;
+    sprite!("truck_base", x = x, y = y, sw = 128, fps = fps::FAST);
+    sprite!("truck_tires", x = x, y = y, sw = 128, fps = fps::FAST);
+    sprite!("truck_shadow", x=x, y=y, sw = 128, fps = fps::FAST);
+    
+}
+
+// New function to draw the scrolling background
+fn draw_background(scroll_pos: i32, y: i32) {
+    //draw the sun
+    circ!(color = 0xfcf7b3ff, x=60, y=12, d=120);
+    //draw static mountain bg
+    sprite!("desert_bg", x = 0, y = y);
+    sprite!("desert_bg", x = BG_WIDTH, y = y);
+    //draw rolling middle bg
+    sprite!("mid_dunes", x = (scroll_pos as f32 * 1.0) as i32, y = 62);
+    sprite!("mid_dunes", x = (scroll_pos as f32 * 1.0) as i32 + BG_WIDTH, y = 62);
+    sprite!("mid_dunes", x = (scroll_pos as f32 * 1.0) as i32 + BG_WIDTH * 2, y = 62);
+    sprite!("mid_dunes", x = (scroll_pos as f32 * 1.0) as i32 + BG_WIDTH * 3, y = 62);
+    //draw a rect for the rest of the road
+    rect!(color = 0xE1BF89ff, x = 0, y = canvas_size()[1] - 130, w = canvas_size()[0], h = 130);
+    //draw scrolling road in middle
+    sprite!("fg_path", x = scroll_pos, y = y+85);
+    sprite!("fg_path", x = scroll_pos + BG_WIDTH, y = y+85);
+    sprite!("fg_path", x = scroll_pos + BG_WIDTH * 2, y = y+85);
+    sprite!("fg_path", x = scroll_pos + BG_WIDTH * 3, y = y+85);
+
+}
+
+
 fn calculate_target_position(grid_position: (i32, i32)) -> (f32, f32) {
     let (column, row) = grid_position;
     let x = column as f32 * GRID_COLUMN_WIDTH as f32 + GRID_COLUMN_OFFSET as f32;
@@ -530,6 +565,7 @@ fn create_explosion(explosions: &mut Vec<Explosion>, x: f32, y: f32) {
 }
 
 //cycle through explosion animation
+//could make this calculated so it easier to change.
 fn advance_explosion_animation(explosions: &mut Vec<Explosion>) {
     explosions.retain_mut(|explosion| {
         explosion.timer += 1;
@@ -643,24 +679,30 @@ turbo::go!({
             }
         }
         Screen::Battle(screen) => {
-            clear!(0xffa500ff); // Orange background
+            clear!(0xFFE0B7ff); // Orange background
 
-            // Draw road sprite
-            sprite!(
-                "road",
-                x = 0,
-                y = 110
-            );
+            // Draw scrolling background
+            draw_background(screen.scroll_pos, 0);
 
+            // Update scroll position
+            screen.scroll_pos -= BG_SCROLL_SPEED;
+            //let canvas_w = canvas_size!()[0] as i32;
+            if screen.scroll_pos <= -(BG_WIDTH*2) {
+                screen.scroll_pos += BG_WIDTH*2;
+            }
             // Draw upgrades and enemies
             for (index, upgrade) in screen.upgrades.iter().enumerate() {
                 let is_selected = index == screen.selected_index;
-                sprite!(
-                    upgrade.kind.to_str(),
-                    x = upgrade.shape.offset.0 * 16,
-                    y = upgrade.shape.offset.1 * 16,
-                    opacity = 1
-                );
+                if upgrade.kind == UpgradeKind::Truck {
+                    draw_truck((upgrade.shape.offset.0 * 16) as i32, (upgrade.shape.offset.1 * 16) as i32);
+                } else {
+                    sprite!(
+                        upgrade.kind.to_str(),
+                        x = upgrade.shape.offset.0 * 16,
+                        y = upgrade.shape.offset.1 * 16,
+                        opacity = 1
+                    );
+                }
                 upgrade.shape.draw(is_selected, true); // Draw with green rectangle if selected
             }
 
@@ -976,7 +1018,8 @@ turbo::go!({
             bullets: vec![], // Initialize with no bullets
             explosions: vec![], // Initialize with no explosions
             selected_index: 1, // Initialize selected_index to 1
-            battle_state: BattleState::ChooseAttack { first_frame: true }, // Initialize battle state
+            battle_state: BattleState::ChooseAttack { first_frame: true },
+            scroll_pos: 0, // Initialize battle state
         });
     }
 
