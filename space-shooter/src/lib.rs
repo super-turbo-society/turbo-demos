@@ -705,7 +705,7 @@ fn draw_enemy(enemy: &Enemy) {
 
 fn draw_projectile(projectile: &Projectile) {
     let color = match projectile.projectile_type {
-        ProjectileType::Splatter | ProjectileType::Fragment => 0xff0000ff,
+        ProjectileType::Splatter | ProjectileType::Fragment => 0xff0000ffu32,
         ProjectileType::Basic | ProjectileType::Bomb | ProjectileType::Laser => 0xffff00ff,
     };
     circ!(
@@ -723,7 +723,7 @@ fn draw_powerup(powerup: &Powerup, tick: u32) {
         y = (powerup.y - (n * 0.5)) as i32,
         d = powerup.width.max(powerup.height) + n as u32,
         color = match powerup.effect {
-            PowerupEffect::Heal => 0x00ff66ff,
+            PowerupEffect::Heal => 0x00ff66ffu32,
             PowerupEffect::MaxHealthUp => 0x00ffffff,
             PowerupEffect::DamageBoost(_) => 0xff0066ff,
             PowerupEffect::SpeedBoost => 0x6600ffff,
@@ -755,7 +755,7 @@ fn draw_hud(state: &GameState, screen_w: u32) {
 
     // Displaying game information on the HUD
     let hud_padding = 4; // Padding inside the HUD
-    let text_color = 0xffffffff; // White text color
+    let text_color = 0xffffffffu32; // White text color
 
     // Display Score
     let score_text = format!("LVL: 1");
