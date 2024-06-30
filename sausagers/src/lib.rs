@@ -989,7 +989,7 @@ fn draw_enemy(enemy: &Enemy) {
     );
     let percent_hp = enemy.health as f32 / enemy.max_health as f32;
     let color = match percent_hp {
-        n if n <= 0.25 => 0xff0000ff,
+        n if n <= 0.25 => 0xff0000ffu32,
         n if n <= 0.5 => 0xff9900ff,
         _ => 0x00ff00ff,
     };
@@ -1009,7 +1009,7 @@ fn draw_projectile(projectile: &Projectile) {
             sprite!("projectile_ketchup", x = projectile.x, y = projectile.y);
         }
         ProjectileType::Fragment => {
-            let color = 0xff0000ff;
+            let color = 0xff0000ffu32;
             ellipse!(
                 x = projectile.x,
                 y = projectile.y,
@@ -1019,7 +1019,7 @@ fn draw_projectile(projectile: &Projectile) {
             );
         }
         _ => {
-            let color = 0xffff00ff;
+            let color = 0xffff00ffu32;
             ellipse!(
                 x = projectile.x,
                 y = projectile.y,
@@ -1042,13 +1042,13 @@ fn draw_powerup(powerup: &Powerup, tick: u32) {
         w = (powerup.width as f32 + n) as u32,
         h = (powerup.height as f32 + n) as u32,
         color = match powerup.effect {
-            PowerupEffect::Heal => 0x00ff6666,
+            PowerupEffect::Heal => 0x00ff6666u32,
             PowerupEffect::MaxHealthUp => 0x00ffff66,
             PowerupEffect::DamageBoost => 0xff006666,
             PowerupEffect::SpeedBoost => 0x6600ff66,
         },
         border_color = match powerup.effect {
-            PowerupEffect::Heal => 0x00ff6699,
+            PowerupEffect::Heal => 0x00ff6699u32,
             PowerupEffect::MaxHealthUp => 0x00ffff99,
             PowerupEffect::DamageBoost => 0xff006699,
             PowerupEffect::SpeedBoost => 0x6600ff99,
