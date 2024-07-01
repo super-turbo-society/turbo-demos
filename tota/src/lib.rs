@@ -12,9 +12,9 @@ turbo::cfg! {r#"
 "#}
 
 const GRID_COLUMN_WIDTH: i32 = 96;
-const GRID_ROW_HEIGHT: i32 = 48;
+const GRID_ROW_HEIGHT: i32 = 72;
 const GRID_ROW_LOW: i32 = 110; // Position of the truck
-const GRID_ROW_HIGH: i32 = 62; // Position of the plane. We can make these less magic numbery later.
+const GRID_ROW_HIGH: i32 = 36; // Position of the plane. We can make these less magic numbery later.
 const GRID_COLUMN_OFFSET: i32 = 152;
 const BULLET_SPEED: f32 = 5.0;
 
@@ -571,14 +571,29 @@ fn scroll_bg_object(objects: &mut [ScrollingObject], index: usize) {
     }
 }
 
-// Function to show player health
 fn show_health(player_health: i32) {
-    text!(
-        &format!("Health: {}", player_health),
-        x = 10,
-        y = 10,
-        font = Font::L,
-        color = 0x000000ff // White color
+    let full_rect_width = 40;
+    let rect_height = 8;
+    let x = 70;
+    let y = 130;
+
+    // Draw the full health bar background (black)
+    rect!(
+        w = full_rect_width,
+        h = rect_height,
+        x = x,
+        y = y,
+        color = 0x000000ff // Black color
+    );
+
+    // Draw the current health bar (red)
+    let health_width = (player_health as f32 / 100.0 * full_rect_width as f32) as i32;
+    rect!(
+        w = health_width,
+        h = rect_height,
+        x = x,
+        y = y,
+        color = 0xff0000ff // Red color
     );
 }
 
@@ -673,9 +688,11 @@ fn draw_enemies(enemies: &[Enemy]) {
             },
             EnemyKind::Plane => {
                 sprite!(
-                    "plane_enemy",
+                    "enemy_03_base",
                     x = x_position,
-                    y = y_position
+                    y = y_position,
+                    sw = 105,
+                    fps = fps::FAST,
                 );
             },
         }
