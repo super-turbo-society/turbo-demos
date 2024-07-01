@@ -22,6 +22,7 @@ const BG_WIDTH: i32 = 256;
 
 // Define the game state initialization using the turbo::init! macro
 turbo::init! {
+
     struct GameState {
         screen: enum Screen {
             Title(struct TitleScreen {
@@ -97,7 +98,11 @@ turbo::init! {
                     bg_width: i32,
                     y: i32,
                 }>,
-                player_health: i32
+                player_health: i32,
+                waves: Vec<struct Wave{
+                    enemies: Vec<Enemy>,
+                }>,
+                current_wave: usize,
             }),
         },
     } = {
@@ -121,6 +126,49 @@ impl GarageScreen {
         }
     }
 }
+impl Default for GameState {
+    fn default() -> Self {
+        Self {
+            screen: Screen::Title(TitleScreen { elapsed: 0 }),
+        }
+    }
+}
+
+impl BattleScreen {
+    fn new(upgrades: Vec<Upgrade>) -> Self {
+        // Initialize the waves
+        let waves = vec![
+            Wave {
+                enemies: vec![
+                    Enemy { kind: EnemyKind::Car, grid_position: (0, 1), health: 3, damage: 2 },
+                    Enemy { kind: EnemyKind::Plane, grid_position: (1, 0), health: 2, damage: 2 },
+                    Enemy { kind: EnemyKind::Car, grid_position: (2, 0), health: 3, damage: 5 },
+                    Enemy { kind: EnemyKind::Car, grid_position: (3, 1), health: 3, damage: 2 },
+                ],
+            },
+        ];
+
+        Self {
+            upgrades,
+            enemies: waves[0].enemies.clone(), // Start with the first wave
+            bullets: vec![],
+            explosions: vec![],
+            selected_index: 1,
+            battle_state: BattleState::ChooseAttack { first_frame: true },
+            bg_objects: vec![
+                ScrollingObject::new("desert_bg".to_string(), 0, 256, 0),
+                ScrollingObject::new("mid_dunes".to_string(), 1, 256, 60),
+                ScrollingObject::new("fg_path".to_string(), 2, 256, 85),
+                ScrollingObject::new("mid_dunes".to_string(), 3, 256, 152),
+                ScrollingObject::new("mid_dunes".to_string(), 4, 256, 175),
+            ],
+            player_health: 100,
+            waves, // Store the waves
+            current_wave: 0, // Start with the first wave
+        }
+    }
+}
+
 
 impl Upgrade {
     pub fn new(kind: UpgradeKind, shape: Shape, cooldown_max: i32) -> Self {
@@ -1056,28 +1104,7 @@ turbo::go!({
 
     // Using this to move the upgrades variable into the battle screen
     if transition_to_battle {
-        state.screen = Screen::Battle(BattleScreen {
-            upgrades: upgrades_for_battle,
-            // Replace this with enemy wave data eventually
-            enemies: vec![
-                Enemy { kind: EnemyKind::Car, grid_position: (0, 1), health: 3, damage: 3 },
-                Enemy { kind: EnemyKind::Plane, grid_position: (1, 0), health: 2, damage: 1 },
-                Enemy { kind: EnemyKind::Car, grid_position: (2, 1), health: 3, damage: 3 },
-                Enemy { kind: EnemyKind::Car, grid_position: (3, 1), health: 3, damage: 3 },
-            ], // Initialize with some enemies
-            bullets: vec![], // Initialize with no bullets
-            explosions: vec![], // Initialize with no explosions
-            selected_index: 1, // Initialize selected_index to 1
-            battle_state: BattleState::ChooseAttack { first_frame: true },
-            bg_objects: vec![
-            ScrollingObject::new("desert_bg".to_string(), 0, 256, 0),
-            ScrollingObject::new("mid_dunes".to_string(), 1, 256, 60),
-            ScrollingObject::new("fg_path".to_string(), 2, 256, 85),
-            ScrollingObject::new("mid_dunes".to_string(), 3, 256, 152),
-            ScrollingObject::new("mid_dunes".to_string(), 4, 256, 175),
-        ],
-        player_health: 100,
-        });
+        state.screen = Screen::Battle(BattleScreen::new(upgrades_for_battle));
     }
 
     state.save();
