@@ -6,7 +6,7 @@ Welcome to the official repository of Turbo Demo Games - a collection of sample 
 
 ## Getting Started
 
-First, [install Turbo](https://docs.turbo.computer/#/quick-start?id=installation)
+First, [install Turbo](https://turbo.computer/docs/quick-start/#installation)
 
 Next, clone this repository to explore the demo games:
 
