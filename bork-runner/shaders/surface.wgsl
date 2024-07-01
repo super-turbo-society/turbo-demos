@@ -1,3 +1,12 @@
+// Global uniform with viewport and tick fields
+struct Global {
+    viewport: vec2<f32>,
+    tick: u32,
+}
+
+@group(0) @binding(0)
+var<uniform> global: Global;
+
 // Vertex input to the shader
 struct VertexInput {
     @location(0) pos: vec2<f32>,
@@ -20,11 +29,11 @@ fn vs_main(in: VertexInput) -> VertexOutput {
 }
 
 // Bindings for the texture
-@group(0) @binding(0)
+@group(1) @binding(0)
 var t_canvas: texture_2d<f32>;
 
 // Sampler for the texture
-@group(0) @binding(1)
+@group(1) @binding(1)
 var s_canvas: sampler;
 
 // Main fragment shader function
@@ -34,13 +43,151 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     var uv: vec2<f32> = in.uv;
 
     // Uncomment the following lines to apply some effects
+    // color = applyRippleEffect(color, &uv, global.tick);
+    // color = applyZoomPulse(color, &uv, global.tick);
     // color = applyWavy(color, &uv);
     // color = applyChromaticAberration(color, &uv);
-    // color = applyBloom(color, in.uv);
-    // color = applyCRT(color, uv); 
+    // color = applyBloom(color, uv);
+    // color = applyCRT(color, uv);
     // color = applyVignette(color, uv);
+    // color = applyColorCycle(color, uv, global.tick);
+    // color = applyBlur(uv);
+    // color = quantizeColor(color);
+    // color = quantizeColorRetro(color);
+    // color = quantizeColorPastel(color);
+    // color.a -= f32(global.tick) % 0.58;
 
     return color;
+}
+
+fn applyBlur(uv: vec2<f32>) -> vec4<f32> {
+    let offsets: array<vec2<f32>, 9> = array<vec2<f32>, 9>(
+        vec2<f32>(-1.0,  1.0), vec2<f32>( 0.0,  1.0), vec2<f32>( 1.0,  1.0),
+        vec2<f32>(-1.0,  0.0), vec2<f32>( 0.0,  0.0), vec2<f32>( 1.0,  0.0),
+        vec2<f32>(-1.0, -1.0), vec2<f32>( 0.0, -1.0), vec2<f32>( 1.0, -1.0)
+    );
+
+    let kernel: array<f32, 9> = array<f32, 9>(
+        1.0 / 16.0, 2.0 / 16.0, 1.0 / 16.0,
+        2.0 / 16.0, 4.0 / 16.0, 2.0 / 16.0,
+        1.0 / 16.0, 2.0 / 16.0, 1.0 / 16.0
+    );
+
+    var color: vec4<f32> = vec4<f32>(0.0);
+
+    color += textureSample(t_canvas, s_canvas, uv + offsets[0] / 256.0) * kernel[0];
+    color += textureSample(t_canvas, s_canvas, uv + offsets[1] / 256.0) * kernel[1];
+    color += textureSample(t_canvas, s_canvas, uv + offsets[2] / 256.0) * kernel[2];
+    color += textureSample(t_canvas, s_canvas, uv + offsets[3] / 256.0) * kernel[3];
+    color += textureSample(t_canvas, s_canvas, uv + offsets[4] / 256.0) * kernel[4];
+    color += textureSample(t_canvas, s_canvas, uv + offsets[5] / 256.0) * kernel[5];
+    color += textureSample(t_canvas, s_canvas, uv + offsets[6] / 256.0) * kernel[6];
+    color += textureSample(t_canvas, s_canvas, uv + offsets[7] / 256.0) * kernel[7];
+    color += textureSample(t_canvas, s_canvas, uv + offsets[8] / 256.0) * kernel[8];
+
+    return color;
+}
+
+fn quantizeColorRetro(color: vec4<f32>) -> vec4<f32> {
+    let gray: f32 = dot(color.rgb, vec3<f32>(0.299, 0.587, 0.114)); // Convert to grayscale
+    if gray < 0.125 {
+        return vec4<f32>(0.0, 0.0, 0.0, 1.0); // Black
+    } else if gray < 0.25 {
+        return vec4<f32>(0.33, 0.33, 0.33, 1.0); // Dark Gray
+    } else if gray < 0.375 {
+        return vec4<f32>(0.66, 0.66, 0.66, 1.0); // Light Gray
+    } else if gray < 0.5 {
+        return vec4<f32>(1.0, 1.0, 1.0, 1.0); // White
+    } else if gray < 0.625 {
+        return vec4<f32>(1.0, 0.0, 0.0, 1.0); // Red
+    } else if gray < 0.75 {
+        return vec4<f32>(0.0, 1.0, 0.0, 1.0); // Green
+    } else if gray < 0.875 {
+        return vec4<f32>(0.0, 0.0, 1.0, 1.0); // Blue
+    } else {
+        return vec4<f32>(1.0, 1.0, 0.0, 1.0); // Yellow
+    }
+}
+
+fn quantizeColorPastel(color: vec4<f32>) -> vec4<f32> {
+    let gray: f32 = dot(color.rgb, vec3<f32>(0.299, 0.587, 0.114)); // Convert to grayscale
+    if gray < 0.125 {
+        return vec4<f32>(0.4, 0.2, 0.2, 1.0); // Dark pastel red
+    } else if gray < 0.25 {
+        return vec4<f32>(0.6, 0.4, 0.4, 1.0); // Medium pastel red
+    } else if gray < 0.375 {
+        return vec4<f32>(0.4, 0.4, 0.6, 1.0); // Dark pastel blue
+    } else if gray < 0.5 {
+        return vec4<f32>(0.6, 0.6, 0.8, 1.0); // Light pastel blue
+    } else if gray < 0.625 {
+        return vec4<f32>(0.4, 0.6, 0.4, 1.0); // Dark pastel green
+    } else if gray < 0.75 {
+        return vec4<f32>(0.6, 0.8, 0.6, 1.0); // Light pastel green
+    } else if gray < 0.875 {
+        return vec4<f32>(0.8, 0.8, 0.4, 1.0); // Light pastel yellow
+    } else {
+        return vec4<f32>(1.0, 1.0, 0.8, 1.0); // Very light pastel yellow
+    }
+}
+
+
+fn quantizeColor(color: vec4<f32>) -> vec4<f32> {
+    let gray: f32 = dot(color.rgb, vec3<f32>(0.299, 0.587, 0.114)); // Convert to grayscale
+    if gray < 0.25 {
+        return vec4<f32>(0.0, 0.0, 0.0, 1.0); // Darkest color
+    } else if gray < 0.5 {
+        return vec4<f32>(0.33, 0.33, 0.33, 1.0); // Dark color
+    } else if gray < 0.75 {
+        return vec4<f32>(0.66, 0.66, 0.66, 1.0); // Light color
+    } else {
+        return vec4<f32>(1.0, 1.0, 1.0, 1.0); // Lightest color
+    }
+}
+
+fn applyRippleEffect(color: vec4<f32>, uv: ptr<function, vec2<f32>>, tick: u32) -> vec4<f32> {
+    let center: vec2<f32> = vec2<f32>(0.5, 0.5);
+    let distance: f32 = length(*uv - center);
+    let time: f32 = f32(tick) * 0.05;
+    let ripple: f32 = 0.03 * sin(10.0 * distance - time);
+    *uv += normalize(*uv - center) * ripple;
+    return textureSample(t_canvas, s_canvas, *uv);
+}
+
+fn applyZoomPulse(color: vec4<f32>, uv: ptr<function, vec2<f32>>, tick: u32) -> vec4<f32> {
+    let center: vec2<f32> = vec2<f32>(0.5, 0.5);
+    let time: f32 = f32(tick) * 0.02;
+    let zoom: f32 = 1.0 + 0.1 * sin(time);
+    *uv = center + (*uv - center) * zoom;
+    return textureSample(t_canvas, s_canvas, *uv);
+}
+
+fn applyStrobeEffect(color: vec4<f32>, uv: vec2<f32>, tick: u32) -> vec4<f32> {
+    let frequency: f32 = 10.0;
+    let strobe: f32 = 0.5 + 0.5 * sin(frequency * f32(tick));
+    return vec4<f32>(color.rgb * strobe, color.a);
+}
+
+
+fn applyTwistEffect(color: vec4<f32>, uv: ptr<function, vec2<f32>>, tick: u32) -> vec4<f32> {
+    let center: vec2<f32> = vec2<f32>(0.5, 0.5);
+    let time: f32 = f32(tick) * 0.01;
+    let angle: f32 = distance(*uv, center) * time;
+    let cosAngle: f32 = cos(angle);
+    let sinAngle: f32 = sin(angle);
+    let offset: vec2<f32> = *uv - center;
+    *uv = vec2<f32>(
+        offset.x * cosAngle - offset.y * sinAngle,
+        offset.x * sinAngle + offset.y * cosAngle
+    ) + center;
+    return textureSample(t_canvas, s_canvas, *uv);
+}
+
+fn applyColorCycle(color: vec4<f32>, uv: vec2<f32>, tick: u32) -> vec4<f32> {
+    let time: f32 = f32(tick) * 0.1;
+    let r: f32 = 0.5 + 0.5 * sin(time + uv.x);
+    let g: f32 = 0.5 + 0.5 * sin(time + uv.y + 2.0);
+    let b: f32 = 0.5 + 0.5 * sin(time + uv.x + 4.0);
+    return mix(vec4<f32>(r, g, b, color.a), color, 0.8);
 }
 
 fn applyChromaticAberration(color: vec4<f32>, uv: ptr<function, vec2<f32>>) -> vec4<f32> {
