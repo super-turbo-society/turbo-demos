@@ -16,7 +16,7 @@ const GRID_ROW_HEIGHT: i32 = 48;
 const GRID_ROW_LOW: i32 = 110; // Position of the truck
 const GRID_ROW_HIGH: i32 = 62; // Position of the plane. We can make these less magic numbery later.
 const GRID_COLUMN_OFFSET: i32 = 152;
-const BULLET_SPEED: f32 = 4.0;
+const BULLET_SPEED: f32 = 5.0;
 
 // Define the game state initialization using the turbo::init! macro
 turbo::init! {
@@ -1128,17 +1128,26 @@ turbo::go!({
                         move_bullets(&mut screen.bullets, &mut screen.explosions, 50.0, 150.0, &mut screen.player_health);
                         
                         if screen.bullets.is_empty() {
-                            screen.battle_state = BattleState::ChooseAttack { first_frame: true };
+                            if screen.player_health <= 0 {
+                                screen.battle_state = BattleState::End;
+                            } else {
+                                screen.battle_state = BattleState::ChooseAttack { first_frame: true };
+                            }
                         }
                     }
                 },                
-
+             
                 BattleState::End => {
                     clear!(0x000000ff); // Black background
                     let [canvas_w, canvas_h] = canvas_size!();
-                    let text_width = 8 * 8; // Approximate width for "You Win" text (8 characters, each 8 pixels wide)
+                    let text_width = 8 * 8; // Approximate width for text (8 characters, each 8 pixels wide)
+                    let message = if screen.player_health <= 0 {
+                        "You Lose"
+                    } else {
+                        "You Win"
+                    };
                     text!(
-                        "You Win", 
+                        message, 
                         x = (canvas_w / 2) - (text_width / 2), 
                         y = (canvas_h / 2) - 10, 
                         font = Font::L, 
