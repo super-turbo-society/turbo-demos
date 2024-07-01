@@ -11,14 +11,12 @@ turbo::cfg! {r#"
     resolution = [384, 216]
 "#}
 
-const GRID_COLUMN_WIDTH: i32 = 48;
+const GRID_COLUMN_WIDTH: i32 = 96;
 const GRID_ROW_HEIGHT: i32 = 48;
 const GRID_ROW_LOW: i32 = 110; // Position of the truck
 const GRID_ROW_HIGH: i32 = 62; // Position of the plane. We can make these less magic numbery later.
 const GRID_COLUMN_OFFSET: i32 = 152;
 const BULLET_SPEED: f32 = 4.0;
-const BG_SCROLL_SPEED: i32 = 1;
-const BG_WIDTH: i32 = 256;
 
 // Define the game state initialization using the turbo::init! macro
 turbo::init! {
@@ -140,10 +138,18 @@ impl BattleScreen {
         let waves = vec![
             Wave {
                 enemies: vec![
-                    Enemy { kind: EnemyKind::Car, grid_position: (0, 1), health: 3, damage: 2 },
+                    Enemy { kind: EnemyKind::Car, grid_position: (0, 1), health: 3, damage: 3 },
+                    Enemy { kind: EnemyKind::Plane, grid_position: (0, 0), health: 2, damage: 2 },
+                    Enemy { kind: EnemyKind::Car, grid_position: (1, 1), health: 3, damage: 3 },
+                    Enemy { kind: EnemyKind::Car, grid_position: (2, 1), health: 3, damage: 3 },
+                ],
+            },
+            Wave {
+                enemies: vec![
+                    Enemy { kind: EnemyKind::Plane, grid_position: (0, 0), health: 2, damage: 2 },
                     Enemy { kind: EnemyKind::Plane, grid_position: (1, 0), health: 2, damage: 2 },
-                    Enemy { kind: EnemyKind::Car, grid_position: (2, 0), health: 3, damage: 5 },
-                    Enemy { kind: EnemyKind::Car, grid_position: (3, 1), health: 3, damage: 2 },
+                    Enemy { kind: EnemyKind::Plane, grid_position: (2, 0), health: 2, damage: 2 },
+                    Enemy { kind: EnemyKind::Car, grid_position: (2, 1), health: 3, damage: 3 },
                 ],
             },
         ];
@@ -621,6 +627,61 @@ fn create_enemy_bullet(bullets: &mut Vec<Bullet>, x: f32, y: f32, target_x: f32,
     });
 }
 
+fn draw_enemies(enemies: &[Enemy]) {
+    for enemy in enemies {
+        let (column, row) = enemy.grid_position;
+        let x_position = GRID_COLUMN_OFFSET + column * GRID_COLUMN_WIDTH;
+        let y_position = GRID_ROW_HIGH + (row* GRID_ROW_HEIGHT);
+        
+        // match row {
+        //     0 => GRID_ROW_HIGH,
+        //     1 => GRID_ROW_LOW,
+        //     _ => 0, // Default case, should not happen
+        // };
+
+        match enemy.kind {
+            EnemyKind::Car => {
+                
+                // Draw enemy driver
+                sprite!(
+                    "lughead",
+                    x = x_position + 40, // Adjust this offset as needed
+                    y = y_position + 0,  // Adjust this offset as needed
+                    flip_x = true
+                );
+
+                // Draw enemy base
+                sprite!(
+                    "enemy_01_base",
+                    x = x_position,
+                    y = y_position,
+                    sw = 95.0
+                    //fps = fps::FAST
+                );
+
+                // Draw enemy tires
+                sprite!(
+                    "enemy_01_tires",
+                    x = x_position,
+                    y = y_position,
+                    sw = 95,
+                    fps = fps::FAST,
+                    //flip_x = true
+                );
+
+
+            },
+            EnemyKind::Plane => {
+                sprite!(
+                    "plane_enemy",
+                    x = x_position,
+                    y = y_position
+                );
+            },
+        }
+    }
+}
+
 fn move_bullets(bullets: &mut Vec<Bullet>, explosions: &mut Vec<Explosion>, target_x: f32, target_y: f32, player_health: &mut i32) {
     bullets.retain_mut(|bullet| {
         let dx = bullet.target_x - bullet.x;
@@ -803,24 +864,8 @@ turbo::go!({
                 upgrade.shape.draw(is_selected, true); // Draw with green rectangle if selected
             }
 
-            // Draw enemies
-            for enemy in &screen.enemies {
-                let (column, row) = enemy.grid_position;
-                let sprite_name = match enemy.kind {
-                    EnemyKind::Car => "car_enemy",
-                    EnemyKind::Plane => "plane_enemy",
-                };
-                let y_position = match row {
-                    0 => GRID_ROW_HIGH,
-                    1 => GRID_ROW_LOW,
-                    _ => 0, // Default case, should not happen
-                };
-                sprite!(
-                    sprite_name,
-                    x = GRID_COLUMN_OFFSET + column * GRID_COLUMN_WIDTH,
-                    y = y_position
-                );
-            }
+             // Draw enemies
+            draw_enemies(&screen.enemies);
 
             // Match the whole battle_state with &mut
             match &mut screen.battle_state {
@@ -1057,7 +1102,14 @@ turbo::go!({
 
                 BattleState::EnemiesAttack { ref mut first_frame } => {
                     if screen.enemies.is_empty() {
-                        screen.battle_state = BattleState::End;
+                        if screen.current_wave + 1 < screen.waves.len() {
+                            // Transition to next wave
+                            screen.current_wave += 1;
+                            screen.enemies = screen.waves[screen.current_wave].enemies.clone();
+                            screen.battle_state = BattleState::ChooseAttack { first_frame: true };
+                        } else {
+                            screen.battle_state = BattleState::End;
+                        }
                     } else {
                         if *first_frame {
                             // Set the truck position
@@ -1079,7 +1131,7 @@ turbo::go!({
                             screen.battle_state = BattleState::ChooseAttack { first_frame: true };
                         }
                     }
-                },
+                },                
 
                 BattleState::End => {
                     clear!(0x000000ff); // Black background
