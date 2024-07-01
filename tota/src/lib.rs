@@ -56,13 +56,15 @@ turbo::init! {
                         Plane,
                     },
                     grid_position: (i32, i32),
-                    health: i32, // Added health for enemies
+                    health: i32,
+                    damage: i32, //this is how much damage this enemy does when it attacks
                 }>,
                 bullets: Vec<struct Bullet {
                     x: f32,
                     y: f32,
                     target_x: f32,
                     target_y: f32,
+                    damage: i32, //this comes from the enemy that shoots it
                 }>,
                 explosions: Vec<struct Explosion {
                     x: f32,
@@ -561,12 +563,13 @@ fn calculate_target_position(grid_position: (i32, i32)) -> (f32, f32) {
     (x, y)
 }
 
-fn create_enemy_bullet(bullets: &mut Vec<Bullet>, x: f32, y: f32, target_x: f32, target_y: f32) {
+fn create_enemy_bullet(bullets: &mut Vec<Bullet>, x: f32, y: f32, target_x: f32, target_y: f32, damage: i32) {
     bullets.push(Bullet {
         x,
         y,
         target_x,
         target_y,
+        damage,
     });
 }
 
@@ -596,9 +599,9 @@ fn move_bullets(bullets: &mut Vec<Bullet>, explosions: &mut Vec<Explosion>, targ
         );
 
         if (bullet.x - bullet.target_x).abs() < BULLET_SPEED && (bullet.y - bullet.target_y).abs() < BULLET_SPEED {
-            *player_health -=2;
+            *player_health -= bullet.damage;
             create_explosion(explosions, bullet.x, bullet.y); // Create explosion
-            false // Remove bullet
+            false // Remove bullet because it hit the player
         } else {
             true // Keep bullet
         }
@@ -1015,7 +1018,7 @@ turbo::go!({
                             // Create bullets for each enemy
                             for enemy in &screen.enemies {
                                 let (enemy_x, enemy_y) = calculate_target_position(enemy.grid_position);
-                                create_enemy_bullet(&mut screen.bullets, enemy_x, enemy_y, truck_x, truck_y);
+                                create_enemy_bullet(&mut screen.bullets, enemy_x, enemy_y, truck_x, truck_y, enemy.damage);
                             }
                             
                             *first_frame = false;
@@ -1057,10 +1060,10 @@ turbo::go!({
             upgrades: upgrades_for_battle,
             // Replace this with enemy wave data eventually
             enemies: vec![
-                Enemy { kind: EnemyKind::Car, grid_position: (0, 1), health: 3 },
-                Enemy { kind: EnemyKind::Plane, grid_position: (1, 0), health: 2 },
-                Enemy { kind: EnemyKind::Car, grid_position: (2, 1), health: 3 },
-                Enemy { kind: EnemyKind::Car, grid_position: (3, 1), health: 3 },
+                Enemy { kind: EnemyKind::Car, grid_position: (0, 1), health: 3, damage: 3 },
+                Enemy { kind: EnemyKind::Plane, grid_position: (1, 0), health: 2, damage: 1 },
+                Enemy { kind: EnemyKind::Car, grid_position: (2, 1), health: 3, damage: 3 },
+                Enemy { kind: EnemyKind::Car, grid_position: (3, 1), health: 3, damage: 3 },
             ], // Initialize with some enemies
             bullets: vec![], // Initialize with no bullets
             explosions: vec![], // Initialize with no explosions
