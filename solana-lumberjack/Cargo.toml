@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-turbo = { version = ">=1.4.1", package = "turbo-genesis-sdk", features = ["solana"] }
+turbo = { version = ">=1.5.0", package = "turbo-genesis-sdk", features = ["solana"] }
 lumberjack = { version = "*", package = "lumberjack", path = "./solana" }
 
 [patch.crates-io]
