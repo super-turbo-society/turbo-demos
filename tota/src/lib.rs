@@ -873,6 +873,16 @@ turbo::go!({
                 );
                 upgrade.shape.draw(true, can_place_upgrade);
             }
+            // Draw instructions text on the right side of the screen
+            let [canvas_w, _canvas_h] = canvas_size!();
+            let text_x = canvas_w - 240;
+            let text_y = 10;
+
+            text!("Place shapes on the grid", x = text_x, y = text_y, font = Font::L, color = 0x000000ff);
+            text!("Use Arrows to move them", x = text_x, y = text_y + 25, font = Font::L, color = 0x000000ff);
+            text!("Press Z to place", x = text_x, y = text_y + 50, font = Font::L, color = 0x000000ff);
+            text!("Press SPACE when there are", x = text_x, y = text_y + 75, font = Font::L, color = 0x000000ff);
+            text!("no more shapes to move", x = text_x, y = text_y + 100, font = Font::L, color = 0x000000ff);
         }
         Screen::Battle(screen) => {
             clear!(0xFFE0B7ff); //beige sky
