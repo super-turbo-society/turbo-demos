@@ -1,5 +1,4 @@
 use std::collections::BTreeMap;
-use std::collections::HashSet;
 
 // Define the game configuration using the turbo::cfg! macro
 turbo::cfg! {r#"
@@ -13,10 +12,15 @@ turbo::cfg! {r#"
 
 const GRID_COLUMN_WIDTH: i32 = 96;
 const GRID_ROW_HEIGHT: i32 = 72;
-const GRID_ROW_LOW: i32 = 110; // Position of the truck
-const GRID_ROW_HIGH: i32 = 36; // Position of the plane. We can make these less magic numbery later.
+const GRID_ROW_LOW: i32 = 110; 
+const GRID_ROW_HIGH: i32 = 36; 
 const GRID_COLUMN_OFFSET: i32 = 152;
 const BULLET_SPEED: f32 = 5.0;
+//Enemy details
+const ENEMY_MOVE_SPEED: f32 = 2.0;
+const ENEMY_OFFSET_START: f32 = 200.0;
+
+
 
 // Define the game state initialization using the turbo::init! macro
 turbo::init! {
@@ -57,6 +61,7 @@ turbo::init! {
                     grid_position: (i32, i32),
                     health: i32,
                     damage: i32, //this is how much damage this enemy does when it attacks
+                    position_offset: f32, // This is the code to move the enemies into place
                 }>,
                 bullets: Vec<struct Bullet {
                     x: f32,
@@ -87,6 +92,7 @@ turbo::init! {
                     EnemiesAttack {
                         first_frame: bool,
                     },
+                    StartingNewWave,
                     End,
                 },
                 bg_objects: Vec<struct ScrollingObject {
@@ -136,23 +142,23 @@ impl BattleScreen {
     fn new(upgrades: Vec<Upgrade>) -> Self {
         // Initialize the waves
         let waves = vec![
-            Wave {
-                enemies: vec![
-                    Enemy { kind: EnemyKind::Car, grid_position: (0, 1), health: 3, damage: 3 },
-                    Enemy { kind: EnemyKind::Plane, grid_position: (0, 0), health: 2, damage: 2 },
-                    Enemy { kind: EnemyKind::Car, grid_position: (1, 1), health: 3, damage: 3 },
-                    Enemy { kind: EnemyKind::Car, grid_position: (2, 1), health: 3, damage: 3 },
-                ],
-            },
-            Wave {
-                enemies: vec![
-                    Enemy { kind: EnemyKind::Plane, grid_position: (0, 0), health: 2, damage: 2 },
-                    Enemy { kind: EnemyKind::Plane, grid_position: (1, 0), health: 2, damage: 2 },
-                    Enemy { kind: EnemyKind::Plane, grid_position: (2, 0), health: 2, damage: 2 },
-                    Enemy { kind: EnemyKind::Car, grid_position: (2, 1), health: 3, damage: 3 },
-                ],
-            },
-        ];
+        Wave {
+            enemies: vec![
+                Enemy { kind: EnemyKind::Car, grid_position: (0, 1), health: 3, damage: 3, position_offset: ENEMY_OFFSET_START },
+                Enemy { kind: EnemyKind::Plane, grid_position: (0, 0), health: 2, damage: 2, position_offset: ENEMY_OFFSET_START },
+                Enemy { kind: EnemyKind::Car, grid_position: (1, 1), health: 3, damage: 3, position_offset: ENEMY_OFFSET_START },
+                Enemy { kind: EnemyKind::Car, grid_position: (2, 1), health: 3, damage: 3, position_offset: ENEMY_OFFSET_START },
+            ],
+        },
+        Wave {
+            enemies: vec![
+                Enemy { kind: EnemyKind::Plane, grid_position: (0, 0), health: 2, damage: 2, position_offset: ENEMY_OFFSET_START },
+                Enemy { kind: EnemyKind::Plane, grid_position: (1, 0), health: 2, damage: 2, position_offset: ENEMY_OFFSET_START },
+                Enemy { kind: EnemyKind::Plane, grid_position: (2, 0), health: 2, damage: 2, position_offset: ENEMY_OFFSET_START },
+                Enemy { kind: EnemyKind::Car, grid_position: (2, 1), health: 3, damage: 3, position_offset: ENEMY_OFFSET_START },
+            ],
+        },
+    ];
 
         Self {
             upgrades,
@@ -160,7 +166,7 @@ impl BattleScreen {
             bullets: vec![],
             explosions: vec![],
             selected_index: 1,
-            battle_state: BattleState::ChooseAttack { first_frame: true },
+            battle_state: BattleState::StartingNewWave,
             bg_objects: vec![
                 ScrollingObject::new("desert_bg".to_string(), 0, 256, 0),
                 ScrollingObject::new("mid_dunes".to_string(), 1, 256, 60),
@@ -642,21 +648,21 @@ fn create_enemy_bullet(bullets: &mut Vec<Bullet>, x: f32, y: f32, target_x: f32,
     });
 }
 
-fn draw_enemies(enemies: &[Enemy]) {
+fn draw_enemies(enemies: &mut [Enemy]) {
     for enemy in enemies {
         let (column, row) = enemy.grid_position;
-        let x_position = GRID_COLUMN_OFFSET + column * GRID_COLUMN_WIDTH;
-        let y_position = GRID_ROW_HIGH + (row* GRID_ROW_HEIGHT);
+        let x_position = GRID_COLUMN_OFFSET + column * GRID_COLUMN_WIDTH + enemy.position_offset as i32;
+        let y_position = GRID_ROW_HIGH + (row * GRID_ROW_HEIGHT);
         
-        // match row {
-        //     0 => GRID_ROW_HIGH,
-        //     1 => GRID_ROW_LOW,
-        //     _ => 0, // Default case, should not happen
-        // };
+        if enemy.position_offset > 0.0 {
+            enemy.position_offset -= ENEMY_MOVE_SPEED;
+            if enemy.position_offset < 0.0 {
+                enemy.position_offset = 0.0;
+            }
+        }
 
         match enemy.kind {
             EnemyKind::Car => {
-                
                 // Draw enemy driver
                 sprite!(
                     "lughead",
@@ -671,7 +677,6 @@ fn draw_enemies(enemies: &[Enemy]) {
                     x = x_position,
                     y = y_position,
                     sw = 95.0
-                    //fps = fps::FAST
                 );
 
                 // Draw enemy tires
@@ -681,10 +686,7 @@ fn draw_enemies(enemies: &[Enemy]) {
                     y = y_position,
                     sw = 95,
                     fps = fps::FAST,
-                    //flip_x = true
                 );
-
-
             },
             EnemyKind::Plane => {
                 sprite!(
@@ -882,7 +884,7 @@ turbo::go!({
             }
 
              // Draw enemies
-            draw_enemies(&screen.enemies);
+            draw_enemies(&mut screen.enemies);
 
             // Match the whole battle_state with &mut
             match &mut screen.battle_state {
@@ -1119,15 +1121,17 @@ turbo::go!({
 
                 BattleState::EnemiesAttack { ref mut first_frame } => {
                     if screen.enemies.is_empty() {
+                        //if we have more waves, then transition to new wave
                         if screen.current_wave + 1 < screen.waves.len() {
-                            // Transition to next wave
-                            screen.current_wave += 1;
-                            screen.enemies = screen.waves[screen.current_wave].enemies.clone();
-                            screen.battle_state = BattleState::ChooseAttack { first_frame: true };
-                        } else {
+                        screen.current_wave += 1;
+                        screen.enemies = screen.waves[screen.current_wave].enemies.clone();
+                        screen.battle_state = BattleState::StartingNewWave
+                        }
+                        else {
                             screen.battle_state = BattleState::End;
                         }
-                    } else {
+                    } 
+                    else {
                         if *first_frame {
                             // Set the truck position
                             let (truck_x, truck_y) = (50.0, 75.0);
@@ -1152,7 +1156,20 @@ turbo::go!({
                             }
                         }
                     }
-                },                
+                }, 
+
+                BattleState::StartingNewWave => {
+
+                        // Draw enemies and move them into position
+                    draw_enemies(&mut screen.enemies);
+
+                    // Check if all enemies have reached their positions
+                    let all_enemies_in_position = screen.enemies.iter().all(|enemy| enemy.position_offset == 0.0);
+
+                    if all_enemies_in_position {
+                        screen.battle_state = BattleState::ChooseAttack { first_frame: true };
+                    }
+                },             
              
                 BattleState::End => {
                     clear!(0x000000ff); // Black background
