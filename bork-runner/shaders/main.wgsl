@@ -228,26 +228,6 @@ const palette: array<vec3<f32>, 4> = array<vec3<f32>, 4>(
     vec3<f32>(0.0, 0.0, 1.0), // Blue
     vec3<f32>(1.0, 1.0, 0.0), // Yellow
 );
-
-fn quantize_color(color: vec4<f32>) -> vec4<f32> {
-
-    // Initialize variables for the closest color and its distance
-    var closestColor: vec3<f32> = global.palette[0].rgb;
-    var minDistance = length(color.rgb - closestColor.rgb);
-
-    // Loop through the palette and find the closest color
-    for (var i: i32 = 1; i < 256; i = i + 1) {
-        let c = global.palette[i].rgb;
-        let distance: f32 = length(color.rgb - c);
-        if distance < minDistance {
-            closestColor = c;
-            minDistance = distance;
-        }
-    }
-
-    // Output the closest color as the final fragment color
-    return vec4<f32>(closestColor, color.a);
-}
  
 
 //------------------------------------------------------------------------------
