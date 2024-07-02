@@ -639,11 +639,26 @@ fn calculate_target_position(grid_position: (i32, i32)) -> (f32, f32) {
 }
 
 fn create_enemy_bullet(bullets: &mut Vec<Bullet>, x: f32, y: f32, target_x: f32, target_y: f32, damage: i32) {
+    let max_rand_x = 30.0;
+    let max_rand_y = 15.0;
+
+    // Generate random values between -max_rand_x and max_rand_x, and -max_rand_y and max_rand_y
+    let random_x = (rand() as i32 % (2 * max_rand_x as i32 + 1) - max_rand_x as i32) as f32;
+    let random_y = (rand() as i32 % (2 * max_rand_y as i32 + 1) - max_rand_y as i32) as f32;
+
+    // Print the random values for debugging
+    turbo::println!("random_x: {}", random_x);
+    turbo::println!("random_y: {}", random_y);
+
+    // Add randomness to the target position
+    let adjusted_target_x = target_x + random_x;
+    let adjusted_target_y = target_y + random_y;
+
     bullets.push(Bullet {
         x,
         y,
-        target_x,
-        target_y,
+        target_x: adjusted_target_x,
+        target_y: adjusted_target_y,
         damage,
     });
 }
@@ -1139,6 +1154,7 @@ turbo::go!({
                             // Create bullets for each enemy
                             for enemy in &screen.enemies {
                                 let (enemy_x, enemy_y) = calculate_target_position(enemy.grid_position);
+                                //TODO: Add a delay to the bullets, so we can create them all at once, but slowly 'release' them based on the delay
                                 create_enemy_bullet(&mut screen.bullets, enemy_x, enemy_y, truck_x, truck_y, enemy.damage);
                             }
                             
