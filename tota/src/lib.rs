@@ -255,18 +255,24 @@ turbo::init! {
 
 impl GarageScreen {
     fn new() -> Self {
-        let upgrades = vec![{
-            let mut truck = Upgrade::new_truck();
-            truck.shape.offset = (0, 5);
-            truck
-        }];
+        let car_presets = create_car_presets();
+        let selected_preset = &car_presets[0]; // Selecting the first preset for now
+
+        let mut upgrades = vec![];
+        for (upgrade, position) in &selected_preset.upgrades {
+            let mut upgrade_clone = upgrade.clone(); // Clone the upgrade
+            upgrade_clone.shape.offset = *position; // Set the position
+            upgrades.push(upgrade_clone);
+        }
         let shapes = upgrades.iter().map(|u| u.shape.clone()).collect::<Vec<_>>();
+
         Self {
-            upgrade: Upgrade::random_placeable(&shapes),
+            upgrade: None,
             upgrades,
         }
     }
 }
+
 impl Default for GameState {
     fn default() -> Self {
         Self {
@@ -804,39 +810,9 @@ fn draw_enemies(enemies: &mut [Enemy]) {
     // Iterate over enemies and set their positions using tweens
     for (i, enemy) in enemies.iter_mut().enumerate() {
         let (column, row) = enemy.grid_position;
-        let end_x_position = GRID_COLUMN_OFFSET + column * GRID_COLUMN_WIDTH;
+        let x = GRID_COLUMN_OFFSET + column * GRID_COLUMN_WIDTH;
         //if i == 0 {turbo::println!("End X {:?}", end_x_position);}
-        let end_y_position = GRID_ROW_HIGH + (row * GRID_ROW_HEIGHT);
-        let mut x = end_x_position + enemy.position_offset as i32;
-        //if i == 0 {turbo::println!("Start X {:?}", x);}
-        let mut y = end_y_position;
-        //turbo::println!("Y {:?}", y);
-
-        // Set tween for x position
-        let x_tweens = tween!(
-            &format!("enemy_x_{}", i),
-            easing::ease_out_back,
-            60.0,
-            1
-        );
-        x_tweens[0].set(end_x_position as f32);
-
-        // Set tween for y position
-        let y_tweens = tween!(
-            &format!("enemy_y_{}", i),
-            easing::ease_out_back,
-            60.0,
-            1
-        );
-        y_tweens[0].set(end_y_position as f32);
-
-        // Apply tweens to enemy positions
-       x = x_tweens[0].get(x as f32) as i32;
-       //if i == 0 {text!("Current X {:?}", x; font = Font::L);}
-
-       y = y_tweens[0].get(y as f32) as i32;
-       // let new_y_position = y_tweens[0].get(new_y_position as f32) as i32;
-       //turbo::println!("X {:?}", x);
+        let y = GRID_ROW_HIGH + (row * GRID_ROW_HEIGHT);
 
         match enemy.kind {
             EnemyKind::Car => {
@@ -971,6 +947,33 @@ fn draw_stat_bar(stat_name: &str, stat_value: i32, x: i32, y: i32) {
     // Draw the stat value rectangle
     rect!(w = stat_value, h = 10, x = x, y = y + 15, color = 0xffff00ff); // Yellow color
 }
+struct CarPreset {
+    name: &'static str,
+    upgrades: Vec<(Upgrade, (usize, usize))>,
+}
+
+fn create_car_presets() -> Vec<CarPreset> {
+    vec![
+        CarPreset {
+            name: "Suzee",
+            upgrades: vec![
+                (Upgrade::new_truck(), (0, 5)),
+                (Upgrade::new_skull_box(), (2, 4)),
+                (Upgrade::new_auto_rifle(), (4, 4)),
+                (Upgrade::new_harpoon(), (2, 3)),
+            ],
+        },
+        CarPreset {
+            name: "Meatbag",
+            upgrades: vec![
+                (Upgrade::new_truck(), (0, 5)),
+                (Upgrade::new_skull_box(), (3, 1)),
+                (Upgrade::new_laser_gun(), (5, 2)),
+                (Upgrade::new_harpoon(), (7, 3)),
+            ],
+        },
+    ]
+}
 
 turbo::go!({
     // Load the game state
@@ -1007,35 +1010,37 @@ turbo::go!({
             let grid_offset_x = ((canvas_w - 128) / 2 ) as usize; // Adjust 128 based on grid width
             let grid_offset_y = ((canvas_h - 128) / 2 ) as usize; // Adjust 128 based on grid height
 
-            if let Some(upgrade) = &mut screen.upgrade {
-                // Handle user input for shape movement
-                if gamepad(0).up.just_pressed() {
-                    upgrade.shape.move_up()
-                }
-                if gamepad(0).down.just_pressed() {
-                    upgrade.shape.move_down()
-                }
-                if gamepad(0).left.just_pressed() {
-                    upgrade.shape.move_left()
-                }
-                if gamepad(0).right.just_pressed() {
-                    upgrade.shape.move_right()
-                }
+            //COMMENTING THIS OUT FOR NOW - THIS IS THE CODE TO MOVE UPGRADES.
+            //WE"LL WANT THIS BACK WHEN WE HAVE A MID-WAVE UPGRADE SYSTEM.
+            // if let Some(upgrade) = &mut screen.upgrade {
+            //     // Handle user input for shape movement
+            //     if gamepad(0).up.just_pressed() {
+            //         upgrade.shape.move_up()
+            //     }
+            //     if gamepad(0).down.just_pressed() {
+            //         upgrade.shape.move_down()
+            //     }
+            //     if gamepad(0).left.just_pressed() {
+            //         upgrade.shape.move_left()
+            //     }
+            //     if gamepad(0).right.just_pressed() {
+            //         upgrade.shape.move_right()
+            //     }
 
-                let _is_empty = screen.upgrades.is_empty();
-                let upgrade_shapes = screen.upgrades.iter().map(|u| u.shape.clone()).collect::<Vec<_>>();
-                let is_overlapping = upgrade.shape.overlaps_any(&upgrade_shapes);
-                let is_stickable = upgrade.shape.can_stick_any(&upgrade_shapes);
-                can_place_upgrade = !is_overlapping && is_stickable;
-                if can_place_upgrade {
-                    if gamepad(0).a.just_pressed() {
-                        can_place_upgrade = false;
-                        screen.upgrades.push(upgrade.clone());
-                        let upgrade_shapes = screen.upgrades.iter().map(|u| u.shape.clone()).collect::<Vec<_>>();
-                        screen.upgrade = Upgrade::random_placeable(&upgrade_shapes);
-                    }
-                }
-            }
+            //     let _is_empty = screen.upgrades.is_empty();
+            //     let upgrade_shapes = screen.upgrades.iter().map(|u| u.shape.clone()).collect::<Vec<_>>();
+            //     let is_overlapping = upgrade.shape.overlaps_any(&upgrade_shapes);
+            //     let is_stickable = upgrade.shape.can_stick_any(&upgrade_shapes);
+            //     can_place_upgrade = !is_overlapping && is_stickable;
+            //     if can_place_upgrade {
+            //         if gamepad(0).a.just_pressed() {
+            //             can_place_upgrade = false;
+            //             screen.upgrades.push(upgrade.clone());
+            //             let upgrade_shapes = screen.upgrades.iter().map(|u| u.shape.clone()).collect::<Vec<_>>();
+            //             screen.upgrade = Upgrade::random_placeable(&upgrade_shapes);
+            //         }
+            //     }
+            // }
 
             if gamepad(0).start.just_pressed() && screen.upgrade.is_none() {
                 transition_to_battle = true;
@@ -1123,6 +1128,8 @@ turbo::go!({
 
                     // Handle input for cycling through upgrades
                     if gamepad(0).up.just_pressed() || gamepad(0).right.just_pressed() {
+                        turbo::println!("PRESSED UP OR RIGHT {:?}", screen.enemies.len().to_string());
+
                         let mut next_index = screen.selected_index;
                         loop {
                             next_index = (next_index + 1) % screen.upgrades.len();
@@ -1388,14 +1395,9 @@ turbo::go!({
 
                 BattleState::StartingNewWave => {
                     // Draw enemies and move them into position
-                    draw_enemies(&mut screen.enemies);
+                    //include any wave transition stuff in here later, for now just transition to choose attack
+                    screen.battle_state = BattleState::ChooseAttack { first_frame: true };
 
-                    // Check if all enemies have reached their positions
-                    let all_enemies_in_position = screen.enemies.iter().all(|enemy| enemy.position_offset == 0.0);
-
-                    if all_enemies_in_position {
-                        screen.battle_state = BattleState::ChooseAttack { first_frame: true };
-                    }
                 },             
              
                 BattleState::End => {
