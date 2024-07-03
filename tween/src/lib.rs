@@ -9,7 +9,7 @@ turbo::init! {
         Self {
             player: Player {
                 x: Tween::new(0.).duration(16),
-                y: Tween::new(0).duration(32).ease(Easing::Linear),
+                y: Tween::new(0).duration(16).ease(Easing::Linear),
             },
         }
     }
@@ -52,7 +52,6 @@ turbo::go! {
         w = 16,
         h = 16,
     );
-
 
     // Save game state for the next frame
     state.save();
