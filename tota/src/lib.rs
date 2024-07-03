@@ -186,7 +186,8 @@ turbo::init! {
                     cooldown_counter: i32,
                     cooldown_max: i32
                 }>,
-                upgrades: Vec<Upgrade>,                
+                upgrades: Vec<Upgrade>,  
+                current_preset_index: usize,              
             }),
             Battle(struct BattleScreen {
                 upgrades: Vec<Upgrade>,
@@ -255,23 +256,44 @@ turbo::init! {
 
 impl GarageScreen {
     fn new() -> Self {
-        let car_presets = create_car_presets();
-        let selected_preset = &car_presets[0]; // Selecting the first preset for now
-
-        let mut upgrades = vec![];
-        for (upgrade, position) in &selected_preset.upgrades {
-            let mut upgrade_clone = upgrade.clone(); // Clone the upgrade
-            upgrade_clone.shape.offset = *position; // Set the position
-            upgrades.push(upgrade_clone);
-        }
-        let shapes = upgrades.iter().map(|u| u.shape.clone()).collect::<Vec<_>>();
-
+        let presets = car_presets();
+        let upgrades = presets[0].upgrades.iter().map(|(upgrade, position)| {
+            let mut upgrade = upgrade.clone();
+            upgrade.shape.offset = *position;
+            upgrade
+        }).collect();
+        
         Self {
-            upgrade: None,
+            current_preset_index: 0,
             upgrades,
+            upgrade: None,
         }
     }
+
+    fn handle_input(&mut self) {
+        let presets = car_presets();
+        if gamepad(0).right.just_pressed() {
+            self.current_preset_index = (self.current_preset_index + 1) % presets.len();
+            self.set_upgrades(presets[self.current_preset_index].upgrades.clone());
+        }
+        if gamepad(0).left.just_pressed() {
+            self.current_preset_index = if self.current_preset_index == 0 {
+                presets.len() - 1
+            } else {
+                self.current_preset_index - 1
+            };
+            self.set_upgrades(presets[self.current_preset_index].upgrades.clone());
+        }
+    }
+
+    fn set_upgrades(&mut self, new_upgrades: Vec<(Upgrade, (usize, usize))>) {
+        self.upgrades = new_upgrades.into_iter().map(|(mut upgrade, position)| {
+            upgrade.shape.offset = position;
+            upgrade
+        }).collect();
+    }
 }
+
 
 impl Default for GameState {
     fn default() -> Self {
@@ -952,24 +974,29 @@ struct CarPreset {
     upgrades: Vec<(Upgrade, (usize, usize))>,
 }
 
-fn create_car_presets() -> Vec<CarPreset> {
+fn car_presets() -> Vec<CarPreset> {
     vec![
         CarPreset {
             name: "Suzee",
             upgrades: vec![
                 (Upgrade::new_truck(), (0, 5)),
                 (Upgrade::new_skull_box(), (2, 4)),
-                (Upgrade::new_auto_rifle(), (4, 4)),
-                (Upgrade::new_harpoon(), (2, 3)),
+                (Upgrade::new_auto_rifle(), (0, 5)),
+                (Upgrade::new_harpoon(), (1, 3)),
+                (Upgrade::new_laser_gun(), (5, 4)),
+                (Upgrade::new_auto_rifle(), (6, 5)),
             ],
         },
         CarPreset {
             name: "Meatbag",
             upgrades: vec![
                 (Upgrade::new_truck(), (0, 5)),
-                (Upgrade::new_skull_box(), (3, 1)),
-                (Upgrade::new_laser_gun(), (5, 2)),
-                (Upgrade::new_harpoon(), (7, 3)),
+                (Upgrade::new_skull_box(), (0, 4)),
+                (Upgrade::new_skull_box(), (4, 3)),
+                (Upgrade::new_harpoon(), (4, 2)),
+                (Upgrade::new_laser_gun(), (6, 4)),
+                (Upgrade::new_auto_rifle(), (0, 3)),
+                (Upgrade::new_auto_rifle(), (2, 5)),
             ],
         },
     ]
@@ -1041,6 +1068,8 @@ turbo::go!({
             //         }
             //     }
             // }
+            
+            screen.handle_input(); 
 
             if gamepad(0).start.just_pressed() && screen.upgrade.is_none() {
                 transition_to_battle = true;
