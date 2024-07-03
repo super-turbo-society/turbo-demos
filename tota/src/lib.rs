@@ -609,7 +609,7 @@ impl Shape {
         shapes.iter().any(|s| self.can_stick(s))
     }
 
-    fn draw(&self, is_active: bool, can_place: bool) {
+    fn draw(&self, is_active: bool, can_place: bool, offset_x: i32, offset_y: i32) {
         let (x, y) = self.offset;
         let color = if can_place {
             0x00ff0044u32
@@ -619,7 +619,7 @@ impl Shape {
         for (pos, cell) in &self.cells {
             let (x, y) = (x + pos.0, y + pos.1);
             if x < 8 && y < 8 {
-                let (x, y) = ((x * 16) + 1, (y * 16) + 1);
+                let (x, y) = ((x * 16) + 1 + offset_x as usize, (y * 16) + 1 + offset_y as usize);
                 let (w, h) = (14, 14);
                 if is_active {
                     rect!(w = w, h = h, x = x, y = y, color = color);
@@ -939,6 +939,39 @@ fn advance_explosion_animation(explosions: &mut Vec<Explosion>) {
     });
 }
 
+fn draw_portrait() {
+    let [canvas_w, canvas_h] = canvas_size!();
+    let text_x = 20;
+    let text_y = ((canvas_h / 2) - 20) as i32; // Adjust y position for the first line
+    text!("Player", x = text_x, y = text_y, font = Font::L, color = 0x000000ff); // First line
+    text!("Portrait", x = text_x, y = text_y + 20, font = Font::L, color = 0x000000ff); // Second line, 20 pixels below the first
+}
+
+fn draw_stats_panel(upgrades: &Vec<Upgrade>) {
+    let [canvas_w, canvas_h] = canvas_size!();
+    let text_x = canvas_w as i32 - 120;
+    let text_y = (canvas_h as i32 / 2) - 60; // Adjust y position for the first stat bar
+
+    // Draw the stat bars
+    draw_stat_bar("Speed", 15, text_x, text_y);
+    draw_stat_bar("Brutality", 25, text_x, text_y + 40); // 40 pixels below the first stat bar
+    draw_stat_bar("Hype", 35, text_x, text_y + 80); // 40 pixels below the second stat bar
+}
+
+fn draw_stat_bar(stat_name: &str, stat_value: i32, x: i32, y: i32) {
+    let full_rect_width = 50;
+    let rect_height = 10;
+    
+    // Print stat name text at position x/y
+    text!(stat_name, x = x, y = y, font = Font::L, color = 0x000000ff);
+
+    // Draw the background rectangle
+    rect!(w = full_rect_width, h = rect_height, x = x, y = y + 15, color = 0x808080ff); // Gray color
+
+    // Draw the stat value rectangle
+    rect!(w = stat_value, h = 10, x = x, y = y + 15, color = 0xffff00ff); // Yellow color
+}
+
 turbo::go!({
     // Load the game state
     let mut state = GameState::load();
@@ -969,6 +1002,11 @@ turbo::go!({
         Screen::Garage(screen) => {
             clear!(0xffffffff);
             let mut can_place_upgrade = false;
+
+            let [canvas_w, canvas_h] = canvas_size!();
+            let grid_offset_x = ((canvas_w - 128) / 2 ) as usize; // Adjust 128 based on grid width
+            let grid_offset_y = ((canvas_h - 128) / 2 ) as usize; // Adjust 128 based on grid height
+
             if let Some(upgrade) = &mut screen.upgrade {
                 // Handle user input for shape movement
                 if gamepad(0).up.just_pressed() {
@@ -1009,8 +1047,8 @@ turbo::go!({
                     rect!(
                         w = 14,
                         h = 14,
-                        x = x * 16 + 1,
-                        y = y * 16 + 1,
+                        x = x * 16 + 1 + grid_offset_x,
+                        y = y * 16 + 1 + grid_offset_y,
                         color = 0x111111ff
                     );
                 }
@@ -1020,32 +1058,28 @@ turbo::go!({
             for upgrade in &screen.upgrades {
                 sprite!(
                     upgrade.kind.to_str(),
-                    x = upgrade.shape.offset.0 * 16,
-                    y = upgrade.shape.offset.1 * 16,
+                    x = upgrade.shape.offset.0 * 16 + grid_offset_x,
+                    y = upgrade.shape.offset.1 * 16 + grid_offset_y,
                     opacity = 1
                 );
-                upgrade.shape.draw(false, false);
+                upgrade.shape.draw(false, false, grid_offset_x as i32, grid_offset_y as i32);
                 _x += 9;
             }
             // Draw the current shape
             if let Some(upgrade) = &screen.upgrade {
                 sprite!(
                     upgrade.kind.to_str(),
-                    x = upgrade.shape.offset.0 * 16,
-                    y = upgrade.shape.offset.1 * 16,
+                    x = upgrade.shape.offset.0 * 16 + grid_offset_x,
+                    y = upgrade.shape.offset.1 * 16 + grid_offset_y,
                 );
-                upgrade.shape.draw(true, can_place_upgrade);
+                upgrade.shape.draw(true, can_place_upgrade, grid_offset_x as i32, grid_offset_y as i32);
             }
-            // Draw instructions text on the right side of the screen
-            let [canvas_w, _canvas_h] = canvas_size!();
-            let text_x = canvas_w - 240;
-            let text_y = 10;
 
-            text!("Place shapes on the grid", x = text_x, y = text_y, font = Font::L, color = 0x000000ff);
-            text!("Use Arrows to move them", x = text_x, y = text_y + 25, font = Font::L, color = 0x000000ff);
-            text!("Press Z to place", x = text_x, y = text_y + 50, font = Font::L, color = 0x000000ff);
-            text!("Press SPACE when there are", x = text_x, y = text_y + 75, font = Font::L, color = 0x000000ff);
-            text!("no more shapes to move", x = text_x, y = text_y + 100, font = Font::L, color = 0x000000ff);
+            //draw player portrait
+            draw_portrait(); 
+            //draw the stats panel
+            draw_stats_panel(&screen.upgrades);
+
         }
         Screen::Battle(screen) => {
             clear!(0xFFE0B7ff); //beige sky
@@ -1068,7 +1102,7 @@ turbo::go!({
                         opacity = 1
                     );
                 }
-                upgrade.shape.draw(is_selected, true); // Draw with green rectangle if selected
+                upgrade.shape.draw(is_selected, true, 0, 0); // Draw with green rectangle if selected
             }
 
              // Draw enemies
