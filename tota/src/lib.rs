@@ -20,6 +20,143 @@ const BULLET_SPEED: f32 = 5.0;
 const ENEMY_MOVE_SPEED: f32 = 2.0;
 const ENEMY_OFFSET_START: f32 = 200.0;
 
+//tween mod
+mod tween {
+    use std::collections::HashMap;
+    use turbo::prelude::tick;
+
+    #[derive(Debug, Copy, Clone)]
+    pub struct Tween {
+        pub start: Option<f32>,
+        pub curr: f32,
+        pub end: f32,
+        pub start_tick: usize,
+        pub duration: f32,
+        pub elapsed: f32,
+        pub easing_fn: fn(f32) -> f32,
+    }
+    impl Tween {
+        pub fn done(&self) -> bool {
+            self.start == None
+        }
+        pub fn duration(&mut self, duration: f32) {
+            self.duration = duration;
+        }
+        pub fn set(&mut self, end: f32) {
+            if end == self.end {
+                return;
+            }
+            if let Some(curr) = self.start {
+                self.start = Some(curr);
+            }
+            self.end = end;
+            self.start_tick = tick();
+            self.elapsed = 0.;
+        }
+        pub fn get(&mut self, current_value: f32) -> f32 {
+            if current_value == self.end {
+                self.start = None;
+                return current_value;
+            }
+            if self.start.is_none() {
+                self.start = Some(current_value);
+                self.curr = current_value;
+                self.elapsed = 0.;
+                self.start_tick = tick();
+            }
+            self.elapsed = (tick() - self.start_tick) as f32;
+
+            let start = self.start.unwrap(); // Safe unwrap
+            let t = if self.duration > 0.0 {
+                self.elapsed / self.duration
+            } else {
+                1.0
+            }
+            .clamp(0.0, 1.0); // Ensure t is in the range [0, 1]
+
+            let eased_t = (self.easing_fn)(t);
+
+            self.curr = start + (self.end - start) * eased_t;
+
+            self.curr
+        }
+    }
+
+    // Macro to initialize and update tween groups
+    #[macro_export]
+    macro_rules! tween {
+        ($key:expr, $easing_fn:expr, $duration:expr, $count:expr) => {
+            unsafe {
+                use std::collections::HashMap;
+                use std::mem::MaybeUninit;
+
+                use crate::tween::Tween;
+                if crate::tween::TWEENS.is_none() {
+                    crate::tween::TWEENS = Some(HashMap::new());
+                }
+                let groups = crate::tween::TWEENS.as_mut().unwrap();
+                let tweens = [Tween {
+                    start: None,
+                    curr: 0.,
+                    end: 0.,
+                    start_tick: 0,
+                    duration: 0.,
+                    elapsed: 0.,
+                    easing_fn: easing::linear,
+                }; 1024];
+                let group_entry = groups.entry($key.to_string()).or_insert(tweens);
+                let group = &mut *group_entry;
+
+                let mut ret: [std::mem::MaybeUninit<&mut Tween>; $count] =
+                    std::mem::MaybeUninit::uninit().assume_init();
+
+                for i in 0..$count {
+                    // Safe mutable reference handling
+                    group[i].duration = $duration;
+                    group[i].easing_fn = $easing_fn;
+                    if group[i].duration == 0. {
+                        group[i].duration = 8.; // default duration
+                    }
+                    let elem = &mut group[i] as *mut Tween;
+                    ret[i] = MaybeUninit::new(&mut *elem);
+                }
+
+                std::mem::transmute::<_, [&mut Tween; $count]>(ret)
+            }
+        };
+    }
+
+    pub static mut TWEENS: Option<HashMap<String, [Tween; 1024]>> = None;
+}
+
+mod easing {
+    // Define the easing functions
+    pub fn linear(t: f32) -> f32 {
+        t
+    }
+
+    pub fn ease_in_quad(t: f32) -> f32 {
+        t * t
+    }
+
+    pub fn ease_out_quad(t: f32) -> f32 {
+        t * (2.0 - t)
+    }
+    pub fn ease_in_out_circ(x: f32) -> f32 {
+        if x < 0.5 {
+            (1.0 - (1.0 - (2.0 * x).powi(2)).sqrt()) / 2.0
+        } else {
+            ((1.0 - (-2.0 * x + 2.0).powi(2)).sqrt() + 1.0) / 2.0
+        }
+    }
+
+    pub fn ease_out_back(x: f32) -> f32 {
+        const C1: f32 = 1.70158;
+        const C3: f32 = C1 + 1.0;
+    
+        1.0 + C3 * (x - 1.0).powf(3.0) + C1 * (x - 1.0).powf(2.0)
+    }
+}
 
 
 // Define the game state initialization using the turbo::init! macro
@@ -664,41 +801,66 @@ fn create_enemy_bullet(bullets: &mut Vec<Bullet>, x: f32, y: f32, target_x: f32,
 }
 
 fn draw_enemies(enemies: &mut [Enemy]) {
-    for enemy in enemies {
+    // Iterate over enemies and set their positions using tweens
+    for (i, enemy) in enemies.iter_mut().enumerate() {
         let (column, row) = enemy.grid_position;
-        let x_position = GRID_COLUMN_OFFSET + column * GRID_COLUMN_WIDTH + enemy.position_offset as i32;
-        let y_position = GRID_ROW_HIGH + (row * GRID_ROW_HEIGHT);
-        
-        if enemy.position_offset > 0.0 {
-            enemy.position_offset -= ENEMY_MOVE_SPEED;
-            if enemy.position_offset < 0.0 {
-                enemy.position_offset = 0.0;
-            }
-        }
+        let end_x_position = GRID_COLUMN_OFFSET + column * GRID_COLUMN_WIDTH;
+        //if i == 0 {turbo::println!("End X {:?}", end_x_position);}
+        let end_y_position = GRID_ROW_HIGH + (row * GRID_ROW_HEIGHT);
+        let mut x = end_x_position + enemy.position_offset as i32;
+        //if i == 0 {turbo::println!("Start X {:?}", x);}
+        let mut y = end_y_position;
+        //turbo::println!("Y {:?}", y);
+
+        // Set tween for x position
+        let x_tweens = tween!(
+            &format!("enemy_x_{}", i),
+            easing::ease_out_back,
+            60.0,
+            1
+        );
+        x_tweens[0].set(end_x_position as f32);
+
+        // Set tween for y position
+        let y_tweens = tween!(
+            &format!("enemy_y_{}", i),
+            easing::ease_out_back,
+            60.0,
+            1
+        );
+        y_tweens[0].set(end_y_position as f32);
+
+        // Apply tweens to enemy positions
+       x = x_tweens[0].get(x as f32) as i32;
+       //if i == 0 {text!("Current X {:?}", x; font = Font::L);}
+
+       y = y_tweens[0].get(y as f32) as i32;
+       // let new_y_position = y_tweens[0].get(new_y_position as f32) as i32;
+       //turbo::println!("X {:?}", x);
 
         match enemy.kind {
             EnemyKind::Car => {
                 // Draw enemy driver
                 sprite!(
                     "lughead",
-                    x = x_position + 40, // Adjust this offset as needed
-                    y = y_position + 0,  // Adjust this offset as needed
+                    x = x + 40, // Adjust this offset as needed
+                    y = y + 0,  // Adjust this offset as needed
                     flip_x = true
                 );
 
                 // Draw enemy base
                 sprite!(
                     "enemy_01_base",
-                    x = x_position,
-                    y = y_position,
+                    x = x,
+                    y = y,
                     sw = 95.0
                 );
 
                 // Draw enemy tires
                 sprite!(
                     "enemy_01_tires",
-                    x = x_position,
-                    y = y_position,
+                    x = x,
+                    y = y,
                     sw = 95,
                     fps = fps::FAST,
                 );
@@ -706,8 +868,8 @@ fn draw_enemies(enemies: &mut [Enemy]) {
             EnemyKind::Plane => {
                 sprite!(
                     "enemy_03_base",
-                    x = x_position,
-                    y = y_position,
+                    x = x,
+                    y = y,
                     sw = 105,
                     fps = fps::FAST,
                 );
@@ -718,6 +880,7 @@ fn draw_enemies(enemies: &mut [Enemy]) {
 
 fn move_bullets(bullets: &mut Vec<Bullet>, explosions: &mut Vec<Explosion>, target_x: f32, target_y: f32, player_health: &mut i32) {
     bullets.retain_mut(|bullet| {
+        //bullet.position.x = tween(start, end, elapsed_time_as_a_percentage_of_1, easing type)
         let dx = bullet.target_x - bullet.x;
         let dy = bullet.target_y - bullet.y;
         let distance = (dx * dx + dy * dy).sqrt();
@@ -1150,6 +1313,11 @@ turbo::go!({
                         if screen.current_wave + 1 < screen.waves.len() {
                         screen.current_wave += 1;
                         screen.enemies = screen.waves[screen.current_wave].enemies.clone();
+                        //create a tween
+                        
+                        //set the value on every tween as end position
+                        
+                        //
                         screen.battle_state = BattleState::StartingNewWave
                         }
                         else {
@@ -1185,8 +1353,7 @@ turbo::go!({
                 }, 
 
                 BattleState::StartingNewWave => {
-
-                        // Draw enemies and move them into position
+                    // Draw enemies and move them into position
                     draw_enemies(&mut screen.enemies);
 
                     // Check if all enemies have reached their positions
