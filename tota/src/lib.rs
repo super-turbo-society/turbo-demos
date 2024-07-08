@@ -785,14 +785,19 @@ fn show_health(player_health: i32) {
     );
 }
 
-fn draw_truck(x: i32, y: i32) {
-    let x = 0;
-    let y = 80;
+fn draw_truck(x: Option<i32>, y: Option<i32>, should_animate: bool) {
+    let x = x.unwrap_or(0); // Default x position
+    let y = y.unwrap_or(80); // Default y position
     sprite!("truck_base", x = x, y = y, sw = 128);
-    sprite!("suzee", x=76, y=y);
-    sprite!("truck_tires", x = x, y = y, sw = 128, fps = fps::FAST);
-    sprite!("truck_shadow", x=x, y=y, sw = 128, fps = fps::FAST);
-    
+    sprite!("suzee", x=x+76, y=y);
+    if should_animate{
+        sprite!("truck_tires", x = x, y = y, sw = 128, fps = fps::FAST);
+        sprite!("truck_shadow", x=x, y=y, sw = 128, fps = fps::FAST);
+    }
+    else{
+        sprite!("truck_tires", x = x, y = y, sw = 128);
+        sprite!("truck_shadow", x=x, y=y, sw = 128);  
+    }
 }
 
 // New function to draw the scrolling background
@@ -1138,12 +1143,16 @@ turbo::go!({
 
             let mut _x = 0;
             for upgrade in &screen.upgrades {
-                sprite!(
-                    &upgrade.sprite_name,
-                    x = upgrade.shape.offset.0 * 16 + grid_offset_x,
-                    y = upgrade.shape.offset.1 * 16 + grid_offset_y,
-                    opacity = 1
-                );
+                if upgrade.kind == UpgradeKind::Truck {
+                    draw_truck(Some(upgrade.shape.offset.0 as i32 * 16 + grid_offset_x as i32), Some(upgrade.shape.offset.1 as i32 * 16 + grid_offset_y as i32), false);
+                } else {
+                    sprite!(
+                        &upgrade.sprite_name,
+                        x = upgrade.shape.offset.0 * 16 + grid_offset_x,
+                        y = upgrade.shape.offset.1 * 16 + grid_offset_y,
+                        opacity = 1
+                    );
+                }
                 upgrade.shape.draw(false, false, grid_offset_x as i32, grid_offset_y as i32);
                 _x += 9;
             }
@@ -1175,7 +1184,7 @@ turbo::go!({
             for (index, upgrade) in screen.upgrades.iter().enumerate() {
                 let is_selected = index == screen.selected_index;
                 if upgrade.kind == UpgradeKind::Truck {
-                    draw_truck((upgrade.shape.offset.0 * 16) as i32, (upgrade.shape.offset.1 * 16) as i32);
+                    draw_truck(None, None, true);
                 } else {
                     sprite!(
                         &upgrade.sprite_name,
