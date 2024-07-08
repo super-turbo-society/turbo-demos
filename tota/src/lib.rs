@@ -175,6 +175,10 @@ turbo::init! {
                         LaserGun,
                         SkullBox,
                         Truck,
+                        HypeStick,
+                        EngineShield,
+                        BrutalBarrier,
+                        CrookedCarburetor,
                     },
                     shape: struct Shape {
                         offset: (usize, usize),
@@ -469,19 +473,66 @@ impl Upgrade {
             Shape::new(cells)
         }, 4, 0, 0, 2, 3, 2, "laser_gun".to_string())
     }
+    #[rustfmt::skip]
+    fn new_hype_stick() -> Self {
+        Self::new(UpgradeKind::HypeStick, {
+            let mut cells = BTreeMap::new();
+            cells.insert((0, 0), Cell { edges: [true, true, true, true] });
+            cells.insert((0, 1), Cell { edges: [true, true, true, true] });
+            cells.insert((0, 2), Cell { edges: [true, true, true, true] });
+            cells.insert((0, 3), Cell { edges: [true, true, true, true] });
+            Shape::new(cells)
+        }, 0, 0, 0, 0, 0, 10, "hype_stick".to_string())
+    }
+    #[rustfmt::skip]
+    fn new_engine_shield() -> Self {
+        Self::new(UpgradeKind::EngineShield, {
+            let mut cells = BTreeMap::new();
+            cells.insert((0, 0), Cell { edges: [true, true, true, true] });
+            cells.insert((0, 1), Cell { edges: [true, true, true, true] });
+            cells.insert((1, 0), Cell { edges: [true, true, true, true] });
+            cells.insert((1, 1), Cell { edges: [true, true, true, true] });
+            Shape::new(cells)
+        }, 0, 5, 5, 0, 0, 0, "engine_shield".to_string())
+    }
+    #[rustfmt::skip]
+    fn new_brutal_barrier() -> Self {
+        Self::new(UpgradeKind::EngineShield, {
+            let mut cells = BTreeMap::new();
+            cells.insert((1, 0), Cell { edges: [true, true, true, true] });
+            cells.insert((1, 1), Cell { edges: [true, true, true, true] });
+            cells.insert((1, 2), Cell { edges: [true, true, true, true] });
+            cells.insert((0, 1), Cell { edges: [true, true, true, true] });
+            Shape::new(cells)
+        }, 0, 0, 5, 5, 0, 0, "brutal_barrier".to_string())
+    }
+    #[rustfmt::skip]
+    fn new_crooked_carburetor() -> Self {
+        Self::new(UpgradeKind::EngineShield, {
+            let mut cells = BTreeMap::new();
+            cells.insert((1, 0), Cell { edges: [true, true, true, true] });
+            cells.insert((1, 1), Cell { edges: [true, true, true, true] });
+            cells.insert((0, 1), Cell { edges: [true, true, true, true] });
+            cells.insert((0, 2), Cell { edges: [true, true, true, true] });
+            Shape::new(cells)
+        }, 0, 5, 0, 5, 0, 0, "crooked_carburetor".to_string())
+    }
+
 }
 
-impl UpgradeKind {
-    fn to_str<'a>(&self) -> &'a str {
-        match self {
-            Self::AutoRifle => "auto_rifle",
-            Self::Harpoon => "harpoon",
-            Self::LaserGun => "laser_gun",
-            Self::SkullBox => "skull_box",
-            Self::Truck => "truck",
-        }
-    }
-}
+//Replaced this with sprite_name
+// impl UpgradeKind {
+//     fn to_str<'a>(&self) -> &'a str {
+//         match self {
+//             Self::AutoRifle => "auto_rifle",
+//             Self::Harpoon => "harpoon",
+//             Self::LaserGun => "laser_gun",
+//             Self::SkullBox => "skull_box",
+//             Self::Truck => "truck",
+//             Self::HypeStick => "hype_stick",
+//         }
+//     }
+// }
 
 impl Shape {
     fn new(cells: BTreeMap<(usize, usize), Cell>) -> Self {
@@ -1023,20 +1074,22 @@ fn car_presets() -> Vec<CarPreset> {
             name: "Suzee",
             upgrades: vec![
                 (Upgrade::new_truck(), (0, 5)),
-                (Upgrade::new_skull_box(), (2, 4)),
+                (Upgrade::new_engine_shield(), (2, 4)),
                 (Upgrade::new_auto_rifle(), (0, 5)),
                 (Upgrade::new_harpoon(), (1, 3)),
                 (Upgrade::new_laser_gun(), (5, 4)),
                 (Upgrade::new_auto_rifle(), (6, 5)),
+                (Upgrade::new_crooked_carburetor(), (4, 2)),
             ],
         },
         CarPreset {
             name: "Meatbag",
             upgrades: vec![
                 (Upgrade::new_truck(), (0, 5)),
-                (Upgrade::new_skull_box(), (0, 4)),
-                (Upgrade::new_skull_box(), (4, 3)),
-                (Upgrade::new_laser_gun(), (6, 4)),
+                (Upgrade::new_engine_shield(), (0, 4)),
+                (Upgrade::new_hype_stick(), (4, 1)),
+                (Upgrade::new_hype_stick(), (5, 1)),
+                (Upgrade::new_laser_gun(), (6, 5)),
                 (Upgrade::new_auto_rifle(), (0, 3)),
                 (Upgrade::new_auto_rifle(), (2, 5)),
             ],
@@ -1046,8 +1099,9 @@ fn car_presets() -> Vec<CarPreset> {
             upgrades: vec![
                 (Upgrade::new_truck(), (0, 5)),
                 (Upgrade::new_harpoon(), (0, 5)),
-                (Upgrade::new_harpoon(), (0, 4)),
                 (Upgrade::new_harpoon(), (0, 3)),
+                (Upgrade::new_harpoon(), (0, 2)),
+                (Upgrade::new_brutal_barrier(), (2, 3)),
                 (Upgrade::new_auto_rifle(), (4, 4)),
                 (Upgrade::new_auto_rifle(), (6, 5)),
             ],
@@ -1345,7 +1399,7 @@ turbo::go!({
                             selected_upgrade.cooldown_counter = selected_upgrade.cooldown_max;
 
                             screen.battle_state = BattleState::AnimateAttack {
-                                weapon_sprite: selected_upgrade.kind.to_str().to_string(),
+                                weapon_sprite: selected_upgrade.sprite_name.to_string(),
                                 weapon_position: (
                                     selected_upgrade.shape.offset.0 as f32 * 16.0,
                                     selected_upgrade.shape.offset.1 as f32 * 16.0
