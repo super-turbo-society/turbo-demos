@@ -190,6 +190,7 @@ turbo::init! {
                     brutality: i32,
                     firepower: i32,
                     hype: i32,
+                    sprite_name: String,
                 }>,
                 upgrades: Vec<Upgrade>,  
                 current_preset_index: usize,              
@@ -353,7 +354,7 @@ impl BattleScreen {
 
 
 impl Upgrade {
-    pub fn new(kind: UpgradeKind, shape: Shape, cooldown_max: i32, speed: i32, endurance: i32, brutality: i32, firepower: i32, hype: i32) -> Self {
+    pub fn new(kind: UpgradeKind, shape: Shape, cooldown_max: i32, speed: i32, endurance: i32, brutality: i32, firepower: i32, hype: i32, sprite_name: String) -> Self {
         Self {
             kind,
             shape,
@@ -364,6 +365,7 @@ impl Upgrade {
             brutality,
             firepower,
             hype,
+            sprite_name,
         }
     }
     pub fn random() -> Self {
@@ -426,7 +428,7 @@ impl Upgrade {
             cells.insert((7, 2), Cell { edges: [false, false, false, false] });
     
             Shape::new(cells)
-        }, 5, 10, 0, 0, 0, 0)
+        }, 5, 10, 0, 0, 0, 0, "truck".to_string())
     }
     #[rustfmt::skip]
     fn new_skull_box() -> Self {
@@ -437,7 +439,7 @@ impl Upgrade {
             cells.insert((0, 1), Cell { edges: [true, true, true, true] });
             cells.insert((1, 1), Cell { edges: [true, true, true, true] });
             Shape::new(cells)
-        }, 5, 0, 3, 1, 0, 2)
+        }, 5, 0, 8, 1, 0, 9, "skull_box".to_string())
     }
     #[rustfmt::skip]
     fn new_auto_rifle() -> Self {
@@ -446,7 +448,7 @@ impl Upgrade {
             cells.insert((0, 0), Cell { edges: [false, true, false, false] });
             cells.insert((1, 0), Cell { edges: [false, false, false, false] });
             Shape::new(cells)
-        }, 3, 0, 0, 1, 2, 1)
+        }, 3, 0, 0, 1, 2, 1, "auto_rifle".to_string())
     }
     #[rustfmt::skip]
     fn new_harpoon() -> Self {
@@ -456,7 +458,7 @@ impl Upgrade {
             cells.insert((1, 0), Cell { edges: [false, false, false, false] });
             cells.insert((2, 0), Cell { edges: [false, false, false, false] });
             Shape::new(cells)
-        }, 4, 0, 0, 3, 5, 3)
+        }, 4, 0, 0, 12, 5, 3, "harpoon".to_string())
     }
     #[rustfmt::skip]
     fn new_laser_gun() -> Self {
@@ -465,7 +467,7 @@ impl Upgrade {
             cells.insert((0, 0), Cell { edges: [false, true, false, false] });
             cells.insert((1, 0), Cell { edges: [false, false, false, false] });
             Shape::new(cells)
-        }, 4, 0, 0, 2, 3, 2)
+        }, 4, 0, 0, 2, 3, 2, "laser_gun".to_string())
     }
 }
 
@@ -1029,10 +1031,20 @@ fn car_presets() -> Vec<CarPreset> {
                 (Upgrade::new_truck(), (0, 5)),
                 (Upgrade::new_skull_box(), (0, 4)),
                 (Upgrade::new_skull_box(), (4, 3)),
-                (Upgrade::new_harpoon(), (4, 2)),
                 (Upgrade::new_laser_gun(), (6, 4)),
                 (Upgrade::new_auto_rifle(), (0, 3)),
                 (Upgrade::new_auto_rifle(), (2, 5)),
+            ],
+        },
+        CarPreset {
+            name: "AllPower",
+            upgrades: vec![
+                (Upgrade::new_truck(), (0, 5)),
+                (Upgrade::new_harpoon(), (0, 5)),
+                (Upgrade::new_harpoon(), (0, 4)),
+                (Upgrade::new_harpoon(), (0, 3)),
+                (Upgrade::new_auto_rifle(), (4, 4)),
+                (Upgrade::new_auto_rifle(), (6, 5)),
             ],
         },
     ]
@@ -1127,7 +1139,7 @@ turbo::go!({
             let mut _x = 0;
             for upgrade in &screen.upgrades {
                 sprite!(
-                    upgrade.kind.to_str(),
+                    &upgrade.sprite_name,
                     x = upgrade.shape.offset.0 * 16 + grid_offset_x,
                     y = upgrade.shape.offset.1 * 16 + grid_offset_y,
                     opacity = 1
@@ -1138,7 +1150,7 @@ turbo::go!({
             // Draw the current shape
             if let Some(upgrade) = &screen.upgrade {
                 sprite!(
-                    upgrade.kind.to_str(),
+                    &upgrade.sprite_name,
                     x = upgrade.shape.offset.0 * 16 + grid_offset_x,
                     y = upgrade.shape.offset.1 * 16 + grid_offset_y,
                 );
@@ -1166,7 +1178,7 @@ turbo::go!({
                     draw_truck((upgrade.shape.offset.0 * 16) as i32, (upgrade.shape.offset.1 * 16) as i32);
                 } else {
                     sprite!(
-                        upgrade.kind.to_str(),
+                        &upgrade.sprite_name,
                         x = upgrade.shape.offset.0 * 16,
                         y = upgrade.shape.offset.1 * 16,
                         opacity = 1
