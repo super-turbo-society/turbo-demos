@@ -184,7 +184,12 @@ turbo::init! {
                         }>
                     },
                     cooldown_counter: i32,
-                    cooldown_max: i32
+                    cooldown_max: i32,
+                    speed: i32,
+                    endurance: i32,
+                    brutality: i32,
+                    firepower: i32,
+                    hype: i32,
                 }>,
                 upgrades: Vec<Upgrade>,  
                 current_preset_index: usize,              
@@ -348,8 +353,18 @@ impl BattleScreen {
 
 
 impl Upgrade {
-    pub fn new(kind: UpgradeKind, shape: Shape, cooldown_max: i32) -> Self {
-        Self { kind, shape, cooldown_counter: 0, cooldown_max }
+    pub fn new(kind: UpgradeKind, shape: Shape, cooldown_max: i32, speed: i32, endurance: i32, brutality: i32, firepower: i32, hype: i32) -> Self {
+        Self {
+            kind,
+            shape,
+            cooldown_counter: 0,
+            cooldown_max,
+            speed,
+            endurance,
+            brutality,
+            firepower,
+            hype,
+        }
     }
     pub fn random() -> Self {
         match rand() % 4 {
@@ -411,7 +426,7 @@ impl Upgrade {
             cells.insert((7, 2), Cell { edges: [false, false, false, false] });
     
             Shape::new(cells)
-        }, 5)
+        }, 5, 10, 0, 0, 0, 0)
     }
     #[rustfmt::skip]
     fn new_skull_box() -> Self {
@@ -422,7 +437,7 @@ impl Upgrade {
             cells.insert((0, 1), Cell { edges: [true, true, true, true] });
             cells.insert((1, 1), Cell { edges: [true, true, true, true] });
             Shape::new(cells)
-        }, 5)
+        }, 5, 0, 3, 1, 0, 2)
     }
     #[rustfmt::skip]
     fn new_auto_rifle() -> Self {
@@ -431,7 +446,7 @@ impl Upgrade {
             cells.insert((0, 0), Cell { edges: [false, true, false, false] });
             cells.insert((1, 0), Cell { edges: [false, false, false, false] });
             Shape::new(cells)
-        }, 3)
+        }, 3, 0, 0, 1, 2, 1)
     }
     #[rustfmt::skip]
     fn new_harpoon() -> Self {
@@ -441,7 +456,7 @@ impl Upgrade {
             cells.insert((1, 0), Cell { edges: [false, false, false, false] });
             cells.insert((2, 0), Cell { edges: [false, false, false, false] });
             Shape::new(cells)
-        }, 4)
+        }, 4, 0, 0, 3, 5, 3)
     }
     #[rustfmt::skip]
     fn new_laser_gun() -> Self {
@@ -450,7 +465,7 @@ impl Upgrade {
             cells.insert((0, 0), Cell { edges: [false, true, false, false] });
             cells.insert((1, 0), Cell { edges: [false, false, false, false] });
             Shape::new(cells)
-        }, 4)
+        }, 4, 0, 0, 2, 3, 2)
     }
 }
 
@@ -948,12 +963,13 @@ fn draw_portrait() {
 fn draw_stats_panel(upgrades: &Vec<Upgrade>) {
     let [canvas_w, canvas_h] = canvas_size!();
     let text_x = canvas_w as i32 - 120;
-    let text_y = (canvas_h as i32 / 2) - 60; // Adjust y position for the first stat bar
+    let text_y = (canvas_h as i32 / 2) - 70; // Adjust y position for the first stat bar
 
-    // Draw the stat bars
-    draw_stat_bar("Speed", 15, text_x, text_y);
-    draw_stat_bar("Brutality", 25, text_x, text_y + 40); // 40 pixels below the first stat bar
-    draw_stat_bar("Hype", 35, text_x, text_y + 80); // 40 pixels below the second stat bar
+    draw_stat_bar("Speed", calculate_speed(upgrades), text_x, text_y);
+    draw_stat_bar("Endurance", calculate_endurance(upgrades), text_x, text_y + 30); // 40 pixels below the first stat bar
+    draw_stat_bar("Brutality", calculate_brutality(upgrades), text_x, text_y + 60); // 40 pixels below the second stat bar
+    draw_stat_bar("Firepower", calculate_firepower(upgrades), text_x, text_y + 90); // 40 pixels below the third stat bar
+    draw_stat_bar("Hype", calculate_hype(upgrades), text_x, text_y + 120); // 40 pixels below the fourth stat bar
 }
 
 fn draw_stat_bar(stat_name: &str, stat_value: i32, x: i32, y: i32) {
@@ -964,14 +980,34 @@ fn draw_stat_bar(stat_name: &str, stat_value: i32, x: i32, y: i32) {
     text!(stat_name, x = x, y = y, font = Font::L, color = 0x000000ff);
 
     // Draw the background rectangle
-    rect!(w = full_rect_width, h = rect_height, x = x, y = y + 15, color = 0x808080ff); // Gray color
+    rect!(w = full_rect_width, h = rect_height, x = x, y = y + 10, color = 0x808080ff); // Gray color
 
     // Draw the stat value rectangle
-    rect!(w = stat_value, h = 10, x = x, y = y + 15, color = 0xffff00ff); // Yellow color
+    rect!(w = stat_value, h = 10, x = x, y = y + 10, color = 0xffff00ff); // Yellow color
 }
 struct CarPreset {
     name: &'static str,
     upgrades: Vec<(Upgrade, (usize, usize))>,
+}
+
+fn calculate_speed(upgrades: &Vec<Upgrade>) -> i32 {
+    upgrades.iter().map(|u| u.speed).sum()
+}
+
+fn calculate_endurance(upgrades: &Vec<Upgrade>) -> i32 {
+    upgrades.iter().map(|u| u.endurance).sum()
+}
+
+fn calculate_brutality(upgrades: &Vec<Upgrade>) -> i32 {
+    upgrades.iter().map(|u| u.brutality).sum()
+}
+
+fn calculate_firepower(upgrades: &Vec<Upgrade>) -> i32 {
+    upgrades.iter().map(|u| u.firepower).sum()
+}
+
+fn calculate_hype(upgrades: &Vec<Upgrade>) -> i32 {
+    upgrades.iter().map(|u| u.hype).sum()
 }
 
 fn car_presets() -> Vec<CarPreset> {
