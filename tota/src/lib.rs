@@ -1033,15 +1033,26 @@ fn draw_stats_panel(upgrades: &Vec<Upgrade>) {
 fn draw_stat_bar(stat_name: &str, stat_value: i32, x: i32, y: i32) {
     let full_rect_width = 50;
     let rect_height = 10;
+    let text_color: u32 = 0x000000ff;
+    let empty_color: u32 = 0x404040FF;
+    let filled_color: u32 =  0xffff00ff;
+    let border_color: u32 = 0x000000ff;
+    let b_w = 2;
+    let b_r = 3;
+    let spacing = 10;
+
     
     // Print stat name text at position x/y
-    text!(stat_name, x = x, y = y, font = Font::L, color = 0x000000ff);
-
-    // Draw the background rectangle
-    rect!(w = full_rect_width, h = rect_height, x = x, y = y + 10, color = 0x808080ff); // Gray color
+    text!(stat_name, x = x, y = y, font = Font::L, color = text_color);
+    
+    // Draw the unfilled rectangle
+    rect!(w = full_rect_width, h = rect_height, x = x, y = y + spacing, color = empty_color);
 
     // Draw the stat value rectangle
-    rect!(w = stat_value, h = 10, x = x, y = y + 10, color = 0xffff00ff); // Yellow color
+    rect!(w = stat_value, h = rect_height, x = x, y = y + spacing, color = filled_color); // Yellow color
+
+    // Draw the rounded border
+    rect!(w = full_rect_width + b_w, h = rect_height, x = x, y = y + spacing, color = 0, border_color = border_color, border_width = b_w, border_radius = b_r);
 }
 struct CarPreset {
     name: &'static str,
