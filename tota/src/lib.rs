@@ -1416,7 +1416,7 @@ turbo::go!({
                             };
 
                             selected_upgrade.cooldown_counter = selected_upgrade.cooldown_max;
-
+                            
                             screen.battle_state = BattleState::AnimateAttack {
                                 weapon_sprite: selected_upgrade.sprite_name.to_string(),
                                 weapon_position: (
@@ -1526,18 +1526,22 @@ turbo::go!({
                     } 
                     else {
                         if *first_frame {
-                            // Set the truck position
-                            let (truck_x, truck_y) = (50.0, 75.0);
-                            
-                            // Create bullets for each enemy
-                            for enemy in &screen.enemies {
-                                let (enemy_x, enemy_y) = calculate_target_position(enemy.grid_position);
-                                //TODO: Add a delay to the bullets, so we can create them all at once, but slowly 'release' them based on the delay
-                                create_enemy_bullet(&mut screen.bullets, enemy_x, enemy_y, truck_x, truck_y, enemy.damage);
+                            //roll speed here. If it succeeds, then skip enemy bullet creation 
+                            //(which should skill whole enemy attack phase)
+                            //turbo::println!("Speed {:?}", calculate_speed(&screen.upgrades).to_string());
+                            if !apply_speed_effect(calculate_speed(&screen.upgrades) as u32){
+                                // Set the truck position for enemies to shoot at
+                                let (truck_x, truck_y) = (50.0, 75.0);
+                                
+                                // Create bullets for each enemy
+                                for enemy in &screen.enemies {
+                                    let (enemy_x, enemy_y) = calculate_target_position(enemy.grid_position);
+                                    //TODO: Add a delay to the bullets function, so we can create them all at once, but slowly 'release' them based on the delay
+                                    create_enemy_bullet(&mut screen.bullets, enemy_x, enemy_y, truck_x, truck_y, enemy.damage);
+                                }
                             }
-                            
                             *first_frame = false;
-                        }
+                      }
                 
                         // Move bullets
                         move_bullets(&mut screen.bullets, &mut screen.explosions, 50.0, 150.0, &mut screen.player_health);
