@@ -1130,9 +1130,9 @@ fn car_presets() -> Vec<CarPreset> {
 }
 
 //stat effects
-fn apply_speed_effect(speed: u32) -> bool {
+fn rand_out_of_100(odds: u32) -> bool {
     let chance: u32 = (rand() % 100) as u32; // Generate a random number between 0 and 99
-    chance < speed // Return true if chance is less than speed, otherwise false
+    chance < odds // Return true if chance is less than speed, otherwise false
 }
 
 turbo::go!({
@@ -1470,7 +1470,7 @@ turbo::go!({
                             scale_x = 0.25,
                             scale_y = 0.25
                         );
-
+                        //Apply Bullet Hit Effect
                         if (*wx - *tx).abs() < BULLET_SPEED && (*wy - *ty).abs() < BULLET_SPEED {
                             if !target_enemies.is_empty() {
                                 let enemy_index = target_enemies[*num_enemies_hit];
@@ -1478,6 +1478,10 @@ turbo::go!({
                                 {
                                     let enemy = &mut screen.enemies[enemy_index];
                                     enemy.health -= 1;
+                                    //check for Brutality Modifier
+                                    if rand_out_of_100(calculate_brutality(&screen.upgrades) as u32){
+                                        enemy.health = 0
+                                    }
                                     target_enemy_health = enemy.health;
                                 }
                                 create_explosion(&mut screen.explosions, *tx, *ty);
@@ -1526,10 +1530,8 @@ turbo::go!({
                     } 
                     else {
                         if *first_frame {
-                            //roll speed here. If it succeeds, then skip enemy bullet creation 
-                            //(which should skill whole enemy attack phase)
-                            //turbo::println!("Speed {:?}", calculate_speed(&screen.upgrades).to_string());
-                            if !apply_speed_effect(calculate_speed(&screen.upgrades) as u32){
+                            //Apply Speed Effect here - if it is accurate, this will skip the enemy shooting phase
+                            if !rand_out_of_100(calculate_speed(&screen.upgrades) as u32){
                                 // Set the truck position for enemies to shoot at
                                 let (truck_x, truck_y) = (50.0, 75.0);
                                 
