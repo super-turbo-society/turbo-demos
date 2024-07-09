@@ -1011,17 +1011,26 @@ fn advance_explosion_animation(explosions: &mut Vec<Explosion>) {
 }
 
 fn draw_portrait() {
-    let [canvas_w, canvas_h] = canvas_size!();
-    let text_x = 20;
-    let text_y = ((canvas_h / 2) - 20) as i32; // Adjust y position for the first line
-    text!("Player", x = text_x, y = text_y, font = Font::L, color = 0x000000ff); // First line
-    text!("Portrait", x = text_x, y = text_y + 20, font = Font::L, color = 0x000000ff); // Second line, 20 pixels below the first
+    
+    //for now just draw everything, then figure out how to set up sprite name
+    //probably should be name of preset + portrait, turned into a string
+    //draw arrows
+    sprite!("arrow", x = 7, y = 105, rotate = 270);
+    sprite!("arrow", x = 99, y = 105, rotate = 90);
+    //draw portrait
+    sprite!("driver_01", x=30, y=79);
+    //draw frame
+    sprite!("driver_frame", x=30, y=79);
+
+
 }
 
 fn draw_stats_panel(upgrades: &Vec<Upgrade>) {
     let [canvas_w, canvas_h] = canvas_size!();
     let text_x = canvas_w as i32 - 120;
-    let text_y = (canvas_h as i32 / 2) - 70; // Adjust y position for the first stat bar
+    let text_y = (canvas_h as i32 / 2) - 70;
+
+    text!("CHOOSE YOUR DRIVER", x = canvas_w/2 - 69, y = 20, font = Font::L, color = 0x564f5bff);
 
     draw_stat_bar("Speed", calculate_speed(upgrades), text_x, text_y);
     draw_stat_bar("Endurance", calculate_endurance(upgrades), text_x, text_y + 30); // 40 pixels below the first stat bar
@@ -1031,12 +1040,12 @@ fn draw_stats_panel(upgrades: &Vec<Upgrade>) {
 }
 
 fn draw_stat_bar(stat_name: &str, stat_value: i32, x: i32, y: i32) {
-    let full_rect_width = 50;
-    let rect_height = 10;
-    let text_color: u32 = 0x000000ff;
-    let empty_color: u32 = 0x404040FF;
-    let filled_color: u32 =  0xffff00ff;
-    let border_color: u32 = 0x000000ff;
+    let full_rect_width = 100;
+    let rect_height = 14;
+    let text_color: u32 = 0x564f5bff;
+    let empty_color: u32 = 0xcbc6c1FF;
+    let filled_color: u32 =  0xf8c53aff;
+    let border_color: u32 = 0xa69e9aff;
     let b_w = 2;
     let b_r = 3;
     let spacing = 10;
@@ -1049,7 +1058,7 @@ fn draw_stat_bar(stat_name: &str, stat_value: i32, x: i32, y: i32) {
     rect!(w = full_rect_width, h = rect_height, x = x, y = y + spacing, color = empty_color);
 
     // Draw the stat value rectangle
-    rect!(w = stat_value, h = rect_height, x = x, y = y + spacing, color = filled_color); // Yellow color
+    rect!(w = stat_value*2, h = rect_height, x = x+1, y = y + spacing, color = filled_color); // Yellow color
 
     // Draw the rounded border
     rect!(w = full_rect_width + b_w, h = rect_height, x = x, y = y + spacing, color = 0, border_color = border_color, border_width = b_w, border_radius = b_r);
@@ -1061,7 +1070,7 @@ struct CarPreset {
 
 fn calculate_speed(upgrades: &Vec<Upgrade>) -> i32 {
     upgrades.iter().map(|u| u.speed).sum()
-}
+} 
 
 fn calculate_endurance(upgrades: &Vec<Upgrade>) -> i32 {
     upgrades.iter().map(|u| u.endurance).sum()
@@ -1120,6 +1129,12 @@ fn car_presets() -> Vec<CarPreset> {
     ]
 }
 
+//stat effects
+fn apply_speed_effect(speed: u32) -> bool {
+    let chance: u32 = (rand() % 100) as u32; // Generate a random number between 0 and 99
+    chance < speed // Return true if chance is less than speed, otherwise false
+}
+
 turbo::go!({
     // Load the game state
     let mut state = GameState::load();
@@ -1148,7 +1163,7 @@ turbo::go!({
             }
         },
         Screen::Garage(screen) => {
-            clear!(0xffffffff);
+            clear!(0xeae0ddff);
             let mut can_place_upgrade = false;
 
             let [canvas_w, canvas_h] = canvas_size!();
@@ -1193,18 +1208,11 @@ turbo::go!({
                 transition_to_battle = true;
                 upgrades_for_battle = screen.upgrades.clone();
             }
+            
             // Draw the grid
-            for y in 0..8 {
-                for x in 0..8 {
-                    rect!(
-                        w = 14,
-                        h = 14,
-                        x = x * 16 + 1 + grid_offset_x,
-                        y = y * 16 + 1 + grid_offset_y,
-                        color = 0x111111ff
-                    );
-                }
-            }
+            sprite!("main_grid_16x16", x=grid_offset_x, y=grid_offset_y);
+ 
+
 
             let mut _x = 0;
             for upgrade in &screen.upgrades {
