@@ -306,6 +306,7 @@ impl UpgradeSelectionScreen {
         }
 
         draw_stats_panel(&self.upgrades);
+        text!("CHOOSE AN UPGRADE", x = canvas_w/2 - 69, y = 20, font = Font::L, color = 0x564f5bff);
         //draw upgrade
         sprite!("arrow", x = 7, y = 105, rotate = 270);
         sprite!("arrow", x = 99, y = 105, rotate = 90);
@@ -1049,7 +1050,7 @@ fn draw_stats_panel(upgrades: &Vec<Upgrade>) {
     let text_x = canvas_w as i32 - 120;
     let text_y = (canvas_h as i32 / 2) - 70;
 
-    text!("CHOOSE YOUR DRIVER", x = canvas_w/2 - 69, y = 20, font = Font::L, color = 0x564f5bff);
+    
 
     draw_stat_bar("Speed", calculate_speed(upgrades), text_x, text_y);
     draw_stat_bar("Endurance", calculate_endurance(upgrades), text_x, text_y + 30); // 40 pixels below the first stat bar
@@ -1257,6 +1258,8 @@ turbo::go!({
             draw_portrait(&state.driver_name); 
             //draw the stats panel
             draw_stats_panel(&screen.upgrades);
+            //draw central text
+            text!("CHOOSE YOUR DRIVER", x = canvas_w/2 - 69, y = 20, font = Font::L, color = 0x564f5bff);
 
         }
 
