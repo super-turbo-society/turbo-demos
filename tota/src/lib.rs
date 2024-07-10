@@ -60,6 +60,13 @@ turbo::init! {
                 upgrades: Vec<Upgrade>,  
                 current_preset_index: usize,              
             }),
+            UpgradeSelection(struct UpgradeSelectionScreen {
+                upgrades: Vec<Upgrade>,
+                options: Vec<Upgrade>,
+                selected_index: usize,
+                placing_upgrade: bool,
+                existing_upgrades: Vec<Upgrade>, 
+            }),
             Battle(struct BattleScreen {
                 upgrades: Vec<Upgrade>,
                 enemies: Vec<struct Enemy {
@@ -122,6 +129,7 @@ turbo::init! {
     } = {
         Self {
             screen: Screen::Title(TitleScreen { elapsed: 0 }),
+            //set this as "shoota" by default, but if you change the presets you have to change this to match the first preset
             driver_name: "shoota".to_string(),
         }
     }
@@ -170,6 +178,144 @@ impl GarageScreen {
     }
 }
 
+impl UpgradeSelectionScreen {
+    fn new(upgrades: Vec<Upgrade>) -> Self {
+        let mut options = Vec::new();
+        let mut existing_kinds = Vec::new();
+        while options.len() < 3 {
+            let mut new_upgrade = Upgrade::random();
+            while new_upgrade.kind == UpgradeKind::Truck || existing_kinds.contains(&new_upgrade.kind) {
+                new_upgrade = Upgrade::random();
+            }
+            existing_kinds.push(new_upgrade.kind.clone());
+            options.push(new_upgrade);
+        }
+        let existing_upgrades = upgrades.clone();
+        Self { upgrades, options, selected_index:0, placing_upgrade: false, existing_upgrades,}
+    }
+
+    fn is_touching_below(&self, new_upgrade: &Upgrade) -> bool {
+        for (pos, _) in &new_upgrade.shape.cells {
+            let (new_x, new_y) = (pos.0 + new_upgrade.shape.offset.0, pos.1 + new_upgrade.shape.offset.1);
+
+            for upgrade in &self.upgrades {
+                if upgrade as *const _ != new_upgrade as *const _ {
+                    for (u_pos, _) in &upgrade.shape.cells {
+                        let (existing_x, existing_y) = (u_pos.0 + upgrade.shape.offset.0, u_pos.1 + upgrade.shape.offset.1);
+
+                        // Check if the new cell is directly above an existing cell
+                        if new_x == existing_x && new_y + 1 == existing_y {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+        false
+    }
+    
+    fn can_place_upgrade(&self, new_upgrade: &Upgrade) -> bool {
+        //upgrade_shapes = screen.upgrades.iter().map(|u| u.shape.clone()).collect::<Vec<_>>();
+        let existing_shapes: Vec<Shape> = self.existing_upgrades.iter().map(|u| u.shape.clone()).collect::<Vec<_>>();
+        !new_upgrade.shape.overlaps_any(&existing_shapes)&& self.is_touching_below(new_upgrade)
+    }
+
+    fn handle_input(&mut self) {
+        // Navigate through the options
+        if self.placing_upgrade {
+            //let mut can_place = false; // Initialize can_place variable
+    
+            // Move the upgrade
+            if let Some(last_upgrade) = self.upgrades.last_mut() {
+                if gamepad(0).up.just_pressed() {
+                    last_upgrade.shape.move_up();
+                    //turbo::println!("Can place upgrade: {}", can_place);
+                }
+                if gamepad(0).down.just_pressed() {
+                    last_upgrade.shape.move_down();
+                    //turbo::println!("Can place upgrade: {}", can_place);
+                }
+                if gamepad(0).left.just_pressed() {
+                    last_upgrade.shape.move_left();
+                    //turbo::println!("Can place upgrade: {}", can_place);
+                }
+                if gamepad(0).right.just_pressed() {
+                    last_upgrade.shape.move_right();
+                    //turbo::println!("Can place upgrade: {}", can_place);
+                }
+    
+                // Check if the upgrade can be placed
+                //let clone_upgrade = last_upgrade.clone();
+                //can_place = self.can_place_upgrade(&clone_upgrade);
+                //turbo::println!("Can place upgrade: {}", can_place);
+            }
+    
+             // Print the value to the console
+        }
+        else{
+            if gamepad(0).right.just_pressed() {
+                if self.selected_index == 0 {
+                    self.selected_index = self.options.len() - 1;
+                } else {
+                    self.selected_index -= 1;
+                }
+            }
+            if gamepad(0).left.just_pressed() {
+                self.selected_index = (self.selected_index + 1) % self.options.len();
+            }
+            if gamepad(0).a.just_pressed() {
+                if let Some(selected_upgrade) = self.options.get(self.selected_index) {
+                    let mut new_upgrade = selected_upgrade.clone();
+                    new_upgrade.shape.offset = (0, 0); // Set the position to (0, 0)
+                    self.upgrades.push(new_upgrade);
+                    self.placing_upgrade = true;
+                    // Here you could also change to the next screen or continue with other logic
+                }
+            }
+        }
+    }
+
+    fn draw(&self, driver_name: &str) {
+        clear!(0xeae0ddff);
+        let [canvas_w, canvas_h] = canvas_size!();
+        let grid_offset_x = ((canvas_w - 128) / 2) as usize; // Adjust 128 based on grid width
+        let grid_offset_y = ((canvas_h - 128) / 2) as usize; // Adjust 128 based on grid height
+
+        // Draw the grid
+        sprite!("main_grid_16x16", x = grid_offset_x, y = grid_offset_y);
+
+        for upgrade in &self.upgrades {
+            if upgrade.kind == UpgradeKind::Truck {
+                draw_truck(Some(upgrade.shape.offset.0 as i32 * 16 + grid_offset_x as i32), Some(upgrade.shape.offset.1 as i32 * 16 + grid_offset_y as i32), false, driver_name);
+            } else {
+                sprite!(
+                    &upgrade.sprite_name,
+                    x = upgrade.shape.offset.0 * 16 + grid_offset_x,
+                    y = upgrade.shape.offset.1 * 16 + grid_offset_y,
+                    opacity = 1
+                );
+            }
+            upgrade.shape.draw(false, false, grid_offset_x as i32, grid_offset_y as i32);
+        }
+        if self.placing_upgrade {
+            if let Some(last_upgrade) = self.upgrades.last() {
+                let can_place = self.can_place_upgrade(last_upgrade);
+                let color = if can_place { 0x00ff0044u32 } else { 0xff000044u32 };
+                last_upgrade.shape.draw(true, can_place, grid_offset_x as i32, grid_offset_y as i32);
+            }
+        }
+
+        draw_stats_panel(&self.upgrades);
+        //draw upgrade
+        sprite!("arrow", x = 7, y = 105, rotate = 270);
+        sprite!("arrow", x = 99, y = 105, rotate = 90);
+        //draw upgrade
+        sprite!(&self.options[self.selected_index].sprite_name, x=30, y=79);
+        //draw frame
+        sprite!("driver_frame", x=30, y=79);
+        // Draw the new upgrade options on the left side of the screen
+    }
+}
 
 impl Default for GameState {
     fn default() -> Self {
@@ -240,11 +386,14 @@ impl Upgrade {
         }
     }
     pub fn random() -> Self {
-        match rand() % 4 {
+        match rand() % 7 {
             0 => Self::new_auto_rifle(),
             1 => Self::new_harpoon(),
             2 => Self::new_laser_gun(),
-            _ => Self::new_skull_box(),
+            3 => Self::new_hype_stick(),
+            4 => Self::new_brutal_barrier(),
+            5 => Self::new_engine_shield(),
+            _ => Self::new_crooked_carburetor(),
         }
     }
     pub fn random_placeable(shapes: &[Shape]) -> Option<Self> {
@@ -526,7 +675,12 @@ impl Shape {
             for (&(x2, y2), _) in &other.cells {
                 let global_x2 = x2 + other.offset.0;
                 let global_y2 = y2 + other.offset.1;
+                // turbo::println!(
+                //     "Checking overlap: self ({}, {}) -> ({}, {}), other ({}, {}) -> ({}, {})",
+                //     x1, y1, global_x1, global_y1, x2, y2, global_x2, global_y2
+                // );
                 if global_x1 == global_x2 && global_y1 == global_y2 {
+                    //turbo::println!("Overlap found: ({}, {}) with ({}, {})", global_x1, global_y1, global_x2, global_y2);
                     return true;
                 }
             }
@@ -565,6 +719,7 @@ impl Shape {
     }
 
     fn overlaps_any(&self, shapes: &[Shape]) -> bool {
+        
         shapes.iter().any(|s| self.overlaps(s))
     }
 
@@ -587,22 +742,22 @@ impl Shape {
                 if is_active {
                     rect!(w = w, h = h, x = x, y = y, color = color);
                 }
-                // top
-                if cell.edges[0] {
-                    rect!(w = w, h = 1, x = x, y = y, color = 0xff00ff66);
-                }
-                // bottom
-                if cell.edges[1] {
-                    rect!(w = w, h = 1, x = x, y = y + h - 1, color = 0xff00ff66);
-                }
-                // left
-                if cell.edges[2] {
-                    rect!(w = 1, h = h, x = x, y = y, color = 0xff00ff66);
-                }
-                // right
-                if cell.edges[3] {
-                    rect!(w = 1, h = h, x = x + w - 1, y = y, color = 0xff00ff66);
-                }
+                // // top
+                // if cell.edges[0] {
+                //     rect!(w = w, h = 1, x = x, y = y, color = 0xff00ff66);
+                // }
+                // // bottom
+                // if cell.edges[1] {
+                //     rect!(w = w, h = 1, x = x, y = y + h - 1, color = 0xff00ff66);
+                // }
+                // // left
+                // if cell.edges[2] {
+                //     rect!(w = 1, h = h, x = x, y = y, color = 0xff00ff66);
+                // }
+                // // right
+                // if cell.edges[3] {
+                //     rect!(w = 1, h = h, x = x + w - 1, y = y, color = 0xff00ff66);
+                // }
             }
         }
     }
@@ -913,16 +1068,15 @@ fn draw_stat_bar(stat_name: &str, stat_value: i32, x: i32, y: i32) {
     let b_w = 2;
     let b_r = 3;
     let spacing = 10;
-
     
     // Print stat name text at position x/y
     text!(stat_name, x = x, y = y, font = Font::L, color = text_color);
     
     // Draw the unfilled rectangle
-    rect!(w = full_rect_width, h = rect_height, x = x, y = y + spacing, color = empty_color);
+    rect!(w = full_rect_width, h = rect_height, x = x+1, y = y + spacing, color = empty_color);
 
     // Draw the stat value rectangle
-    rect!(w = stat_value*2, h = rect_height, x = x+1, y = y + spacing, color = filled_color); // Yellow color
+    rect!(w = stat_value*2, h = rect_height, x = x+1, y = y + spacing, color = filled_color);
 
     // Draw the rounded border
     rect!(w = full_rect_width + b_w, h = rect_height, x = x, y = y + spacing, color = 0, border_color = border_color, border_width = b_w, border_radius = b_r);
@@ -1075,9 +1229,6 @@ turbo::go!({
             
             // Draw the grid
             sprite!("main_grid_16x16", x=grid_offset_x, y=grid_offset_y);
- 
-
-
             let mut _x = 0;
             for upgrade in &screen.upgrades {
                 if upgrade.kind == UpgradeKind::Truck {
@@ -1108,6 +1259,14 @@ turbo::go!({
             draw_stats_panel(&screen.upgrades);
 
         }
+
+        Screen::UpgradeSelection(screen) => {
+          
+            screen.handle_input();
+            screen.draw(&state.driver_name);
+            
+        },
+
         Screen::Battle(screen) => {
             clear!(0xFFE0B7ff); //beige sky
 
@@ -1461,7 +1620,8 @@ turbo::go!({
 
     // Using this to move the upgrades variable into the battle screen
     if transition_to_battle {
-        state.screen = Screen::Battle(BattleScreen::new(upgrades_for_battle));
+        //state.screen = Screen::Battle(BattleScreen::new(upgrades_for_battle));
+        state.screen = Screen::UpgradeSelection(UpgradeSelectionScreen::new(upgrades_for_battle));
     }
 
     state.save();
