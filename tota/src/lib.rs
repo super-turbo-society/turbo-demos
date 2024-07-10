@@ -20,145 +20,6 @@ const BULLET_SPEED: f32 = 5.0;
 const ENEMY_MOVE_SPEED: f32 = 2.0;
 const ENEMY_OFFSET_START: f32 = 200.0;
 
-//tween mod
-mod tween {
-    use std::collections::HashMap;
-    use turbo::prelude::tick;
-
-    #[derive(Debug, Copy, Clone)]
-    pub struct Tween {
-        pub start: Option<f32>,
-        pub curr: f32,
-        pub end: f32,
-        pub start_tick: usize,
-        pub duration: f32,
-        pub elapsed: f32,
-        pub easing_fn: fn(f32) -> f32,
-    }
-    impl Tween {
-        pub fn done(&self) -> bool {
-            self.start == None
-        }
-        pub fn duration(&mut self, duration: f32) {
-            self.duration = duration;
-        }
-        pub fn set(&mut self, end: f32) {
-            if end == self.end {
-                return;
-            }
-            if let Some(curr) = self.start {
-                self.start = Some(curr);
-            }
-            self.end = end;
-            self.start_tick = tick();
-            self.elapsed = 0.;
-        }
-        pub fn get(&mut self, current_value: f32) -> f32 {
-            if current_value == self.end {
-                self.start = None;
-                return current_value;
-            }
-            if self.start.is_none() {
-                self.start = Some(current_value);
-                self.curr = current_value;
-                self.elapsed = 0.;
-                self.start_tick = tick();
-            }
-            self.elapsed = (tick() - self.start_tick) as f32;
-
-            let start = self.start.unwrap(); // Safe unwrap
-            let t = if self.duration > 0.0 {
-                self.elapsed / self.duration
-            } else {
-                1.0
-            }
-            .clamp(0.0, 1.0); // Ensure t is in the range [0, 1]
-
-            let eased_t = (self.easing_fn)(t);
-
-            self.curr = start + (self.end - start) * eased_t;
-
-            self.curr
-        }
-    }
-
-    // Macro to initialize and update tween groups
-    #[macro_export]
-    macro_rules! tween {
-        ($key:expr, $easing_fn:expr, $duration:expr, $count:expr) => {
-            unsafe {
-                use std::collections::HashMap;
-                use std::mem::MaybeUninit;
-
-                use crate::tween::Tween;
-                if crate::tween::TWEENS.is_none() {
-                    crate::tween::TWEENS = Some(HashMap::new());
-                }
-                let groups = crate::tween::TWEENS.as_mut().unwrap();
-                let tweens = [Tween {
-                    start: None,
-                    curr: 0.,
-                    end: 0.,
-                    start_tick: 0,
-                    duration: 0.,
-                    elapsed: 0.,
-                    easing_fn: easing::linear,
-                }; 1024];
-                let group_entry = groups.entry($key.to_string()).or_insert(tweens);
-                let group = &mut *group_entry;
-
-                let mut ret: [std::mem::MaybeUninit<&mut Tween>; $count] =
-                    std::mem::MaybeUninit::uninit().assume_init();
-
-                for i in 0..$count {
-                    // Safe mutable reference handling
-                    group[i].duration = $duration;
-                    group[i].easing_fn = $easing_fn;
-                    if group[i].duration == 0. {
-                        group[i].duration = 8.; // default duration
-                    }
-                    let elem = &mut group[i] as *mut Tween;
-                    ret[i] = MaybeUninit::new(&mut *elem);
-                }
-
-                std::mem::transmute::<_, [&mut Tween; $count]>(ret)
-            }
-        };
-    }
-
-    pub static mut TWEENS: Option<HashMap<String, [Tween; 1024]>> = None;
-}
-
-mod easing {
-    // Define the easing functions
-    pub fn linear(t: f32) -> f32 {
-        t
-    }
-
-    pub fn ease_in_quad(t: f32) -> f32 {
-        t * t
-    }
-
-    pub fn ease_out_quad(t: f32) -> f32 {
-        t * (2.0 - t)
-    }
-    pub fn ease_in_out_circ(x: f32) -> f32 {
-        if x < 0.5 {
-            (1.0 - (1.0 - (2.0 * x).powi(2)).sqrt()) / 2.0
-        } else {
-            ((1.0 - (-2.0 * x + 2.0).powi(2)).sqrt() + 1.0) / 2.0
-        }
-    }
-
-    pub fn ease_out_back(x: f32) -> f32 {
-        const C1: f32 = 1.70158;
-        const C3: f32 = C1 + 1.0;
-    
-        1.0 + C3 * (x - 1.0).powf(3.0) + C1 * (x - 1.0).powf(2.0)
-    }
-}
-
-
 // Define the game state initialization using the turbo::init! macro
 turbo::init! {
 
@@ -257,9 +118,11 @@ turbo::init! {
                 current_wave: usize,
             }),
         },
+        driver_name: String,
     } = {
         Self {
             screen: Screen::Title(TitleScreen { elapsed: 0 }),
+            driver_name: "shoota".to_string(),
         }
     }
 }
@@ -277,14 +140,16 @@ impl GarageScreen {
             current_preset_index: 0,
             upgrades,
             upgrade: None,
+            //current_preset_name: presets[0].name.to_string(),
         }
     }
 
-    fn handle_input(&mut self) {
+    fn handle_input(&mut self, driver_name: &mut String) {
         let presets = car_presets();
         if gamepad(0).right.just_pressed() {
             self.current_preset_index = (self.current_preset_index + 1) % presets.len();
             self.set_upgrades(presets[self.current_preset_index].upgrades.clone());
+            *driver_name = presets[self.current_preset_index].name.to_string();
         }
         if gamepad(0).left.just_pressed() {
             self.current_preset_index = if self.current_preset_index == 0 {
@@ -293,6 +158,7 @@ impl GarageScreen {
                 self.current_preset_index - 1
             };
             self.set_upgrades(presets[self.current_preset_index].upgrades.clone());
+            *driver_name = presets[self.current_preset_index].name.to_string();
         }
     }
 
@@ -309,6 +175,7 @@ impl Default for GameState {
     fn default() -> Self {
         Self {
             screen: Screen::Title(TitleScreen { elapsed: 0 }),
+            driver_name: "shoota".to_string(),
         }
     }
 }
@@ -836,11 +703,12 @@ fn show_health(player_health: i32) {
     );
 }
 
-fn draw_truck(x: Option<i32>, y: Option<i32>, should_animate: bool) {
+fn draw_truck(x: Option<i32>, y: Option<i32>, should_animate: bool, driver_name: &str) {
     let x = x.unwrap_or(0); // Default x position
     let y = y.unwrap_or(80); // Default y position
+    let s_n = format!("{}_small", driver_name);
     sprite!("truck_base", x = x, y = y, sw = 128);
-    sprite!("suzee", x=x+76, y=y);
+    sprite!(s_n.as_str(), x=x+76, y=y);
     if should_animate{
         sprite!("truck_tires", x = x, y = y, sw = 128, fps = fps::FAST);
         sprite!("truck_shadow", x=x, y=y, sw = 128, fps = fps::FAST);
@@ -909,7 +777,7 @@ fn draw_enemies(enemies: &mut [Enemy]) {
             EnemyKind::Car => {
                 // Draw enemy driver
                 sprite!(
-                    "lughead",
+                    "lughead_small",
                     x = x + 40, // Adjust this offset as needed
                     y = y + 0,  // Adjust this offset as needed
                     flip_x = true
@@ -1006,7 +874,7 @@ fn advance_explosion_animation(explosions: &mut Vec<Explosion>) {
     });
 }
 
-fn draw_portrait() {
+fn draw_portrait(spr_name: &str) {
     
     //for now just draw everything, then figure out how to set up sprite name
     //probably should be name of preset + portrait, turned into a string
@@ -1014,7 +882,7 @@ fn draw_portrait() {
     sprite!("arrow", x = 7, y = 105, rotate = 270);
     sprite!("arrow", x = 99, y = 105, rotate = 90);
     //draw portrait
-    sprite!("driver_01", x=30, y=79);
+    sprite!(spr_name, x=30, y=79);
     //draw frame
     sprite!("driver_frame", x=30, y=79);
 
@@ -1087,7 +955,7 @@ fn calculate_hype(upgrades: &Vec<Upgrade>) -> i32 {
 fn car_presets() -> Vec<CarPreset> {
     vec![
         CarPreset {
-            name: "Suzee",
+            name: "shoota",
             upgrades: vec![
                 (Upgrade::new_truck(), (0, 5)),
                 (Upgrade::new_engine_shield(), (2, 4)),
@@ -1099,7 +967,7 @@ fn car_presets() -> Vec<CarPreset> {
             ],
         },
         CarPreset {
-            name: "Meatbag",
+            name: "meatbag",
             upgrades: vec![
                 (Upgrade::new_truck(), (0, 5)),
                 (Upgrade::new_engine_shield(), (0, 4)),
@@ -1111,7 +979,7 @@ fn car_presets() -> Vec<CarPreset> {
             ],
         },
         CarPreset {
-            name: "AllPower",
+            name: "lughead",
             upgrades: vec![
                 (Upgrade::new_truck(), (0, 5)),
                 (Upgrade::new_harpoon(), (0, 5)),
@@ -1198,7 +1066,7 @@ turbo::go!({
             //     }
             // }
             
-            screen.handle_input(); 
+            screen.handle_input(&mut state.driver_name); 
 
             if gamepad(0).start.just_pressed() && screen.upgrade.is_none() {
                 transition_to_battle = true;
@@ -1213,7 +1081,7 @@ turbo::go!({
             let mut _x = 0;
             for upgrade in &screen.upgrades {
                 if upgrade.kind == UpgradeKind::Truck {
-                    draw_truck(Some(upgrade.shape.offset.0 as i32 * 16 + grid_offset_x as i32), Some(upgrade.shape.offset.1 as i32 * 16 + grid_offset_y as i32), false);
+                    draw_truck(Some(upgrade.shape.offset.0 as i32 * 16 + grid_offset_x as i32), Some(upgrade.shape.offset.1 as i32 * 16 + grid_offset_y as i32), false, &state.driver_name);
                 } else {
                     sprite!(
                         &upgrade.sprite_name,
@@ -1235,8 +1103,7 @@ turbo::go!({
                 upgrade.shape.draw(true, can_place_upgrade, grid_offset_x as i32, grid_offset_y as i32);
             }
 
-            //draw player portrait
-            draw_portrait(); 
+            draw_portrait(&state.driver_name); 
             //draw the stats panel
             draw_stats_panel(&screen.upgrades);
 
@@ -1253,7 +1120,7 @@ turbo::go!({
             for (index, upgrade) in screen.upgrades.iter().enumerate() {
                 let is_selected = index == screen.selected_index;
                 if upgrade.kind == UpgradeKind::Truck {
-                    draw_truck(None, None, true);
+                    draw_truck(None, None, true, &state.driver_name);
                 } else {
                     sprite!(
                         &upgrade.sprite_name,
@@ -1268,7 +1135,6 @@ turbo::go!({
              // Draw enemies
             draw_enemies(&mut screen.enemies);
 
-            // Match the whole battle_state with &mut
             match &mut screen.battle_state {
                 BattleState::ChooseAttack { ref mut first_frame } => {
                     // Decrease cooldown counters
