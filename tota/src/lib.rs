@@ -304,8 +304,15 @@ impl UpgradeSelectionScreen {
                 last_upgrade.shape.draw(true, can_place, grid_offset_x as i32, grid_offset_y as i32);
             }
         }
+        
+        let mut upgrades_with_selected = self.upgrades.clone();
+        if let Some(selected_upgrade) = self.options.get(self.selected_index) {
+            upgrades_with_selected.push(selected_upgrade.clone());
+        }
+        draw_stats_panel(&self.upgrades, &upgrades_with_selected.to_vec());
+        //draw extra stat panel in green for whatever stat is being effected
 
-        draw_stats_panel(&self.upgrades);
+
         text!("CHOOSE AN UPGRADE", x = canvas_w/2 - 69, y = 20, font = Font::L, color = 0x564f5bff);
         //draw upgrade
         sprite!("arrow", x = 7, y = 105, rotate = 270);
@@ -1045,43 +1052,79 @@ fn draw_portrait(spr_name: &str) {
 
 }
 
-fn draw_stats_panel(upgrades: &Vec<Upgrade>) {
+fn draw_stats_panel(upgrades: &Vec<Upgrade>, new_upgrades: &Vec<Upgrade>,) {
     let [canvas_w, canvas_h] = canvas_size!();
     let text_x = canvas_w as i32 - 120;
     let text_y = (canvas_h as i32 / 2) - 70;
 
-    
+    StatBar::new("Speed", calculate_speed(upgrades)).set_is_improved(calculate_speed(new_upgrades))
+        .draw_stat_bar(text_x, text_y);
+    StatBar::new("Endurance", calculate_endurance(upgrades)).set_is_improved(calculate_endurance(new_upgrades))
+        .draw_stat_bar(text_x, text_y+30);
+    StatBar::new("Brutality", calculate_brutality(upgrades)).set_is_improved(calculate_brutality(new_upgrades))
+        .draw_stat_bar(text_x, text_y+60);
+    StatBar::new("Firepower", calculate_firepower(upgrades)).set_is_improved(calculate_firepower(new_upgrades))
+        .draw_stat_bar(text_x, text_y+90);
+    StatBar::new("Hype", calculate_hype(upgrades)).set_is_improved(calculate_hype(new_upgrades))
+        .draw_stat_bar(text_x, text_y+120);
 
-    draw_stat_bar("Speed", calculate_speed(upgrades), text_x, text_y);
-    draw_stat_bar("Endurance", calculate_endurance(upgrades), text_x, text_y + 30); // 40 pixels below the first stat bar
-    draw_stat_bar("Brutality", calculate_brutality(upgrades), text_x, text_y + 60); // 40 pixels below the second stat bar
-    draw_stat_bar("Firepower", calculate_firepower(upgrades), text_x, text_y + 90); // 40 pixels below the third stat bar
-    draw_stat_bar("Hype", calculate_hype(upgrades), text_x, text_y + 120); // 40 pixels below the fourth stat bar
 }
 
-fn draw_stat_bar(stat_name: &str, stat_value: i32, x: i32, y: i32) {
-    let full_rect_width = 100;
-    let rect_height = 14;
-    let text_color: u32 = 0x564f5bff;
-    let empty_color: u32 = 0xcbc6c1FF;
-    let filled_color: u32 =  0xf8c53aff;
-    let border_color: u32 = 0xa69e9aff;
-    let b_w = 2;
-    let b_r = 3;
-    let spacing = 10;
-    
-    // Print stat name text at position x/y
-    text!(stat_name, x = x, y = y, font = Font::L, color = text_color);
-    
-    // Draw the unfilled rectangle
-    rect!(w = full_rect_width, h = rect_height, x = x+1, y = y + spacing, color = empty_color);
-
-    // Draw the stat value rectangle
-    rect!(w = stat_value*2, h = rect_height, x = x+1, y = y + spacing, color = filled_color);
-
-    // Draw the rounded border
-    rect!(w = full_rect_width + b_w, h = rect_height, x = x, y = y + spacing, color = 0, border_color = border_color, border_width = b_w, border_radius = b_r);
+#[derive(Debug, Clone)]
+struct StatBar{
+    stat_name: String,
+    stat_value: i32,
+    improved_stat_value: i32,
 }
+
+impl StatBar{
+    fn new(stat_name: &str, stat_value: i32) -> Self{
+        Self {
+            stat_name: stat_name.to_string(),
+            stat_value,
+            improved_stat_value: stat_value,  
+        }
+    }
+    fn set_is_improved(&self, new_value: i32) -> Self {
+        let mut next = self.clone();
+        next.improved_stat_value = new_value;
+        return next;
+    }
+
+    fn draw_stat_bar(&self, x: i32, y: i32) {
+        let Self{
+            stat_name,
+            stat_value,
+            improved_stat_value,
+        } = self;
+    
+        let full_rect_width = 100;
+        let rect_height = 14;
+        let text_color: u32 = 0x564f5bff;
+        let empty_color: u32 = 0xcbc6c1FF;
+        let filled_color: u32 =  0xf8c53aff;
+        let improved_color: u32 = 0x9daa3aff; 
+        let border_color: u32 = 0xa69e9aff;
+        let b_w = 2;
+        let b_r = 3;
+        let spacing = 10;
+        
+        // Print stat name text at position x/y
+        text!(&stat_name, x = x, y = y, font = Font::L, color = text_color);
+        
+        // Draw the unfilled rectangle
+        rect!(w = full_rect_width, h = rect_height, x = x+1, y = y + spacing, color = empty_color);
+
+        rect!(w = improved_stat_value*2, h = rect_height, x = x+1, y = y + spacing, color = improved_color);
+ 
+        rect!(w = stat_value*2, h = rect_height, x = x+1, y = y + spacing, color = filled_color);
+      
+        // Draw the rounded border
+        rect!(w = full_rect_width + b_w, h = rect_height, x = x, y = y + spacing, color = 0, border_color = border_color, border_width = b_w, border_radius = b_r);
+    }
+}
+
+
 struct CarPreset {
     name: &'static str,
     upgrades: Vec<(Upgrade, (usize, usize))>,
@@ -1257,7 +1300,7 @@ turbo::go!({
 
             draw_portrait(&state.driver_name); 
             //draw the stats panel
-            draw_stats_panel(&screen.upgrades);
+            draw_stats_panel(&screen.upgrades, &screen.upgrades);
             //draw central text
             text!("CHOOSE YOUR DRIVER", x = canvas_w/2 - 69, y = 20, font = Font::L, color = 0x564f5bff);
 
