@@ -126,13 +126,21 @@ turbo::init! {
             }),
         },
         driver_name: String,
+        saved_battle_screen: Option<BattleScreen>,
     } = {
         Self {
             screen: Screen::Title(TitleScreen { elapsed: 0 }),
             //set this as "shoota" by default, but if you change the presets you have to change this to match the first preset
             driver_name: "shoota".to_string(),
+            saved_battle_screen: None,
         }
     }
+}
+
+enum ScreenTransition {
+    ToUpgradeSelection(Vec<Upgrade>),
+    BackToBattle,
+    None,
 }
 
 impl GarageScreen {
@@ -220,39 +228,35 @@ impl UpgradeSelectionScreen {
         !new_upgrade.shape.overlaps_any(&existing_shapes)&& self.is_touching_below(new_upgrade)
     }
 
-    fn handle_input(&mut self) {
+    fn handle_input(&mut self) -> ScreenTransition {
         // Navigate through the options
         if self.placing_upgrade {
-            //let mut can_place = false; // Initialize can_place variable
-    
             // Move the upgrade
             if let Some(last_upgrade) = self.upgrades.last_mut() {
                 if gamepad(0).up.just_pressed() {
                     last_upgrade.shape.move_up();
-                    //turbo::println!("Can place upgrade: {}", can_place);
                 }
                 if gamepad(0).down.just_pressed() {
                     last_upgrade.shape.move_down();
-                    //turbo::println!("Can place upgrade: {}", can_place);
                 }
                 if gamepad(0).left.just_pressed() {
                     last_upgrade.shape.move_left();
-                    //turbo::println!("Can place upgrade: {}", can_place);
                 }
                 if gamepad(0).right.just_pressed() {
                     last_upgrade.shape.move_right();
-                    //turbo::println!("Can place upgrade: {}", can_place);
                 }
-    
-                // Check if the upgrade can be placed
-                //let clone_upgrade = last_upgrade.clone();
-                //can_place = self.can_place_upgrade(&clone_upgrade);
-                //turbo::println!("Can place upgrade: {}", can_place);
             }
-    
-             // Print the value to the console
-        }
-        else{
+
+            // Check if the upgrade can be placed
+            if gamepad(0).a.just_pressed() {
+                if let Some(last_upgrade) = self.upgrades.last() {
+                    if self.can_place_upgrade(last_upgrade) {
+                        turbo::println!("NO OVERLAP, SHOULD TRANSITION");
+                        return ScreenTransition::BackToBattle;
+                    }
+                }
+            }
+        } else {
             if gamepad(0).right.just_pressed() {
                 if self.selected_index == 0 {
                     self.selected_index = self.options.len() - 1;
@@ -269,10 +273,10 @@ impl UpgradeSelectionScreen {
                     new_upgrade.shape.offset = (0, 0); // Set the position to (0, 0)
                     self.upgrades.push(new_upgrade);
                     self.placing_upgrade = true;
-                    // Here you could also change to the next screen or continue with other logic
                 }
             }
         }
+        ScreenTransition::None
     }
 
     fn draw(&self, driver_name: &str) {
@@ -304,14 +308,13 @@ impl UpgradeSelectionScreen {
                 last_upgrade.shape.draw(true, can_place, grid_offset_x as i32, grid_offset_y as i32);
             }
         }
-        
+
+        //find the values with the new upgrade, to draw the improved stat values in green    
         let mut upgrades_with_selected = self.upgrades.clone();
         if let Some(selected_upgrade) = self.options.get(self.selected_index) {
             upgrades_with_selected.push(selected_upgrade.clone());
         }
         draw_stats_panel(&self.upgrades, &upgrades_with_selected.to_vec());
-        //draw extra stat panel in green for whatever stat is being effected
-
 
         text!("CHOOSE AN UPGRADE", x = canvas_w/2 - 69, y = 20, font = Font::L, color = 0x564f5bff);
         //draw upgrade
@@ -330,6 +333,7 @@ impl Default for GameState {
         Self {
             screen: Screen::Title(TitleScreen { elapsed: 0 }),
             driver_name: "shoota".to_string(),
+            saved_battle_screen: None,
         }
     }
 }
@@ -358,7 +362,7 @@ impl BattleScreen {
 
         Self {
             upgrades,
-            enemies: waves[0].enemies.clone(), // Start with the first wave
+            enemies: waves[0].enemies.clone(), 
             bullets: vec![],
             explosions: vec![],
             selected_index: 1,
@@ -1202,7 +1206,8 @@ turbo::go!({
     let mut state = GameState::load();
     // temp vars to get around 'borrowing' issue that I don't totally understand
     let mut transition_to_battle = false;
-    let mut upgrades_for_battle = vec![];
+    //let mut upgrades_for_battle = vec![];
+    let mut new_screen: Option<Screen> = None;
 
     match &mut state.screen {
         Screen::Title(screen) => {
@@ -1266,9 +1271,13 @@ turbo::go!({
             
             screen.handle_input(&mut state.driver_name); 
 
+            //TODO: Move this into handle input if there is time
             if gamepad(0).start.just_pressed() && screen.upgrade.is_none() {
-                transition_to_battle = true;
-                upgrades_for_battle = screen.upgrades.clone();
+                // Save the current Battle screen state before transitioning
+                // if let Screen::Battle(battle_screen) = &state.screen {
+                //     state.saved_battle_screen = Some(battle_screen.clone());
+                // }
+                new_screen = Some(Screen::Battle(BattleScreen::new(screen.upgrades.clone())));
             }
             
             // Draw the grid
@@ -1308,7 +1317,17 @@ turbo::go!({
 
         Screen::UpgradeSelection(screen) => {
           
-            screen.handle_input();
+            match screen.handle_input() {
+                ScreenTransition::BackToBattle => {
+                    // Restore the saved Battle screen state and update upgrades
+                    if let Some(mut battle_screen) = state.saved_battle_screen.take() {
+                        battle_screen.upgrades = screen.upgrades.clone();
+                        new_screen = Some(Screen::Battle(battle_screen));
+                    }
+                },
+                ScreenTransition::None => {},
+                _ => {},
+            }
             screen.draw(&state.driver_name);
             
         },
@@ -1321,7 +1340,7 @@ turbo::go!({
             // Show player health
             show_health(screen.player_health);
             
-            // Draw upgrades and enemies
+            // Draw upgrades
             for (index, upgrade) in screen.upgrades.iter().enumerate() {
                 let is_selected = index == screen.selected_index;
                 if upgrade.kind == UpgradeKind::Truck {
@@ -1582,14 +1601,10 @@ turbo::go!({
                     if screen.enemies.is_empty() {
                         //if we have more waves, then transition to new wave
                         if screen.current_wave + 1 < screen.waves.len() {
-                        screen.current_wave += 1;
-                        screen.enemies = screen.waves[screen.current_wave].enemies.clone();
-                        //create a tween
-                        
-                        //set the value on every tween as end position
-                        
-                        //
-                        screen.battle_state = BattleState::StartingNewWave
+                            screen.current_wave += 1;
+                            screen.enemies = screen.waves[screen.current_wave].enemies.clone();
+                            state.saved_battle_screen = Some(screen.clone()); // Save current Battle screen state
+                            new_screen = Some(Screen::UpgradeSelection(UpgradeSelectionScreen::new(screen.upgrades.clone())));
                         }
                         else {
                             screen.battle_state = BattleState::End;
@@ -1665,9 +1680,14 @@ turbo::go!({
     }
 
     // Using this to move the upgrades variable into the battle screen
-    if transition_to_battle {
-        //state.screen = Screen::Battle(BattleScreen::new(upgrades_for_battle));
-        state.screen = Screen::UpgradeSelection(UpgradeSelectionScreen::new(upgrades_for_battle));
+    // if transition_to_battle {
+    //     //state.screen = Screen::Battle(BattleScreen::new(upgrades_for_battle));
+    //     state.screen = Screen::UpgradeSelection(UpgradeSelectionScreen::new(upgrades_for_battle));
+    // }
+    
+    if let Some(screen) = new_screen {
+        //turbo::println!("IN THE LAST SCREEN FUNCTION");
+        state.screen = screen;
     }
 
     state.save();
