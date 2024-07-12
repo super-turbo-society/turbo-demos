@@ -1035,19 +1035,17 @@ fn create_explosion(explosions: &mut Vec<Explosion>, x: f32, y: f32) {
     });
 }
 
-//cycle through explosion animation
-//could make this calculated so it easier to change.
+//Go through the animation one time
 fn advance_explosion_animation(explosions: &mut Vec<Explosion>) {
+    let total_time = 20;
+    let cell_width = 64;
     explosions.retain_mut(|explosion| {
         explosion.timer += 1;
-        if explosion.timer <= 5 {
-            sprite!("explosion_frame_1", x = explosion.x, y = explosion.y);
-        } else if explosion.timer <= 10 {
-            sprite!("explosion_frame_2", x = explosion.x, y = explosion.y);
-        } else if explosion.timer <= 15 {
-            sprite!("explosion_frame_3", x = explosion.x, y = explosion.y);
-        }
-        explosion.timer <= 20 // Keep the explosion if the timer is 20 or less
+        if explosion.timer <= total_time {
+            sprite!("explosion_small", x = explosion.x, y = explosion.y, 
+            sw = cell_width, fps = fps::FAST);
+        } 
+        explosion.timer <= total_time // Keep the explosion if the timer is under total time
     });
 }
 
