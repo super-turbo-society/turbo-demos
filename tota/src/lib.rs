@@ -123,6 +123,15 @@ turbo::init! {
                     enemies: Vec<Enemy>,
                 }>,
                 current_wave: usize,
+                text_effects: Vec<struct TextEffect{
+                    text: String,
+                    text_color: u32,
+                    background_color: u32,
+                    text_x: i32,
+                    text_y: i32,
+                    text_duration: i32,
+
+                }>,
             }),
         },
         driver_name: String,
@@ -377,6 +386,7 @@ impl BattleScreen {
             player_health: 100,
             waves, // Store the waves
             current_wave: 0, // Start with the first wave
+            text_effects : vec![], //Store the text effects
         }
     }
 }
@@ -1074,6 +1084,54 @@ fn draw_stats_panel(upgrades: &Vec<Upgrade>, new_upgrades: &Vec<Upgrade>,) {
 
 }
 
+impl TextEffect{
+    fn new(text: &str, text_color: u32, background_color: u32, text_x: i32, text_y: i32) -> Self{
+        Self {
+            text: text.to_string(),
+            text_color,
+            background_color,
+            text_x,
+            text_y,
+            text_duration: 180,
+        }
+    }
+    fn set_duration(&self, new_value: i32) -> Self {
+        let mut next = self.clone();
+        next.text_duration = new_value;
+        return next;
+    }
+
+    fn draw(&self,) {
+        let font_char_width = 8;
+        let rect_width = self.text.len() as i32 * font_char_width;
+        let border_color: u32 = 0xa69e9aff;
+        let rect_height = 20;
+        rect!(
+           x = self.text_x - rect_width/2,
+           y = self.text_y,
+           w = rect_width,
+           h = rect_height,
+           color = self.background_color 
+        );
+        text!(
+            &self.text,
+            x = self.text_x - rect_width/2 + 2,
+            y = self.text_y + 5,
+            font = Font::L,
+            color = self.text_color,
+         );
+         // Draw the rounded border
+        rect!(w = rect_width + 2, h = rect_height, x = self.text_x - rect_width/2, 
+            y = self.text_y, color = 0, border_color = border_color, 
+            border_width = 2, border_radius = 3);
+    }
+
+    fn update(&mut self,){
+        self.text_duration -= 1;
+    }
+}
+
+
 #[derive(Debug, Clone)]
 struct StatBar{
     stat_name: String,
@@ -1122,7 +1180,6 @@ impl StatBar{
         rect!(w = improved_stat_value*2, h = rect_height, x = x+1, y = y + spacing, color = improved_color);
  
         rect!(w = stat_value*2, h = rect_height, x = x+1, y = y + spacing, color = filled_color);
-      
         // Draw the rounded border
         rect!(w = full_rect_width + b_w, h = rect_height, x = x, y = y + spacing, color = 0, border_color = border_color, border_width = b_w, border_radius = b_r);
     }
@@ -1204,11 +1261,10 @@ fn rand_out_of_100(odds: u32) -> bool {
 turbo::go!({
     // Load the game state
     let mut state = GameState::load();
-    // temp vars to get around 'borrowing' issue that I don't totally understand
-    let mut transition_to_battle = false;
+   
     //let mut upgrades_for_battle = vec![];
     let mut new_screen: Option<Screen> = None;
-
+    
     match &mut state.screen {
         Screen::Title(screen) => {
             clear!(0xfad6b8ff);
@@ -1335,29 +1391,7 @@ turbo::go!({
         Screen::Battle(screen) => {
             clear!(0xFFE0B7ff); //beige sky
 
-            draw_background(&mut screen.bg_objects);
 
-            // Show player health
-            show_health(screen.player_health);
-            
-            // Draw upgrades
-            for (index, upgrade) in screen.upgrades.iter().enumerate() {
-                let is_selected = index == screen.selected_index;
-                if upgrade.kind == UpgradeKind::Truck {
-                    draw_truck(None, None, true, &state.driver_name);
-                } else {
-                    sprite!(
-                        &upgrade.sprite_name,
-                        x = upgrade.shape.offset.0 * 16,
-                        y = upgrade.shape.offset.1 * 16,
-                        opacity = 1
-                    );
-                }
-                upgrade.shape.draw(is_selected, true, 0, 0); // Draw with green rectangle if selected
-            }
-
-             // Draw enemies
-            draw_enemies(&mut screen.enemies);
 
             match &mut screen.battle_state {
                 BattleState::ChooseAttack { ref mut first_frame } => {
@@ -1397,65 +1431,6 @@ turbo::go!({
                             }
                         }
                         screen.selected_index = prev_index;
-                    }
-
-                    // Determine the target enemies based on the selected weapon
-                    // Would be good to get this out of being 'every frame' eventually
-                    let selected_upgrade = &screen.upgrades[screen.selected_index];
-                    let mut target_enemies = vec![];
-
-                    match selected_upgrade.kind {
-                        UpgradeKind::AutoRifle => {
-                            if let Some((index, _)) = screen.enemies.iter().enumerate().min_by_key(|(_, enemy)| enemy.grid_position.0) {
-                                target_enemies.push(index);
-                            }
-                        },
-                        UpgradeKind::Harpoon => {
-                            for (index, enemy) in screen.enemies.iter().enumerate() {
-                                if enemy.grid_position.1 == 1 {
-                                    target_enemies.push(index);
-                                }
-                            }
-                        },
-                        UpgradeKind::LaserGun => {
-                            for (index, enemy) in screen.enemies.iter().enumerate() {
-                                if enemy.grid_position.1 == 0 {
-                                    target_enemies.push(index);
-                                }
-                            }
-                        },
-                        _ => {}
-                    }
-
-                    // Highlight target enemies
-                    for &enemy_index in &target_enemies {
-                        let enemy = &screen.enemies[enemy_index];
-                        let (column, row) = enemy.grid_position;
-                        let y_position = match row {
-                            0 => GRID_ROW_HIGH,
-                            1 => GRID_ROW_LOW,
-                            _ => 0, // Default case, should not happen
-                        };
-                        rect!(
-                            w = GRID_COLUMN_WIDTH,
-                            h = GRID_ROW_HEIGHT,
-                            x = GRID_COLUMN_OFFSET + column * GRID_COLUMN_WIDTH,
-                            y = y_position,
-                            color = 0xff0000aa // More solid red rectangle with higher opacity
-                        );
-                    }
-
-                    // Highlight upgrades that have positive cooldown (e.g. turn red bc you can't use them)
-                    for upgrade in &screen.upgrades {
-                        if upgrade.cooldown_counter > 0 {
-                            rect!(
-                                w = upgrade.shape.size.0 as i32 * 16,
-                                h = upgrade.shape.size.1 as i32 * 16,
-                                x = upgrade.shape.offset.0 as i32 * 16,
-                                y = upgrade.shape.offset.1 as i32 * 16,
-                                color = 0xff0000aa // More solid red rectangle with higher opacity
-                            );
-                        }
                     }
 
                     // Handle attack selection
@@ -1547,7 +1522,7 @@ turbo::go!({
                         }
 
                         let angle = dy.atan2(dx);
-
+                        //PLAYER BULLET CODE - FIX THIS LATER SO DRAW IS SEPARATE
                         sprite!(
                             weapon_sprite,
                             x = *wx,
@@ -1560,15 +1535,23 @@ turbo::go!({
                         if (*wx - *tx).abs() < BULLET_SPEED && (*wy - *ty).abs() < BULLET_SPEED {
                             if !target_enemies.is_empty() {
                                 let enemy_index = target_enemies[*num_enemies_hit];
-                                let target_enemy_health;
                                 {
                                     let enemy = &mut screen.enemies[enemy_index];
                                     enemy.health -= 1;
                                     //check for Brutality Modifier when the bullet hits. If success, set enemy health to 0
                                     if rand_out_of_100(calculate_brutality(&screen.upgrades) as u32){
+                                            //create an endurance pop up 
+                                            let new_effect = TextEffect::new(
+                                            "Brutality: Critical Hit",
+                                            0x564f5bff,
+                                            0xcbc6c1FF,
+                                            160,
+                                            10,
+                                        );
+                                        screen.text_effects.push(new_effect);
+                                        
                                         enemy.health = 0
                                     }
-                                    target_enemy_health = enemy.health;
                                 }
                                 create_explosion(&mut screen.explosions, *tx, *ty);
 
@@ -1625,16 +1608,37 @@ turbo::go!({
                                     let mut dmg = enemy.damage;
                                     if (rand_out_of_100(calculate_endurance(&screen.upgrades) as u32)){
                                         turbo::println!("ENDURANCE ACTIVE!");
+                                        
+                                        //create an endurance pop up 
+                                        let new_effect = TextEffect::new(
+                                            "Endurance: Damage Blocked",
+                                            0x564f5bff,
+                                            0xcbc6c1FF,
+                                            160,
+                                            10,
+        
+                                        );
+                                        screen.text_effects.push(new_effect);
+
                                         dmg = 0
                                     }
                                     create_enemy_bullet(&mut screen.bullets, enemy_x, enemy_y, truck_x, truck_y, dmg);
                                 }
                             }
+                            else{
+                                //apply speed effect here
+                                let new_effect = TextEffect::new(
+                                    "Speed Bonus: Shoot Again",
+                                    0x564f5bff,
+                                    0xcbc6c1FF,
+                                    160,
+                                    10,
+
+                                );
+                                screen.text_effects.push(new_effect);
+                            }
                             *first_frame = false;
                       }
-                
-                        // Move bullets
-                        move_bullets(&mut screen.bullets, &mut screen.explosions, 50.0, 150.0, &mut screen.player_health);
                         
                         if screen.bullets.is_empty() {
                             if screen.player_health <= 0 {
@@ -1672,19 +1676,114 @@ turbo::go!({
                 },
             }
 
+            //////////BATTLE STATE DRAWING CODE//////
+
+            draw_background(&mut screen.bg_objects);
+
+
+            // Show player health
+            show_health(screen.player_health);
+            
+            // Draw upgrades
+            for (index, upgrade) in screen.upgrades.iter().enumerate() {
+                let is_selected = index == screen.selected_index;
+                if upgrade.kind == UpgradeKind::Truck {
+                    draw_truck(None, None, true, &state.driver_name);
+                } else {
+                    sprite!(
+                        &upgrade.sprite_name,
+                        x = upgrade.shape.offset.0 * 16,
+                        y = upgrade.shape.offset.1 * 16,
+                        opacity = 1
+                    );
+                }
+                upgrade.shape.draw(is_selected, true, 0, 0); // Draw with green rectangle if selected
+            }
+
+             // Draw enemies
+            draw_enemies(&mut screen.enemies);
+            
+            // Determine the target enemies based on the selected weapon
+            // Would be good to get this out of being 'every frame' eventually
+            let selected_upgrade = &screen.upgrades[screen.selected_index];
+            let mut target_enemies = vec![];
+
+            match selected_upgrade.kind {
+                UpgradeKind::AutoRifle => {
+                    if let Some((index, _)) = screen.enemies.iter().enumerate().min_by_key(|(_, enemy)| enemy.grid_position.0) {
+                        target_enemies.push(index);
+                    }
+                },
+                UpgradeKind::Harpoon => {
+                    for (index, enemy) in screen.enemies.iter().enumerate() {
+                        if enemy.grid_position.1 == 1 {
+                            target_enemies.push(index);
+                        }
+                    }
+                },
+                UpgradeKind::LaserGun => {
+                    for (index, enemy) in screen.enemies.iter().enumerate() {
+                        if enemy.grid_position.1 == 0 {
+                            target_enemies.push(index);
+                        }
+                    }
+                },
+                _ => {}
+            }
+
+            // Highlight target enemies - this will change when we have a new highlight system
+            for &enemy_index in &target_enemies {
+                let enemy = &screen.enemies[enemy_index];
+                let (column, row) = enemy.grid_position;
+                let y_position = match row {
+                    0 => GRID_ROW_HIGH,
+                    1 => GRID_ROW_LOW,
+                    _ => 0, // Default case, should not happen
+                };
+                rect!(
+                    w = GRID_COLUMN_WIDTH,
+                    h = GRID_ROW_HEIGHT,
+                    x = GRID_COLUMN_OFFSET + column * GRID_COLUMN_WIDTH,
+                    y = y_position,
+                    color = 0xff0000aa // More solid red rectangle with higher opacity
+                );
+            }
+
+            // Highlight upgrades that have positive cooldown (e.g. turn red bc you can't use them)
+            for upgrade in &screen.upgrades {
+                if upgrade.cooldown_counter > 0 {
+                    rect!(
+                        w = upgrade.shape.size.0 as i32 * 16,
+                        h = upgrade.shape.size.1 as i32 * 16,
+                        x = upgrade.shape.offset.0 as i32 * 16,
+                        y = upgrade.shape.offset.1 as i32 * 16,
+                        color = 0xff0000aa // More solid red rectangle with higher opacity
+                    );
+                }
+            }
+           
+            // Move enemy bullets - should separate this to draw bullets eventually
+            move_bullets(&mut screen.bullets, &mut screen.explosions, 50.0, 150.0, &mut screen.player_health);
+           
             // Advance explosion animations
             if !screen.explosions.is_empty() {
                 advance_explosion_animation(&mut screen.explosions);
             }
+            
+            for text_effect in &mut screen.text_effects{
+                text_effect.update();
+                if text_effect.text_duration < 0{
+                    //remove it from array
+                }
+                else{
+                    text_effect.draw();
+                }
+            }
+
         }
     }
 
-    // Using this to move the upgrades variable into the battle screen
-    // if transition_to_battle {
-    //     //state.screen = Screen::Battle(BattleScreen::new(upgrades_for_battle));
-    //     state.screen = Screen::UpgradeSelection(UpgradeSelectionScreen::new(upgrades_for_battle));
-    // }
-    
+    //change screens whenever new_screen is different from screen    
     if let Some(screen) = new_screen {
         //turbo::println!("IN THE LAST SCREEN FUNCTION");
         state.screen = screen;
