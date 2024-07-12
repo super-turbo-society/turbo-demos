@@ -34,7 +34,7 @@ turbo::init! {
                         AutoRifle,
                         Harpoon,
                         LaserGun,
-                        SkullBox,
+                        MeatGrinder,
                         Truck,
                         HypeStick,
                         EngineShield,
@@ -423,7 +423,7 @@ impl Upgrade {
             Self::new_auto_rifle(),
             Self::new_harpoon(),
             Self::new_laser_gun(),
-            Self::new_skull_box(),
+            Self::new_meat_grinder(),
         ];
         let len = upgrades.len();
         let n = rand() as usize;
@@ -473,15 +473,15 @@ impl Upgrade {
         }, 5, 10, 0, 0, 0, 0, "truck".to_string())
     }
     #[rustfmt::skip]
-    fn new_skull_box() -> Self {
-        Self::new(UpgradeKind::SkullBox, {
+    fn new_meat_grinder() -> Self {
+        Self::new(UpgradeKind::MeatGrinder, {
             let mut cells = BTreeMap::new();
             cells.insert((0, 0), Cell { edges: [true, true, true, true] });
             cells.insert((1, 0), Cell { edges: [true, true, true, true] });
             cells.insert((0, 1), Cell { edges: [true, true, true, true] });
             cells.insert((1, 1), Cell { edges: [true, true, true, true] });
             Shape::new(cells)
-        }, 5, 0, 8, 1, 0, 9, "skull_box".to_string())
+        }, 5, 0, 8, 1, 0, 9, "meat_grinder".to_string())
     }
     #[rustfmt::skip]
     fn new_auto_rifle() -> Self {
@@ -1410,7 +1410,7 @@ turbo::go!({
                         let mut next_index = screen.selected_index;
                         loop {
                             next_index = (next_index + 1) % screen.upgrades.len();
-                            if screen.upgrades[next_index].cooldown_counter == 0 && screen.upgrades[next_index].kind != UpgradeKind::Truck && screen.upgrades[next_index].kind != UpgradeKind::SkullBox {
+                            if screen.upgrades[next_index].cooldown_counter == 0 && screen.upgrades[next_index].kind != UpgradeKind::Truck && screen.upgrades[next_index].kind != UpgradeKind::MeatGrinder {
                                 break;
                             }
                         }
@@ -1424,7 +1424,7 @@ turbo::go!({
                             } else {
                                 prev_index -= 1;
                             }
-                            if screen.upgrades[prev_index].cooldown_counter == 0 && screen.upgrades[prev_index].kind != UpgradeKind::Truck && screen.upgrades[prev_index].kind != UpgradeKind::SkullBox {
+                            if screen.upgrades[prev_index].cooldown_counter == 0 && screen.upgrades[prev_index].kind != UpgradeKind::Truck && screen.upgrades[prev_index].kind != UpgradeKind::MeatGrinder {
                                 break;
                             }
                         }
