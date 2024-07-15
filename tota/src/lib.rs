@@ -1542,7 +1542,7 @@ turbo::go!({
                             weapon_position.1,
                             target_position.0,
                             target_position.1,
-                            0, // Damage for player bullet
+                            1, // make this come from the weapon_kind later
                             false,
                         );
 
@@ -1560,8 +1560,17 @@ turbo::go!({
                                 let enemy_index = target_enemies[*num_enemies_hit];
                                 {
                                     let enemy = &mut screen.enemies[enemy_index];
-                                    enemy.health -= 1;
+                                    enemy.health -= bullet.damage;
+                                    turbo::println!("Hit Enemy"); 
                                     if rand_out_of_100(calculate_brutality(&screen.upgrades) as u32) {
+                                        let new_effect = TextEffect::new(
+                                            "Brutality: Critical Hit",
+                                            0x564f5bff,
+                                            0xcbc6c1FF,
+                                            160,
+                                            10,
+                                        );
+                                        screen.text_effects.push(new_effect);
                                         enemy.health = 0;
                                     }
                                 }
@@ -1580,6 +1589,7 @@ turbo::go!({
                         }
                     }
                     if let Some(state) = new_battle_state {
+                        screen.enemies.retain(|e| e.health > 0);
                         screen.battle_state = state;
                     }
                 },
@@ -1591,6 +1601,8 @@ turbo::go!({
                         if screen.current_wave + 1 < screen.waves.len() {
                             screen.current_wave += 1;
                             screen.enemies = screen.waves[screen.current_wave].enemies.clone();
+                            //set the battle screen back to choose attack, then change the screen
+                            screen.battle_state = BattleState::ChooseAttack { first_frame: (true) };
                             state.saved_battle_screen = Some(screen.clone()); // Save current Battle screen state
                             new_screen = Some(Screen::UpgradeSelection(UpgradeSelectionScreen::new(screen.upgrades.clone())));
                         }
@@ -1659,7 +1671,7 @@ turbo::go!({
                             true // Keep the bullet
                         }
                     });
-                    
+
                     if screen.bullets.is_empty() {
                         if screen.player_health <= 0 {
                             screen.battle_state = BattleState::End;
