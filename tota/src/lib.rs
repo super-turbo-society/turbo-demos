@@ -39,6 +39,8 @@ turbo::init! {
                         CrookedCarburetor,
                         PsykoJuice,
                         Skull,
+                        TheRipper,
+                        BoomerBomb,
                     },
                     shape: struct Shape {
                         offset: (usize, usize),
@@ -55,6 +57,7 @@ turbo::init! {
                     firepower: i32,
                     hype: i32,
                     sprite_name: String,
+                    is_active: bool,
                 }>,
                 upgrades: Vec<Upgrade>,  
                 current_preset_index: usize,              
@@ -83,7 +86,8 @@ turbo::init! {
                     y: f32,
                     target_x: f32,
                     target_y: f32,
-                    damage: i32, //this comes from the enemy that shoots it
+                    damage: i32,
+                    is_enemy: bool,
                 }>,
                 explosions: Vec<struct Explosion {
                     x: f32,
@@ -392,7 +396,7 @@ impl BattleScreen {
 
 
 impl Upgrade {
-    pub fn new(kind: UpgradeKind, shape: Shape, cooldown_max: i32, speed: i32, endurance: i32, brutality: i32, firepower: i32, hype: i32, sprite_name: String) -> Self {
+    pub fn new(kind: UpgradeKind, shape: Shape, cooldown_max: i32, speed: i32, endurance: i32, brutality: i32, firepower: i32, hype: i32, sprite_name: String, is_active: bool) -> Self {
         Self {
             kind,
             shape,
@@ -404,17 +408,20 @@ impl Upgrade {
             firepower,
             hype,
             sprite_name,
+            is_active,
         }
     }
     pub fn random() -> Self {
-        match rand() % 7 {
+        match rand() % 9 {
             0 => Self::new_auto_rifle(),
             1 => Self::new_harpoon(),
             2 => Self::new_laser_gun(),
             3 => Self::new_meat_grinder(),
             4 => Self::new_crooked_carburetor(),
             5 => Self::new_psyko_juice(),
-            _ => Self::new_skull(),
+            6 => Self::new_skull(),
+            7 => Self::new_the_ripper(),
+            _ => Self::new_boomer_bomb(),
         }
     }
     pub fn random_placeable(shapes: &[Shape]) -> Option<Self> {
@@ -469,7 +476,7 @@ impl Upgrade {
             cells.insert((7, 2), Cell { edges: [false, false, false, false] });
     
             Shape::new(cells)
-        }, 5, 10, 0, 0, 0, 0, "truck".to_string())
+        }, 5, 10, 0, 0, 0, 0, "truck".to_string(), false)
     }
     #[rustfmt::skip]
     fn new_meat_grinder() -> Self {
@@ -480,7 +487,7 @@ impl Upgrade {
             cells.insert((0, 1), Cell { edges: [true, true, true, true] });
             cells.insert((1, 1), Cell { edges: [true, true, true, true] });
             Shape::new(cells)
-        }, 5, 0, 8, 1, 0, 9, "meat_grinder".to_string())
+        }, 5, 0, 8, 1, 0, 9, "meat_grinder".to_string(), false)
     }
     #[rustfmt::skip]
     fn new_auto_rifle() -> Self {
@@ -489,7 +496,7 @@ impl Upgrade {
             cells.insert((0, 0), Cell { edges: [false, true, false, false] });
             cells.insert((1, 0), Cell { edges: [false, false, false, false] });
             Shape::new(cells)
-        }, 3, 0, 0, 1, 2, 1, "auto_rifle".to_string())
+        }, 3, 0, 0, 1, 2, 1, "auto_rifle".to_string(), true)
     }
     #[rustfmt::skip]
     fn new_harpoon() -> Self {
@@ -499,7 +506,7 @@ impl Upgrade {
             cells.insert((1, 0), Cell { edges: [false, false, false, false] });
             cells.insert((2, 0), Cell { edges: [false, false, false, false] });
             Shape::new(cells)
-        }, 4, 0, 0, 12, 5, 3, "harpoon".to_string())
+        }, 4, 0, 0, 12, 5, 3, "harpoon".to_string(), true)
     }
     #[rustfmt::skip]
     fn new_laser_gun() -> Self {
@@ -508,7 +515,7 @@ impl Upgrade {
             cells.insert((0, 0), Cell { edges: [false, true, false, false] });
             cells.insert((1, 0), Cell { edges: [false, false, false, false] });
             Shape::new(cells)
-        }, 4, 0, 0, 2, 3, 2, "laser_gun".to_string())
+        }, 4, 0, 0, 2, 3, 2, "laser_gun".to_string(), true)
     }
     // #[rustfmt::skip]
     // fn new_hype_stick() -> Self {
@@ -552,7 +559,7 @@ impl Upgrade {
             cells.insert((0, 1), Cell { edges: [true, true, true, true] });
             cells.insert((0, 2), Cell { edges: [true, true, true, true] });
             Shape::new(cells)
-        }, 0, 5, 0, 5, 0, 0, "crooked_carburetor".to_string())
+        }, 0, 5, 0, 5, 0, 0, "crooked_carburetor".to_string(), false)
     }
 
     #[rustfmt::skip]
@@ -561,7 +568,7 @@ impl Upgrade {
             let mut cells = BTreeMap::new();
             cells.insert((0, 0), Cell { edges: [true, true, true, true] });
             Shape::new(cells)
-        }, 0, 6, 0, 1, 0, 3, "psyko_juice".to_string())
+        }, 0, 6, 0, 1, 0, 3, "psyko_juice".to_string(), false)
     }
 
     #[rustfmt::skip]
@@ -570,9 +577,29 @@ impl Upgrade {
             let mut cells = BTreeMap::new();
             cells.insert((0, 0), Cell { edges: [true, true, true, true] });
             Shape::new(cells)
-        }, 0, 1, 2, 3, 0, 1, "skull".to_string())
+        }, 0, 1, 2, 3, 0, 1, "skull".to_string(), false)
     }
 
+    #[rustfmt::skip]
+    fn new_boomer_bomb() -> Self {
+        Self::new(UpgradeKind::AutoRifle, {
+            let mut cells = BTreeMap::new();
+            cells.insert((0, 0), Cell { edges: [false, true, false, false] });
+            cells.insert((1, 0), Cell { edges: [false, false, false, false] });
+            Shape::new(cells)
+        }, 3, 0, 0, 4, 3, 2, "boomer_bomb".to_string(), true)
+    }
+
+    #[rustfmt::skip]
+    fn new_the_ripper() -> Self {
+        Self::new(UpgradeKind::AutoRifle, {
+            let mut cells = BTreeMap::new();
+            cells.insert((0, 0), Cell { edges: [false, true, false, false] });
+            cells.insert((1, 0), Cell { edges: [false, false, false, false] });
+            cells.insert((2, 0), Cell { edges: [false, false, false, false] });
+            Shape::new(cells)
+        }, 1, 0, 0, 2, 2, 1, "the_ripper".to_string(), true)
+    }
 
 }
 
@@ -951,13 +978,11 @@ fn create_enemy_bullet(bullets: &mut Vec<Bullet>, x: f32, y: f32, target_x: f32,
     let adjusted_target_x = target_x + random_x;
     let adjusted_target_y = target_y + random_y;
 
-    bullets.push(Bullet {
-        x,
-        y,
-        target_x: adjusted_target_x,
-        target_y: adjusted_target_y,
-        damage,
-    });
+    bullets.push(Bullet::new(x, y, adjusted_target_x, adjusted_target_y, damage, true));
+}
+
+fn create_player_bullet(bullets: &mut Vec<Bullet>, x: f32, y: f32, target_x: f32, target_y: f32, damage: i32) {
+    bullets.push(Bullet::new(x, y, target_x, target_y, damage, false));
 }
 
 fn draw_enemies(enemies: &mut [Enemy]) {
@@ -1008,40 +1033,17 @@ fn draw_enemies(enemies: &mut [Enemy]) {
     }
 }
 
-fn move_bullets(bullets: &mut Vec<Bullet>, explosions: &mut Vec<Explosion>, target_x: f32, target_y: f32, player_health: &mut i32) {
-    bullets.retain_mut(|bullet| {
-        //bullet.position.x = tween(start, end, elapsed_time_as_a_percentage_of_1, easing type)
-        let dx = bullet.target_x - bullet.x;
-        let dy = bullet.target_y - bullet.y;
-        let distance = (dx * dx + dy * dy).sqrt();
-        if distance > 1.0 {
-            let direction_x = dx / distance;
-            let direction_y = dy / distance;
-            bullet.x += direction_x * BULLET_SPEED;
-            bullet.y += direction_y * BULLET_SPEED;
-        } else {
-            bullet.x = bullet.target_x;
-            bullet.y = bullet.target_y;
-        }
+// Function to move and draw bullets
+fn move_bullets(bullets: &mut Vec<Bullet>) {
+    for bullet in bullets.iter_mut() {
+        bullet.move_bullet();
+    }
+}
 
-        let angle = dy.atan2(dx);
-        sprite!(
-            "bullet",
-            x = bullet.x,
-            y = bullet.y,
-            rotate = angle.to_degrees() + 90.0,
-            scale_x = 0.175,
-            scale_y = 0.175
-        );
-
-        if (bullet.x - bullet.target_x).abs() < BULLET_SPEED && (bullet.y - bullet.target_y).abs() < BULLET_SPEED {
-            *player_health -= bullet.damage;
-            create_explosion(explosions, bullet.x, bullet.y);
-            false // Remove bullet because it hit the player
-        } else {
-            true // Keep bullet
-        }
-    });
+fn draw_bullets(bullets: &mut Vec<Bullet>){
+    for bullet in bullets{
+        bullet.draw_bullet();
+    }
 }
 
 //called when you apply damage, 
@@ -1069,8 +1071,6 @@ fn advance_explosion_animation(explosions: &mut Vec<Explosion>) {
 
 fn draw_portrait(spr_name: &str) {
     
-    //for now just draw everything, then figure out how to set up sprite name
-    //probably should be name of preset + portrait, turned into a string
     //draw arrows
     sprite!("arrow", x = 7, y = 105, rotate = 270);
     sprite!("arrow", x = 99, y = 105, rotate = 90);
@@ -1274,6 +1274,53 @@ fn rand_out_of_100(odds: u32) -> bool {
     chance < odds // Return true if chance is less than speed, otherwise false
 }
 
+impl Bullet{
+    fn new(x: f32, y: f32, target_x: f32, target_y: f32, damage: i32, is_enemy: bool) -> Self {
+        Self {
+            x,
+            y,
+            target_x,
+            target_y,
+            damage,
+            is_enemy,
+        }
+    }
+    fn move_bullet(&mut self) -> bool {
+        let dx = self.target_x - self.x;
+        let dy = self.target_y - self.y;
+        let distance = (dx * dx + dy * dy).sqrt();
+        if distance > 1.0 {
+            let direction_x = dx / distance;
+            let direction_y = dy / distance;
+            self.x += direction_x * BULLET_SPEED;
+            self.y += direction_y * BULLET_SPEED;
+        } else {
+            self.x = self.target_x;
+            self.y = self.target_y;
+        }
+
+        (self.x - self.target_x).abs() < BULLET_SPEED && (self.y - self.target_y).abs() < BULLET_SPEED
+    }
+
+    fn draw_bullet(&self) {
+        let angle = (self.target_y - self.y).atan2(self.target_x - self.x);
+        sprite!(
+            "bullet",
+            x = self.x,
+            y = self.y,
+            rotate = angle.to_degrees() + 90.0,
+            scale_x = 0.175,
+            scale_y = 0.175
+        );
+    }
+
+    fn has_reached_target(&self) -> bool {
+        (self.x - self.target_x).abs() < BULLET_SPEED && (self.y - self.target_y).abs() < BULLET_SPEED
+    }
+}
+
+
+
 turbo::go!({
     // Load the game state
     let mut state = GameState::load();
@@ -1308,38 +1355,6 @@ turbo::go!({
             let [canvas_w, canvas_h] = canvas_size!();
             let grid_offset_x = ((canvas_w - 128) / 2 ) as usize; // Adjust 128 based on grid width
             let grid_offset_y = ((canvas_h - 128) / 2 ) as usize; // Adjust 128 based on grid height
-
-            //COMMENTING THIS OUT FOR NOW - THIS IS THE CODE TO MOVE UPGRADES.
-            //WE"LL WANT THIS BACK WHEN WE HAVE A MID-WAVE UPGRADE SYSTEM.
-            // if let Some(upgrade) = &mut screen.upgrade {
-            //     // Handle user input for shape movement
-            //     if gamepad(0).up.just_pressed() {
-            //         upgrade.shape.move_up()
-            //     }
-            //     if gamepad(0).down.just_pressed() {
-            //         upgrade.shape.move_down()
-            //     }
-            //     if gamepad(0).left.just_pressed() {
-            //         upgrade.shape.move_left()
-            //     }
-            //     if gamepad(0).right.just_pressed() {
-            //         upgrade.shape.move_right()
-            //     }
-
-            //     let _is_empty = screen.upgrades.is_empty();
-            //     let upgrade_shapes = screen.upgrades.iter().map(|u| u.shape.clone()).collect::<Vec<_>>();
-            //     let is_overlapping = upgrade.shape.overlaps_any(&upgrade_shapes);
-            //     let is_stickable = upgrade.shape.can_stick_any(&upgrade_shapes);
-            //     can_place_upgrade = !is_overlapping && is_stickable;
-            //     if can_place_upgrade {
-            //         if gamepad(0).a.just_pressed() {
-            //             can_place_upgrade = false;
-            //             screen.upgrades.push(upgrade.clone());
-            //             let upgrade_shapes = screen.upgrades.iter().map(|u| u.shape.clone()).collect::<Vec<_>>();
-            //             screen.upgrade = Upgrade::random_placeable(&upgrade_shapes);
-            //         }
-            //     }
-            // }
             
             screen.handle_input(&mut state.driver_name); 
 
@@ -1519,57 +1534,38 @@ turbo::go!({
                     ref mut active,
                     ref weapon_kind 
                 } => {
-                    let mut new_battle_state = None; // Temporary variable to hold the new battle state
+                    let mut new_battle_state: Option<BattleState> = None; // Temporary variable to hold the new battle state
 
                     if *active {
-                        let (wx, wy) = weapon_position;
-                        let (tx, ty) = target_position;
-                        let dx = *tx - *wx;
-                        let dy = *ty - *wy;
-                        let distance = (dx * dx + dy * dy).sqrt();
-                        if distance > 1.0 {
-                            let direction_x = dx / distance;
-                            let direction_y = dy / distance;
-                            *wx += direction_x * BULLET_SPEED;
-                            *wy += direction_y * BULLET_SPEED;
-                        } else {
-                            *wx = *tx;
-                            *wy = *ty;
-                        }
-
-                        let angle = dy.atan2(dx);
-                        //PLAYER BULLET CODE - FIX THIS LATER SO DRAW IS SEPARATE
-                        sprite!(
-                            weapon_sprite,
-                            x = *wx,
-                            y = *wy,
-                            rotate = angle.to_degrees(),
-                            scale_x = 0.25,
-                            scale_y = 0.25
+                        let bullet = Bullet::new(
+                            weapon_position.0,
+                            weapon_position.1,
+                            target_position.0,
+                            target_position.1,
+                            0, // Damage for player bullet
+                            false,
                         );
-                        //Apply Bullet Hit Effect
-                        if (*wx - *tx).abs() < BULLET_SPEED && (*wy - *ty).abs() < BULLET_SPEED {
+
+                        screen.bullets.push(bullet);
+
+                        *active = false;
+                    }
+
+                    move_bullets(&mut screen.bullets);
+
+                    // Check if any bullet has reached its target
+                    for bullet in screen.bullets.iter() {
+                        if bullet.has_reached_target() && !bullet.is_enemy {
                             if !target_enemies.is_empty() {
                                 let enemy_index = target_enemies[*num_enemies_hit];
                                 {
                                     let enemy = &mut screen.enemies[enemy_index];
                                     enemy.health -= 1;
-                                    //check for Brutality Modifier when the bullet hits. If success, set enemy health to 0
-                                    if rand_out_of_100(calculate_brutality(&screen.upgrades) as u32){
-                                            //create an endurance pop up 
-                                            let new_effect = TextEffect::new(
-                                            "Brutality: Critical Hit",
-                                            0x564f5bff,
-                                            0xcbc6c1FF,
-                                            160,
-                                            10,
-                                        );
-                                        screen.text_effects.push(new_effect);
-                                        
-                                        enemy.health = 0
+                                    if rand_out_of_100(calculate_brutality(&screen.upgrades) as u32) {
+                                        enemy.health = 0;
                                     }
                                 }
-                                create_explosion(&mut screen.explosions, *tx, *ty);
+                                create_explosion(&mut screen.explosions, bullet.target_x, bullet.target_y);
 
                                 *num_enemies_hit += 1;
 
@@ -1577,24 +1573,17 @@ turbo::go!({
                                     *target_position = calculate_target_position(screen.enemies[target_enemies[*num_enemies_hit]].grid_position);
                                 } else {
                                     new_battle_state = Some(BattleState::EnemiesAttack { first_frame: true });
-                                    *active = false;
                                 }
                             } else {
-
                                 new_battle_state = Some(BattleState::EnemiesAttack { first_frame: true });
-                                *active = false;
                             }
                         }
                     }
-
-                    if let Some(new_state) = new_battle_state {
-                        //remove any enemies with 0 health
-                        screen.enemies.retain(|e| e.health > 0);
-                        //turbo::println!("enemy length {:?}", screen.enemies.len().to_string());
-                        //transition to new state
-                        screen.battle_state = new_state;
+                    if let Some(state) = new_battle_state {
+                        screen.battle_state = state;
                     }
-                }
+                },
+                    
 
                 BattleState::EnemiesAttack { ref mut first_frame } => {
                     if screen.enemies.is_empty() {
@@ -1654,16 +1643,31 @@ turbo::go!({
                                 screen.text_effects.push(new_effect);
                             }
                             *first_frame = false;
+                            
                       }
-                        
-                        if screen.bullets.is_empty() {
-                            if screen.player_health <= 0 {
-                                screen.battle_state = BattleState::End;
-                            } else {
-                                screen.battle_state = BattleState::ChooseAttack { first_frame: true };
+
+                    move_bullets(&mut screen.bullets);
+                    
+                    screen.bullets.retain(|bullet| {
+                        if bullet.has_reached_target() {
+                            if bullet.is_enemy {
+                                screen.player_health -= bullet.damage;
+                                create_explosion(&mut screen.explosions, bullet.x, bullet.y);
                             }
+                            false // Remove the bullet
+                        } else {
+                            true // Keep the bullet
+                        }
+                    });
+                    
+                    if screen.bullets.is_empty() {
+                        if screen.player_health <= 0 {
+                            screen.battle_state = BattleState::End;
+                        } else {
+                            screen.battle_state = BattleState::ChooseAttack { first_frame: true };
                         }
                     }
+                }
                 }, 
 
                 BattleState::StartingNewWave => {
@@ -1777,9 +1781,8 @@ turbo::go!({
                     );
                 }
             }
-           
-            // Move enemy bullets - should separate this to draw bullets eventually
-            move_bullets(&mut screen.bullets, &mut screen.explosions, 50.0, 150.0, &mut screen.player_health);
+
+            draw_bullets(&mut screen.bullets);
            
             // Advance explosion animations
             if !screen.explosions.is_empty() {
