@@ -10,12 +10,16 @@ turbo::cfg! {r#"
     resolution = [384, 216]
 "#}
 
-const GRID_COLUMN_WIDTH: i32 = 96;
-const GRID_ROW_HEIGHT: i32 = 72;
-const GRID_ROW_LOW: i32 = 110; 
-const GRID_ROW_HIGH: i32 = 36; 
-const GRID_COLUMN_OFFSET: i32 = 152;
-const BULLET_SPEED: f32 = 5.0;
+// const GRID_COLUMN_WIDTH: i32 = 96;
+// const GRID_ROW_HEIGHT: i32 = 72;
+// const GRID_ROW_LOW: i32 = 110; 
+// const GRID_ROW_HIGH: i32 = 36; 
+// const GRID_COLUMN_OFFSET: i32 = 176;
+const ROW_POSITIONS: [i32; 3] = [32, 104, 152];
+const COLUMN_POSITIONS: [i32; 2] = [176, 272];
+const BULLET_SPEED: f32 = 6.0;
+const TRUCK_BASE_OFFSET_X: i32 = 16;
+const TRUCK_BASE_OFFSET_Y: i32 = 112;
 //Enemy details
 const ENEMY_MOVE_SPEED: f32 = 2.0;
 const ENEMY_OFFSET_START: f32 = 200.0;
@@ -329,7 +333,7 @@ impl UpgradeSelectionScreen {
         draw_stats_panel(&self.upgrades, &upgrades_with_selected.to_vec());
 
         text!("CHOOSE AN UPGRADE", x = canvas_w/2 - 69, y = 20, font = Font::L, color = 0x564f5bff);
-        //draw upgrade
+        //draw arrows
         sprite!("arrow", x = 7, y = 105, rotate = 270);
         sprite!("arrow", x = 99, y = 105, rotate = 90);
         //draw upgrade
@@ -359,15 +363,16 @@ impl BattleScreen {
                 Enemy { kind: EnemyKind::Car, grid_position: (0, 1), health: 3, damage: 3, position_offset: ENEMY_OFFSET_START },
                 Enemy { kind: EnemyKind::Plane, grid_position: (0, 0), health: 2, damage: 2, position_offset: ENEMY_OFFSET_START },
                 Enemy { kind: EnemyKind::Car, grid_position: (1, 1), health: 3, damage: 3, position_offset: ENEMY_OFFSET_START },
-                Enemy { kind: EnemyKind::Car, grid_position: (2, 1), health: 3, damage: 3, position_offset: ENEMY_OFFSET_START },
+                Enemy { kind: EnemyKind::Car, grid_position: (1, 2), health: 3, damage: 3, position_offset: ENEMY_OFFSET_START },
             ],
         },
         Wave {
             enemies: vec![
                 Enemy { kind: EnemyKind::Plane, grid_position: (0, 0), health: 2, damage: 2, position_offset: ENEMY_OFFSET_START },
                 Enemy { kind: EnemyKind::Plane, grid_position: (1, 0), health: 2, damage: 2, position_offset: ENEMY_OFFSET_START },
-                Enemy { kind: EnemyKind::Plane, grid_position: (2, 0), health: 2, damage: 2, position_offset: ENEMY_OFFSET_START },
-                Enemy { kind: EnemyKind::Car, grid_position: (2, 1), health: 3, damage: 3, position_offset: ENEMY_OFFSET_START },
+                Enemy { kind: EnemyKind::Car, grid_position: (1, 1), health: 3, damage: 3, position_offset: ENEMY_OFFSET_START },
+                Enemy { kind: EnemyKind::Car, grid_position: (0, 2), health: 3, damage: 3, position_offset: ENEMY_OFFSET_START },
+
             ],
         },
     ];
@@ -382,9 +387,9 @@ impl BattleScreen {
             bg_objects: vec![
                 ScrollingObject::new("desert_bg".to_string(), 0, 256, 0),
                 ScrollingObject::new("mid_dunes".to_string(), 1, 256, 60),
-                ScrollingObject::new("fg_path".to_string(), 2, 256, 85),
-                ScrollingObject::new("mid_dunes".to_string(), 3, 256, 152),
-                ScrollingObject::new("mid_dunes".to_string(), 4, 256, 175),
+                ScrollingObject::new("fg_path".to_string(), 2, 256, TRUCK_BASE_OFFSET_Y+10),
+                //ScrollingObject::new("mid_dunes".to_string(), 3, 256, 152),
+                ScrollingObject::new("mid_dunes".to_string(), 4, 256, 190),
             ],
             player_health: 100,
             waves, // Store the waves
@@ -804,27 +809,11 @@ impl Shape {
         for (pos, cell) in &self.cells {
             let (x, y) = (x + pos.0, y + pos.1);
             if x < 8 && y < 8 {
-                let (x, y) = ((x * 16) + 1 + offset_x as usize, (y * 16) + 1 + offset_y as usize);
+                let (x, y) = ((x * 16) + 1 + offset_x as usize +TRUCK_BASE_OFFSET_X as usize, (y * 16) + 1 + offset_y as usize + 32);
                 let (w, h) = (14, 14);
                 if is_active {
                     rect!(w = w, h = h, x = x, y = y, color = color);
                 }
-                // // top
-                // if cell.edges[0] {
-                //     rect!(w = w, h = 1, x = x, y = y, color = 0xff00ff66);
-                // }
-                // // bottom
-                // if cell.edges[1] {
-                //     rect!(w = w, h = 1, x = x, y = y + h - 1, color = 0xff00ff66);
-                // }
-                // // left
-                // if cell.edges[2] {
-                //     rect!(w = 1, h = h, x = x, y = y, color = 0xff00ff66);
-                // }
-                // // right
-                // if cell.edges[3] {
-                //     rect!(w = 1, h = h, x = x + w - 1, y = y, color = 0xff00ff66);
-                // }
             }
         }
     }
@@ -926,8 +915,8 @@ fn show_health(player_health: i32) {
 }
 
 fn draw_truck(x: Option<i32>, y: Option<i32>, should_animate: bool, driver_name: &str) {
-    let x = x.unwrap_or(0); // Default x position
-    let y = y.unwrap_or(80); // Default y position
+    let x = x.unwrap_or(TRUCK_BASE_OFFSET_X); // Default x position
+    let y = y.unwrap_or(TRUCK_BASE_OFFSET_Y); // Default y position
     let s_n = format!("{}_small", driver_name);
     sprite!("truck_base", x = x, y = y, sw = 128);
     sprite!(s_n.as_str(), x=x+76, y=y);
@@ -961,9 +950,9 @@ fn draw_background(objects: &mut [ScrollingObject]) {
 
 fn calculate_target_position(grid_position: (i32, i32)) -> (f32, f32) {
     let (column, row) = grid_position;
-    let x = column as f32 * GRID_COLUMN_WIDTH as f32 + GRID_COLUMN_OFFSET as f32;
-    let y = row as f32 * GRID_ROW_HEIGHT as f32 + GRID_ROW_HIGH as f32;
-    (x, y)
+    let x = COLUMN_POSITIONS[column as usize];
+    let y = ROW_POSITIONS[row as usize];
+    (x as f32, y as f32)
 }
 
 fn create_enemy_bullet(bullets: &mut Vec<Bullet>, x: f32, y: f32, target_x: f32, target_y: f32, damage: i32) {
@@ -989,9 +978,10 @@ fn draw_enemies(enemies: &mut [Enemy]) {
     // Iterate over enemies and set their positions using tweens
     for (i, enemy) in enemies.iter_mut().enumerate() {
         let (column, row) = enemy.grid_position;
-        let x = GRID_COLUMN_OFFSET + column * GRID_COLUMN_WIDTH;
+        let x = COLUMN_POSITIONS[column as usize];
+        let y = ROW_POSITIONS[row as usize];
         //if i == 0 {turbo::println!("End X {:?}", end_x_position);}
-        let y = GRID_ROW_HIGH + (row * GRID_ROW_HEIGHT);
+        
 
         match enemy.kind {
             EnemyKind::Car => {
@@ -1000,7 +990,6 @@ fn draw_enemies(enemies: &mut [Enemy]) {
                     "lughead_small",
                     x = x + 40, // Adjust this offset as needed
                     y = y + 0,  // Adjust this offset as needed
-                    flip_x = true
                 );
 
                 // Draw enemy base
@@ -1008,7 +997,8 @@ fn draw_enemies(enemies: &mut [Enemy]) {
                     "enemy_01_base",
                     x = x,
                     y = y,
-                    sw = 95.0
+                    sw = 95.0,
+                    flip_x = true,
                 );
 
                 // Draw enemy tires
@@ -1317,6 +1307,11 @@ impl Bullet{
     fn has_reached_target(&self) -> bool {
         (self.x - self.target_x).abs() < BULLET_SPEED && (self.y - self.target_y).abs() < BULLET_SPEED
     }
+
+    fn set_target(&mut self, t_x: f32, t_y: f32){
+        self.target_x = t_x;
+        self.target_y = t_y;
+    }
 }
 
 
@@ -1512,8 +1507,8 @@ turbo::go!({
                             screen.battle_state = BattleState::AnimateAttack {
                                 weapon_sprite: selected_upgrade.sprite_name.to_string(),
                                 weapon_position: (
-                                    selected_upgrade.shape.offset.0 as f32 * 16.0,
-                                    selected_upgrade.shape.offset.1 as f32 * 16.0
+                                    selected_upgrade.shape.offset.0 as f32 * 16.0 + TRUCK_BASE_OFFSET_X as f32,
+                                    selected_upgrade.shape.offset.1 as f32 * 16.0 + 32 as f32,
                                 ),
                                 target_position,
                                 target_enemies,
@@ -1554,7 +1549,7 @@ turbo::go!({
                     move_bullets(&mut screen.bullets);
 
                     // Check if any bullet has reached its target
-                    for bullet in screen.bullets.iter() {
+                    for bullet in screen.bullets.iter_mut() {
                         if bullet.has_reached_target() && !bullet.is_enemy {
                             if !target_enemies.is_empty() {
                                 let enemy_index = target_enemies[*num_enemies_hit];
@@ -1580,6 +1575,7 @@ turbo::go!({
 
                                 if target_enemies.len() > *num_enemies_hit {
                                     *target_position = calculate_target_position(screen.enemies[target_enemies[*num_enemies_hit]].grid_position);
+                                    bullet.set_target(target_position.0,target_position.1);
                                 } else {
                                     new_battle_state = Some(BattleState::EnemiesAttack { first_frame: true });
                                 }
@@ -1615,7 +1611,7 @@ turbo::go!({
                             //Apply Speed Effect here - if it is accurate, this will skip the enemy shooting phase
                             if !rand_out_of_100(calculate_speed(&screen.upgrades) as u32){
                                 // Set the truck position for enemies to shoot at
-                                let (truck_x, truck_y) = (50.0, 75.0);
+                                let (truck_x, truck_y) = (50.0+TRUCK_BASE_OFFSET_X as f32, 75.0);
                                 
                                 // Create bullets for each enemy
                                 for enemy in &screen.enemies {
@@ -1626,7 +1622,8 @@ turbo::go!({
                                     if (rand_out_of_100(calculate_endurance(&screen.upgrades) as u32)){
                                         turbo::println!("ENDURANCE ACTIVE!");
                                         
-                                        //create an endurance pop up 
+                                        //create an endurance pop up - 
+                                        //TODO: move this to when the damage is applied or just change how it works
                                         let new_effect = TextEffect::new(
                                             "Endurance: Damage Blocked",
                                             0x564f5bff,
@@ -1724,8 +1721,8 @@ turbo::go!({
                 } else {
                     sprite!(
                         &upgrade.sprite_name,
-                        x = upgrade.shape.offset.0 * 16,
-                        y = upgrade.shape.offset.1 * 16,
+                        x = (upgrade.shape.offset.0 * 16) + TRUCK_BASE_OFFSET_X as usize,
+                        y = (upgrade.shape.offset.1 * 16) + 32,
                         opacity = 1
                     );
                 }
@@ -1767,15 +1764,11 @@ turbo::go!({
             for &enemy_index in &target_enemies {
                 let enemy = &screen.enemies[enemy_index];
                 let (column, row) = enemy.grid_position;
-                let y_position = match row {
-                    0 => GRID_ROW_HIGH,
-                    1 => GRID_ROW_LOW,
-                    _ => 0, // Default case, should not happen
-                };
+                let y_position = ROW_POSITIONS[row as usize];
                 rect!(
-                    w = GRID_COLUMN_WIDTH,
-                    h = GRID_ROW_HEIGHT,
-                    x = GRID_COLUMN_OFFSET + column * GRID_COLUMN_WIDTH,
+                    w = 96,
+                    h = 50,
+                    x = COLUMN_POSITIONS[column as usize],
                     y = y_position,
                     color = 0xff0000aa // More solid red rectangle with higher opacity
                 );
@@ -1787,8 +1780,8 @@ turbo::go!({
                     rect!(
                         w = upgrade.shape.size.0 as i32 * 16,
                         h = upgrade.shape.size.1 as i32 * 16,
-                        x = upgrade.shape.offset.0 as i32 * 16,
-                        y = upgrade.shape.offset.1 as i32 * 16,
+                        x = upgrade.shape.offset.0 as i32 * 16 + TRUCK_BASE_OFFSET_X,
+                        y = upgrade.shape.offset.1 as i32 * 16 + 32,
                         color = 0xff0000aa // More solid red rectangle with higher opacity
                     );
                 }
