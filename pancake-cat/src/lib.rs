@@ -37,7 +37,7 @@ turbo::init! {
 }
 
 // Implement the game loop using the turbo::go! macro
-turbo::go! {
+turbo::go!({
     // Load the game state
     let mut state = GameState::load();
 
@@ -110,17 +110,43 @@ turbo::go! {
         circ!(d = 10, x = state.cat_x + 28.0, y = state.cat_y);
         rect!(w = 10, h = 5, x = state.cat_x + 28.0, y = state.cat_y + 5.0);
         circ!(d = 10, x = state.cat_x + 56.0, y = state.cat_y);
-        text!("MUNCH!", x = state.cat_x + 33.0, y = state.cat_y + 3.0, font = Font::S, color = 0x000000ff);
+        text!(
+            "MUNCH!",
+            x = state.cat_x + 33.0,
+            y = state.cat_y + 3.0,
+            font = Font::S,
+            color = 0x000000ff
+        );
     }
 
     // Draw the cat
-    sprite!("munch_cat", x = state.cat_x - state.cat_r, y = state.cat_y - 16., fps = fps::FAST);
+    sprite!(
+        "munch_cat",
+        x = state.cat_x - state.cat_r,
+        y = state.cat_y - 16.,
+        fps = fps::FAST
+    );
 
     // Draw the falling pancakes
     for pancake in &state.pancakes {
-        circ!(x = pancake.x, y = pancake.y + 1.0, d = pancake.radius + 2., color = 0x000000aa); // Render the pancakes
-        circ!(x = pancake.x, y = pancake.y, d = pancake.radius + 1., color = 0xf4d29cff); // Render the pancakes
-        circ!(x = pancake.x, y = pancake.y, d = pancake.radius, color = 0xdba463ff); // Render the pancakes
+        circ!(
+            x = pancake.x,
+            y = pancake.y + 1.0,
+            d = pancake.radius + 2.,
+            color = 0x000000aa
+        ); // Render the pancakes
+        circ!(
+            x = pancake.x,
+            y = pancake.y,
+            d = pancake.radius + 1.,
+            color = 0xf4d29cff
+        ); // Render the pancakes
+        circ!(
+            x = pancake.x,
+            y = pancake.y,
+            d = pancake.radius,
+            color = 0xdba463ff
+        ); // Render the pancakes
     }
 
     // Draw the score
@@ -132,4 +158,4 @@ turbo::go! {
     // Save game state for the next frame
     state.frame += 1;
     state.save();
-}
+});

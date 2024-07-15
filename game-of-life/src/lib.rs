@@ -23,10 +23,13 @@ turbo::init! {
     }
 }
 
-turbo::go! {
+turbo::go!({
     let mut state = GameState::load();
 
-    if gamepad(0).start.just_pressed() || gamepad(0).select.just_pressed() || mouse(0).left.just_pressed() {
+    if gamepad(0).start.just_pressed()
+        || gamepad(0).select.just_pressed()
+        || mouse(0).left.just_pressed()
+    {
         // Randomize grid on A button press
         for row in 0..state.grid.len() {
             for col in 0..state.grid[row].len() {
@@ -58,19 +61,24 @@ turbo::go! {
     // Drawing
     clear(0x000000ff); // Clear screen with black
 
-
     for y in 0..state.grid.len() {
         for x in 0..state.grid[y].len() {
             if state.grid[y][x] {
                 let x_pos = x as i32 * state.cell_size as i32;
                 let y_pos = y as i32 * state.cell_size as i32;
-                rect!(x = x_pos, y = y_pos, w = state.cell_size, h = state.cell_size, color = 0xffffffff); // Draw living cell
+                rect!(
+                    x = x_pos,
+                    y = y_pos,
+                    w = state.cell_size,
+                    h = state.cell_size,
+                    color = 0xffffffff
+                ); // Draw living cell
             }
         }
     }
 
     state.save();
-}
+});
 
 // Helper function to count alive neighbours
 fn count_alive_neighbours(grid: &Vec<Vec<bool>>, x: usize, y: usize) -> i32 {

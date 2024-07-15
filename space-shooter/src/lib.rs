@@ -84,7 +84,7 @@ impl GameState {
     }
 }
 
-turbo::go! {
+turbo::go!({
     let mut state = GameState::load();
     if gamepad(0).b.pressed() {
         let health = state.player.health;
@@ -110,13 +110,17 @@ turbo::go! {
             state.player.y = (state.player.y - state.player.speed).max(0.0); // Move up
         }
         if gamepad(0).down.pressed() {
-            state.player.y = (state.player.y + state.player.speed).min((screen_h - state.player.height) as f32); // Move down
+            state.player.y =
+                (state.player.y + state.player.speed).min((screen_h - state.player.height) as f32);
+            // Move down
         }
         if gamepad(0).left.pressed() {
             state.player.x = (state.player.x - state.player.speed).max(0.0); // Move left
         }
         if gamepad(0).right.pressed() {
-            state.player.x = (state.player.x + state.player.speed).min((screen_w - state.player.width) as f32); // Move right
+            state.player.x =
+                (state.player.x + state.player.speed).min((screen_w - state.player.width) as f32);
+            // Move right
         }
 
         // Shooting projectiles
@@ -160,7 +164,6 @@ turbo::go! {
         });
     }
 
-
     // Start spawning enemies after intro dialog
     if state.tick > (state.notifications.len() as u32 + 1) * 240 {
         // Enemy spawning logic based on time elapsed
@@ -172,10 +175,15 @@ turbo::go! {
         // Calculate current spawn interval based on time elapsed
         let spawn_rate = std::cmp::max(
             minimum_spawn_rate,
-            initial_spawn_rate.saturating_sub(state.tick / speed_up_rate)
+            initial_spawn_rate.saturating_sub(state.tick / speed_up_rate),
         );
         if state.player.health > 0 {
-            text!(&format!("spawn rate: {spawn_rate}"), x = 4, y = 22, font = Font::S);
+            text!(
+                &format!("spawn rate: {spawn_rate}"),
+                x = 4,
+                y = 22,
+                font = Font::S
+            );
         }
         if state.tick % spawn_rate == 0 && state.enemies.len() < 24 {
             state.enemies.push(match rand() % 8 {
@@ -187,36 +195,47 @@ turbo::go! {
                 5 => Enemy::zipper(),
                 6 => Enemy::turret(),
                 7 => Enemy::turret(),
-                _ => unreachable!()
+                _ => unreachable!(),
             });
         }
     }
     // Handle player picking up power-ups
     state.powerups.retain(|powerup| {
-        if check_collision(powerup.x, powerup.y, powerup.width, powerup.height,
-                        state.player.x, state.player.y, state.player.width, state.player.height) {
+        if check_collision(
+            powerup.x,
+            powerup.y,
+            powerup.width,
+            powerup.height,
+            state.player.x,
+            state.player.y,
+            state.player.width,
+            state.player.height,
+        ) {
             match powerup.effect {
                 PowerupEffect::Heal => {
                     state.player.health = (state.player.health + 1).min(state.player.max_health);
                     state.player.skill_points += 1;
                     state.notifications.push("+1 Health".to_string());
-                },
+                }
                 PowerupEffect::MaxHealthUp => {
                     state.player.max_health = (state.player.max_health + 1).min(10);
                     state.player.health = state.player.max_health;
                     state.player.skill_points += 1;
                     state.notifications.push("Max Health +1".to_string());
-                },
+                }
                 PowerupEffect::SpeedBoost => {
                     state.player.speed *= 1.1;
                     state.player.skill_points += 1;
                     state.notifications.push("1.1x Speed Boost".to_string());
-                },
+                }
                 PowerupEffect::DamageBoost(projectile_type) => {
                     if state.player.projectile_type == projectile_type {
-                        state.notifications.push(format!("+1 {projectile_type:?} Damage"));
+                        state
+                            .notifications
+                            .push(format!("+1 {projectile_type:?} Damage"));
                         state.player.skill_points += 1;
-                        state.player.projectile_damage = (state.player.projectile_damage + 1).min(2);
+                        state.player.projectile_damage =
+                            (state.player.projectile_damage + 1).min(2);
                     }
                 }
             }
@@ -235,8 +254,14 @@ turbo::go! {
         }
         state.enemies.retain_mut(|enemy| {
             let did_collide = check_collision(
-                projectile.x, projectile.y, projectile.width, projectile.height,
-                enemy.x, enemy.y, enemy.width, enemy.height
+                projectile.x,
+                projectile.y,
+                projectile.width,
+                projectile.height,
+                enemy.x,
+                enemy.y,
+                enemy.width,
+                enemy.height,
             );
             if did_collide {
                 enemy.health = enemy.health.saturating_sub(projectile.damage);
@@ -254,7 +279,8 @@ turbo::go! {
                             movement: PowerupMovement::Floating(0.1),
                         });
                         // Spawn additional power-up when player reaches skill point threshold
-                        if state.player.skill_points > 500 { // Adjust the skill point threshold
+                        if state.player.skill_points > 500 {
+                            // Adjust the skill point threshold
                             state.powerups.push(Powerup {
                                 x: (rand() % screen_w) as f32,
                                 y: (rand() % screen_h) as f32,
@@ -273,31 +299,31 @@ turbo::go! {
                     }
                     ProjectileType::Splatter => {
                         // Splatter creates fragments on impact, affecting a wider area
-                        let splash_angles = [45.0, 135.0, 225.0, 315.0];  // Diagonal angles
+                        let splash_angles = [45.0, 135.0, 225.0, 315.0]; // Diagonal angles
                         for &angle in splash_angles.iter() {
                             splashes.push(Projectile {
                                 x: projectile.x,
                                 y: projectile.y,
                                 width: projectile.width,
                                 height: projectile.height,
-                                velocity: projectile.velocity / 2.0,  // Reduced velocity for splash projectiles
+                                velocity: projectile.velocity / 2.0, // Reduced velocity for splash projectiles
                                 angle,
-                                damage: projectile.damage / 2,  // Reduced damage for splash projectiles
+                                damage: projectile.damage / 2, // Reduced damage for splash projectiles
                                 projectile_type: ProjectileType::Fragment,
                                 projectile_owner: ProjectileOwner::Player,
-                                ttl: Some(10)
+                                ttl: Some(10),
                             });
                         }
-                    },
+                    }
                     ProjectileType::Fragment => {
                         // ...
-                    },
+                    }
                     ProjectileType::Laser => {
                         // ...
-                    },
+                    }
                     ProjectileType::Bomb => {
                         // ...
-                    },
+                    }
                 }
             }
             enemy.health > 0
@@ -313,8 +339,14 @@ turbo::go! {
         }
         if let Some(boss) = &mut state.boss {
             let did_collide = check_collision(
-                projectile.x, projectile.y, projectile.width, projectile.height,
-                boss.enemy.x, boss.enemy.y, boss.enemy.width, boss.enemy.height
+                projectile.x,
+                projectile.y,
+                projectile.width,
+                projectile.height,
+                boss.enemy.x,
+                boss.enemy.y,
+                boss.enemy.width,
+                boss.enemy.height,
             );
             if did_collide {
                 boss.enemy.health -= projectile.damage;
@@ -330,31 +362,31 @@ turbo::go! {
                     }
                     ProjectileType::Splatter => {
                         // Splatter creates fragments on impact, affecting a wider area
-                        let splash_angles = [45.0, 135.0, 225.0, 315.0];  // Diagonal angles
+                        let splash_angles = [45.0, 135.0, 225.0, 315.0]; // Diagonal angles
                         for &angle in splash_angles.iter() {
                             splashes.push(Projectile {
                                 x: projectile.x,
                                 y: projectile.y,
                                 width: projectile.width,
                                 height: projectile.height,
-                                velocity: projectile.velocity / 2.0,  // Reduced velocity for splash projectiles
+                                velocity: projectile.velocity / 2.0, // Reduced velocity for splash projectiles
                                 angle,
-                                damage: projectile.damage / 2,  // Reduced damage for splash projectiles
+                                damage: projectile.damage / 2, // Reduced damage for splash projectiles
                                 projectile_type: ProjectileType::Fragment,
                                 projectile_owner: ProjectileOwner::Player,
-                                ttl: Some(10)
+                                ttl: Some(10),
                             });
                         }
-                    },
+                    }
                     ProjectileType::Fragment => {
                         // ...
-                    },
+                    }
                     ProjectileType::Laser => {
                         // ...
-                    },
+                    }
                     ProjectileType::Bomb => {
                         // ...
-                    },
+                    }
                 }
             }
         }
@@ -368,20 +400,29 @@ turbo::go! {
             return projectile_active;
         }
         let did_collide = check_collision(
-            projectile.x, projectile.y, projectile.width, projectile.height,
-            state.player.x, state.player.y, state.player.width, state.player.height
+            projectile.x,
+            projectile.y,
+            projectile.width,
+            projectile.height,
+            state.player.x,
+            state.player.y,
+            state.player.width,
+            state.player.height,
         );
         if did_collide {
             let prev_hp = state.player.health;
             state.player.health = state.player.health.saturating_sub(projectile.damage);
             // hit timer is longer on final hit
-            state.hit_timer = if prev_hp > 0 && state.player.health == 0 { 240 } else { 10 };
+            state.hit_timer = if prev_hp > 0 && state.player.health == 0 {
+                240
+            } else {
+                10
+            };
             projectile_active = false // Remove the projectile on collision
         }
 
         projectile_active
     });
-
 
     // Add projectile splashes
     for projectile in splashes {
@@ -402,23 +443,29 @@ turbo::go! {
 
     // Remove expired and out-of-bounds projectiles
     state.projectiles.retain(|projectile| {
-        projectile.ttl.map_or(true, |ttl| ttl > 0) ||
-        projectile.y < -(projectile.height as f32) ||
-        projectile.x < -(projectile.width as f32) ||
-        projectile.x > screen_w as f32 ||
-        projectile.y > screen_h as f32
+        projectile.ttl.map_or(true, |ttl| ttl > 0)
+            || projectile.y < -(projectile.height as f32)
+            || projectile.x < -(projectile.width as f32)
+            || projectile.x > screen_w as f32
+            || projectile.y > screen_h as f32
     });
 
     // Check enemy x player collisions
     state.enemies.retain(|enemy| {
         let did_collide = check_collision(
-            state.player.x, state.player.y, state.player.width, state.player.height,
-            enemy.x, enemy.y, enemy.width, enemy.height
+            state.player.x,
+            state.player.y,
+            state.player.width,
+            state.player.height,
+            enemy.x,
+            enemy.y,
+            enemy.width,
+            enemy.height,
         );
         if did_collide {
             // Collision detected, reduce player health
             state.player.health = state.player.health.saturating_sub(1); // Adjust damage as needed
-            // return false;
+                                                                         // return false;
         }
         return enemy.y < screen_h as f32;
     });
@@ -430,7 +477,9 @@ turbo::go! {
                 enemy.y += enemy.speed;
                 if rand() % (250 / intensity as u32) == 0 {
                     // Calculate angle from enemy to player
-                    let angle = ((state.player.y - enemy.y).atan2(state.player.x - enemy.x) * 180.0) / std::f32::consts::PI;
+                    let angle = ((state.player.y - enemy.y).atan2(state.player.x - enemy.x)
+                        * 180.0)
+                        / std::f32::consts::PI;
 
                     // Create and shoot projectiles from enemy towards the player
                     state.projectiles.push(Projectile {
@@ -447,7 +496,7 @@ turbo::go! {
                         ttl: None,
                     });
                 }
-            },
+            }
             EnemyStrategy::ShootDown(intensity, speed, size) => {
                 // Logic for attacking with specified intensity
                 enemy.y += enemy.speed;
@@ -467,10 +516,10 @@ turbo::go! {
                         ttl: None,
                     });
                 }
-            },
+            }
             EnemyStrategy::MoveDown => {
                 enemy.y += enemy.speed;
-            },
+            }
             EnemyStrategy::RandomZigZag(angle) => {
                 // Logic for dodging attacks, using angle to determine movement
                 enemy.x += enemy.speed * enemy.angle.cos();
@@ -483,7 +532,7 @@ turbo::go! {
                 else if rand() % 20 == 0 {
                     enemy.angle += std::f32::consts::PI / angle; // Change angle
                 }
-            },
+            }
         }
     }
 
@@ -492,7 +541,9 @@ turbo::go! {
         let intensity = 4.0;
         if rand() % (100 / intensity as u32) == 0 {
             // Calculate angle from enemy to player
-            let angle = ((state.player.y - boss.enemy.y).atan2(state.player.x - boss.enemy.x) * 180.0) / std::f32::consts::PI;
+            let angle = ((state.player.y - boss.enemy.y).atan2(state.player.x - boss.enemy.x)
+                * 180.0)
+                / std::f32::consts::PI;
 
             // Create and shoot projectiles from enemy towards the player
             state.projectiles.push(Projectile {
@@ -519,17 +570,17 @@ turbo::go! {
                 if powerup.y <= 0.0 || powerup.y >= screen_h as f32 {
                     powerup.movement = PowerupMovement::Floating(-speed);
                 }
-            },
+            }
             PowerupMovement::Drifting(speed) => {
                 powerup.x += speed;
                 // Optionally, reverse the direction if it reaches the screen bounds
                 if powerup.x <= 0.0 || powerup.x >= screen_w as f32 {
                     powerup.movement = PowerupMovement::Drifting(-speed);
                 }
-            },
+            }
             PowerupMovement::Static => {
                 // Static powerups do not move
-            },
+            }
         }
     }
 
@@ -541,7 +592,11 @@ turbo::go! {
                     if state.boss.as_ref().map_or(false, |b| b.enemy.health == 0) {
                         quest.completed = true;
                         let boss = state.boss.as_ref().unwrap();
-                        state.player.metrics.bosses_defeated.push(boss.boss_type.clone());
+                        state
+                            .player
+                            .metrics
+                            .bosses_defeated
+                            .push(boss.boss_type.clone());
                         state.player.metrics.completed_quests.push(quest.clone());
                         // Check and update boss-gated unlockables
                         match boss.boss_type {
@@ -549,28 +604,36 @@ turbo::go! {
                                 state.unlockables.special_ability = Some(SpecialAbility::Slow);
                             }
                         }
-                        state.notifications.push(format!("Quest completed: {}", quest.title));
+                        state
+                            .notifications
+                            .push(format!("Quest completed: {}", quest.title));
                     }
                 }
                 QuestObjective::CollectProjectiles(num_projectiles) => {
                     if state.player.metrics.num_projectiles_collected >= num_projectiles {
                         quest.completed = true;
                         state.player.metrics.completed_quests.push(quest.clone());
-                        state.notifications.push(format!("Quest completed: {}", quest.title));
+                        state
+                            .notifications
+                            .push(format!("Quest completed: {}", quest.title));
                     }
                 }
                 QuestObjective::DefeatEnemies(num_enemies) => {
                     if state.player.metrics.num_enemies_defeated >= num_enemies {
                         quest.completed = true;
                         state.player.metrics.completed_quests.push(quest.clone());
-                        state.notifications.push(format!("Quest completed: {}", quest.title));
+                        state
+                            .notifications
+                            .push(format!("Quest completed: {}", quest.title));
                     }
                 }
                 QuestObjective::SkillPoints(num_skill_points) => {
                     if state.player.skill_points >= num_skill_points {
                         quest.completed = true;
                         state.player.metrics.completed_quests.push(quest.clone());
-                        state.notifications.push(format!("Quest completed: {}", quest.title));
+                        state
+                            .notifications
+                            .push(format!("Quest completed: {}", quest.title));
                     }
                 }
             }
@@ -599,7 +662,7 @@ turbo::go! {
 
     state.tick += 1;
     state.save();
-}
+});
 
 // Define a function for rendering game elements
 fn draw_game_elements(state: &GameState) {

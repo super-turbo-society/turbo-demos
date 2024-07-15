@@ -17,7 +17,7 @@ turbo::cfg! {r#"
     ws-rpc-url = "ws://localhost:8900"
 "#}
 
-turbo::go! {
+turbo::go!({
     clear!(0x95bea1ff);
 
     let level = "Forest";
@@ -31,14 +31,16 @@ turbo::go! {
 
         // Player and game data exist
         // - Allow player to chop wood
-        (Some(Ok(player_data)), Some(Ok(game_data))) => chopping_screen(level, &player_data, &game_data),
+        (Some(Ok(player_data)), Some(Ok(game_data))) => {
+            chopping_screen(level, &player_data, &game_data)
+        }
 
         // Data fetching errors
         // - NGMI (fix your code or RPC)
-        (Some(Err(err)),  _) => error_screen(level, "Player data fetch error", err),
+        (Some(Err(err)), _) => error_screen(level, "Player data fetch error", err),
         (_, Some(Err(err))) => error_screen(level, "Game data fetch error", err),
     };
-}
+});
 
 fn start_game_screen(level: &str, desc: &str) {
     // Draw background image
