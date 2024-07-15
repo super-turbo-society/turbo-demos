@@ -1,5 +1,322 @@
 use std::collections::BTreeMap;
 
+use std::ops::Add;
+
+// Define easing function types
+#[derive(Debug, Default, Copy, Clone, Eq, PartialEq, BorshSerialize, BorshDeserialize)]
+enum Easing {
+    #[default]
+    Linear,
+    EaseInQuad,
+    EaseOutQuad,
+    EaseInOutQuad,
+    EaseInCubic,
+    EaseOutCubic,
+    EaseInOutCubic,
+    EaseInQuart,
+    EaseOutQuart,
+    EaseInOutQuart,
+    EaseInQuint,
+    EaseOutQuint,
+    EaseInOutQuint,
+    EaseInSine,
+    EaseOutSine,
+    EaseInOutSine,
+    EaseInExpo,
+    EaseOutExpo,
+    EaseInOutExpo,
+    EaseInCirc,
+    EaseOutCirc,
+    EaseInOutCirc,
+}
+
+#[allow(unused)]
+impl Easing {
+    pub const ALL: [Self; 22] = [
+        Self::Linear,
+        Self::EaseInQuad,
+        Self::EaseOutQuad,
+        Self::EaseInOutQuad,
+        Self::EaseInCubic,
+        Self::EaseOutCubic,
+        Self::EaseInOutCubic,
+        Self::EaseInQuart,
+        Self::EaseOutQuart,
+        Self::EaseInOutQuart,
+        Self::EaseInQuint,
+        Self::EaseOutQuint,
+        Self::EaseInOutQuint,
+        Self::EaseInSine,
+        Self::EaseOutSine,
+        Self::EaseInOutSine,
+        Self::EaseInExpo,
+        Self::EaseOutExpo,
+        Self::EaseInOutExpo,
+        Self::EaseInCirc,
+        Self::EaseOutCirc,
+        Self::EaseInOutCirc,
+    ];
+    fn apply(&self, t: f64) -> f64 {
+        match *self {
+            Easing::Linear => t,
+            Easing::EaseInQuad => t * t,
+            Easing::EaseOutQuad => t * (2.0 - t),
+            Easing::EaseInOutQuad => {
+                if t < 0.5 {
+                    2.0 * t * t
+                } else {
+                    -1.0 + (4.0 - 2.0 * t) * t
+                }
+            }
+            Easing::EaseInCubic => t * t * t,
+            Easing::EaseOutCubic => {
+                let t = t - 1.0;
+                t * t * t + 1.0
+            }
+            Easing::EaseInOutCubic => {
+                if t < 0.5 {
+                    4.0 * t * t * t
+                } else {
+                    let t = t - 1.0;
+                    (t * t * t * 4.0) + 1.0
+                }
+            }
+            Easing::EaseInQuart => t * t * t * t,
+            Easing::EaseOutQuart => {
+                let t = t - 1.0;
+                1.0 - t * t * t * t
+            }
+            Easing::EaseInOutQuart => {
+                if t < 0.5 {
+                    8.0 * t * t * t * t
+                } else {
+                    let t = t - 1.0;
+                    1.0 - 8.0 * t * t * t * t
+                }
+            }
+            Easing::EaseInQuint => t * t * t * t * t,
+            Easing::EaseOutQuint => {
+                let t = t - 1.0;
+                t * t * t * t * t + 1.0
+            }
+            Easing::EaseInOutQuint => {
+                if t < 0.5 {
+                    16.0 * t * t * t * t * t
+                } else {
+                    let t = t - 1.0;
+                    1.0 + 16.0 * t * t * t * t * t
+                }
+            }
+            Easing::EaseInSine => 1.0 - (t * std::f64::consts::FRAC_PI_2).cos(),
+            Easing::EaseOutSine => (t * std::f64::consts::FRAC_PI_2).sin(),
+            Easing::EaseInOutSine => 0.5 * (1.0 - (std::f64::consts::PI * t).cos()),
+            Easing::EaseInExpo => {
+                if t == 0.0 {
+                    0.0
+                } else {
+                    (2.0 as f64).powf(10.0 * (t - 1.0))
+                }
+            }
+            Easing::EaseOutExpo => {
+                if t == 1.0 {
+                    1.0
+                } else {
+                    1.0 - (2.0 as f64).powf(-10.0 * t)
+                }
+            }
+            Easing::EaseInOutExpo => {
+                if t == 0.0 {
+                    0.0
+                } else if t == 1.0 {
+                    1.0
+                } else if t < 0.5 {
+                    (2.0 as f64).powf(10.0 * (2.0 * t - 1.0)) * 0.5
+                } else {
+                    (2.0 - (2.0 as f64).powf(-10.0 * (2.0 * t - 1.0))) * 0.5
+                }
+            }
+            Easing::EaseInCirc => 1.0 - (1.0 - t * t).sqrt(),
+            Easing::EaseOutCirc => (1.0 - (t - 1.0).powi(2)).sqrt(),
+            Easing::EaseInOutCirc => {
+                if t < 0.5 {
+                    0.5 * (1.0 - (1.0 - 4.0 * t * t).sqrt())
+                } else {
+                    0.5 * ((-((2.0 * t - 2.0).powi(2) - 1.0)).sqrt() + 1.0)
+                }
+            }
+        }
+    }
+}
+
+// Define a generic Tween struct
+#[derive(Debug, Default, Copy, Clone, Eq, PartialEq, BorshSerialize, BorshDeserialize)]
+struct Tween<T> {
+    start: T,
+    end: T,
+    duration: usize,
+    elapsed: usize,
+    easing: Easing,
+    start_tick: Option<usize>,
+}
+
+#[allow(unused)]
+impl<T> Tween<T>
+where
+    T: Copy + Default + PartialEq + Interpolate<T> + Add<Output = T>,
+{
+    fn new(start: T) -> Self {
+        Self {
+            start,
+            end: start,
+            duration: 0,
+            elapsed: 0,
+            easing: Easing::default(),
+            start_tick: None,
+        }
+    }
+
+    fn duration(&mut self, duration: usize) -> Self {
+        self.duration = duration;
+        *self
+    }
+
+    fn ease(&mut self, easing: Easing) -> Self {
+        self.easing = easing;
+        *self
+    }
+
+    fn set_duration(&mut self, duration: usize) {
+        self.duration = duration;
+    }
+
+    fn set_ease(&mut self, easing: Easing) {
+        self.easing = easing;
+    }
+
+    fn set(&mut self, new_end: T) -> Self {
+        if new_end == self.end {
+            return *self;
+        }
+        self.start = self.get();
+        self.end = new_end;
+        self.elapsed = 0;
+        self.start_tick = Some(tick());
+        *self
+    }
+
+    fn add(&mut self, delta: T) {
+        self.start = self.get();
+        self.end = self.end + delta;
+        self.elapsed = 0;
+        self.start_tick = Some(tick());
+    }
+
+    fn get(&mut self) -> T {
+        if self.done() {
+            return self.end;
+        }
+        if self.start_tick.is_none() {
+            self.start_tick = Some(tick());
+        }
+        self.elapsed = tick() - self.start_tick.unwrap_or(0);
+        let t = self.elapsed as f64 / self.duration.max(1) as f64;
+        let eased_t = self.easing.apply(t);
+        T::interpolate(eased_t, self.start, self.end)
+    }
+
+    fn done(&self) -> bool {
+        self.duration == 0 || self.elapsed >= self.duration
+    }
+}
+
+trait Interpolate<T> {
+    fn interpolate(t: f64, start: T, end: T) -> T;
+}
+
+impl Interpolate<f32> for f32 {
+    fn interpolate(t: f64, start: f32, end: f32) -> f32 {
+        let n = start as f64 + (end as f64 - start as f64) * t;
+        n as f32
+    }
+}
+
+impl Interpolate<f64> for f64 {
+    fn interpolate(t: f64, start: f64, end: f64) -> f64 {
+        let n = start as f64 + (end as f64 - start as f64) * t;
+        n
+    }
+}
+
+impl Interpolate<usize> for usize {
+    fn interpolate(t: f64, start: usize, end: usize) -> usize {
+        let n = start as f64 + (end as f64 - start as f64) * t;
+        n as usize
+    }
+}
+
+impl Interpolate<isize> for isize {
+    fn interpolate(t: f64, start: isize, end: isize) -> isize {
+        let n = start as f64 + (end as f64 - start as f64) * t;
+        n as isize
+    }
+}
+
+impl Interpolate<u64> for u64 {
+    fn interpolate(t: f64, start: u64, end: u64) -> u64 {
+        let n = start as f64 + (end as f64 - start as f64) * t;
+        n as u64
+    }
+}
+
+impl Interpolate<i64> for i64 {
+    fn interpolate(t: f64, start: i64, end: i64) -> i64 {
+        let n = start as f64 + (end as f64 - start as f64) * t;
+        n as i64
+    }
+}
+
+impl Interpolate<u32> for u32 {
+    fn interpolate(t: f64, start: u32, end: u32) -> u32 {
+        let n = start as f64 + (end as f64 - start as f64) * t;
+        n as u32
+    }
+}
+
+impl Interpolate<i32> for i32 {
+    fn interpolate(t: f64, start: i32, end: i32) -> i32 {
+        let n = start as f64 + (end as f64 - start as f64) * t;
+        n as i32
+    }
+}
+
+impl Interpolate<u16> for u16 {
+    fn interpolate(t: f64, start: u16, end: u16) -> u16 {
+        let n = start as f64 + (end as f64 - start as f64) * t;
+        n as u16
+    }
+}
+
+impl Interpolate<i16> for i16 {
+    fn interpolate(t: f64, start: i16, end: i16) -> i16 {
+        let n = start as f64 + (end as f64 - start as f64) * t;
+        n as i16
+    }
+}
+
+impl Interpolate<u8> for u8 {
+    fn interpolate(t: f64, start: u8, end: u8) -> u8 {
+        let n = start as f64 + (end as f64 - start as f64) * t;
+        n as u8
+    }
+}
+
+impl Interpolate<i8> for i8 {
+    fn interpolate(t: f64, start: i8, end: i8) -> i8 {
+        let n = start as f64 + (end as f64 - start as f64) * t;
+        n as i8
+    }
+}
+
 // Define the game configuration using the turbo::cfg! macro
 turbo::cfg! {r#"
     name = "Titans of the Apocalypse"
@@ -22,7 +339,7 @@ const TRUCK_BASE_OFFSET_X: i32 = 16;
 const TRUCK_BASE_OFFSET_Y: i32 = 112;
 //Enemy details
 const ENEMY_MOVE_SPEED: f32 = 2.0;
-const ENEMY_OFFSET_START: f32 = 200.0;
+const ENEMY_OFFSET_START: f32 = 240.0;
 
 // Define the game state initialization using the turbo::init! macro
 turbo::init! {
@@ -83,7 +400,7 @@ turbo::init! {
                     grid_position: (i32, i32),
                     health: i32,
                     damage: i32, //this is how much damage this enemy does when it attacks
-                    position_offset: f32, // This is the code to move the enemies into place
+                    position_offset: Tween<f32>, // This is the code to move the enemies into place
                 }>,
                 bullets: Vec<struct Bullet {
                     x: f32,
@@ -100,6 +417,9 @@ turbo::init! {
                 }>,
                 selected_index: usize,
                 battle_state: enum BattleState {
+                    PreCombat{
+                        first_frame: usize,
+                    }
                     ChooseAttack{
                         first_frame: bool,
                     },
@@ -356,22 +676,23 @@ impl Default for GameState {
 
 impl BattleScreen {
     fn new(upgrades: Vec<Upgrade>) -> Self {
+        let tween = Tween::new(ENEMY_OFFSET_START).duration(90).ease(Easing::EaseOutQuart);
         // Initialize the waves
         let waves = vec![
         Wave {
             enemies: vec![
-                Enemy { kind: EnemyKind::Car, grid_position: (0, 1), health: 3, damage: 3, position_offset: ENEMY_OFFSET_START },
-                Enemy { kind: EnemyKind::Plane, grid_position: (0, 0), health: 2, damage: 2, position_offset: ENEMY_OFFSET_START },
-                Enemy { kind: EnemyKind::Car, grid_position: (1, 1), health: 3, damage: 3, position_offset: ENEMY_OFFSET_START },
-                Enemy { kind: EnemyKind::Car, grid_position: (1, 2), health: 3, damage: 3, position_offset: ENEMY_OFFSET_START },
+                Enemy { kind: EnemyKind::Car, grid_position: (0, 1), health: 3, damage: 3, position_offset: tween.clone().duration(90+rand() as usize %120) },
+                Enemy { kind: EnemyKind::Plane, grid_position: (0, 0), health: 2, damage: 2, position_offset: tween.clone().duration(90+rand() as usize %120) },
+                Enemy { kind: EnemyKind::Car, grid_position: (1, 1), health: 3, damage: 3, position_offset: tween.clone().duration(90+rand() as usize %120) },
+                Enemy { kind: EnemyKind::Car, grid_position: (1, 2), health: 3, damage: 3, position_offset: tween.clone().duration(90+rand() as usize %120) },
             ],
         },
         Wave {
             enemies: vec![
-                Enemy { kind: EnemyKind::Plane, grid_position: (0, 0), health: 2, damage: 2, position_offset: ENEMY_OFFSET_START },
-                Enemy { kind: EnemyKind::Plane, grid_position: (1, 0), health: 2, damage: 2, position_offset: ENEMY_OFFSET_START },
-                Enemy { kind: EnemyKind::Car, grid_position: (1, 1), health: 3, damage: 3, position_offset: ENEMY_OFFSET_START },
-                Enemy { kind: EnemyKind::Car, grid_position: (0, 2), health: 3, damage: 3, position_offset: ENEMY_OFFSET_START },
+                Enemy { kind: EnemyKind::Plane, grid_position: (0, 0), health: 2, damage: 2, position_offset: tween.clone().duration(90+rand() as usize %120) },
+                Enemy { kind: EnemyKind::Plane, grid_position: (1, 0), health: 2, damage: 2, position_offset: tween.clone().duration(90+rand() as usize %120) },
+                Enemy { kind: EnemyKind::Car, grid_position: (1, 1), health: 3, damage: 3, position_offset: tween.clone().duration(90+rand() as usize %120) },
+                Enemy { kind: EnemyKind::Car, grid_position: (0, 2), health: 3, damage: 3, position_offset: tween.clone().duration(90+rand() as usize %120) },
 
             ],
         },
@@ -892,7 +1213,7 @@ fn show_health(player_health: i32) {
     let full_rect_width = 40;
     let rect_height = 8;
     let x = 70;
-    let y = 130;
+    let y = 160;
 
     // Draw the full health bar background (black)
     rect!(
@@ -978,7 +1299,7 @@ fn draw_enemies(enemies: &mut [Enemy]) {
     // Iterate over enemies and set their positions using tweens
     for (i, enemy) in enemies.iter_mut().enumerate() {
         let (column, row) = enemy.grid_position;
-        let x = COLUMN_POSITIONS[column as usize];
+        let x = COLUMN_POSITIONS[column as usize] + enemy.position_offset.get() as i32;
         let y = ROW_POSITIONS[row as usize];
         //if i == 0 {turbo::println!("End X {:?}", end_x_position);}
         
@@ -1420,6 +1741,26 @@ turbo::go!({
 
 
             match &mut screen.battle_state {
+               BattleState::PreCombat {first_frame } => {
+                //sit and wait for 5 secoinds
+                if tick() - *first_frame > 20{
+                    for enemy in &mut screen.enemies{
+                        if enemy.position_offset.elapsed > 0 && enemy.position_offset.elapsed < 45{
+                            break;
+                        }
+                        if enemy.position_offset.get() == ENEMY_OFFSET_START{
+                            enemy.position_offset.set(0.0);
+                            break;
+                        }   
+                    }
+                    let all_done = screen.enemies.iter().all(|enemy|{
+                        enemy.position_offset.done()
+                    });
+                    if all_done{
+                            screen.battle_state = BattleState::ChooseAttack { first_frame: true };   
+                        }
+                    }
+                }
                 BattleState::ChooseAttack { ref mut first_frame } => {
                     // Decrease cooldown counters
                     if *first_frame {
@@ -1611,7 +1952,7 @@ turbo::go!({
                             //Apply Speed Effect here - if it is accurate, this will skip the enemy shooting phase
                             if !rand_out_of_100(calculate_speed(&screen.upgrades) as u32){
                                 // Set the truck position for enemies to shoot at
-                                let (truck_x, truck_y) = (50.0+TRUCK_BASE_OFFSET_X as f32, 75.0);
+                                let (truck_x, truck_y) = (50.0+TRUCK_BASE_OFFSET_X as f32, TRUCK_BASE_OFFSET_Y as f32);
                                 
                                 // Create bullets for each enemy
                                 for enemy in &screen.enemies {
@@ -1682,7 +2023,7 @@ turbo::go!({
                 BattleState::StartingNewWave => {
                     // Draw enemies and move them into position
                     //include any wave transition stuff in here later, for now just transition to choose attack
-                    screen.battle_state = BattleState::ChooseAttack { first_frame: true };
+                    screen.battle_state = BattleState::PreCombat  { first_frame: tick() };
 
                 },             
              
@@ -1708,10 +2049,6 @@ turbo::go!({
             //////////BATTLE STATE DRAWING CODE//////
 
             draw_background(&mut screen.bg_objects);
-
-
-            // Show player health
-            show_health(screen.player_health);
             
             // Draw upgrades
             for (index, upgrade) in screen.upgrades.iter().enumerate() {
@@ -1793,6 +2130,9 @@ turbo::go!({
             if !screen.explosions.is_empty() {
                 advance_explosion_animation(&mut screen.explosions);
             }
+
+            // Show player health
+            show_health(screen.player_health);
             
             for text_effect in &mut screen.text_effects{
                 text_effect.update();
