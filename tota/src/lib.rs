@@ -327,11 +327,7 @@ turbo::cfg! {r#"
     resolution = [384, 216]
 "#}
 
-// const GRID_COLUMN_WIDTH: i32 = 96;
-// const GRID_ROW_HEIGHT: i32 = 72;
-// const GRID_ROW_LOW: i32 = 110; 
-// const GRID_ROW_HIGH: i32 = 36; 
-// const GRID_COLUMN_OFFSET: i32 = 176;
+
 const ROW_POSITIONS: [i32; 3] = [32, 104, 152];
 const COLUMN_POSITIONS: [i32; 2] = [176, 272];
 const BULLET_SPEED: f32 = 6.0;
@@ -362,6 +358,17 @@ turbo::init! {
                         Skull,
                         TheRipper,
                         BoomerBomb,
+                        SlimeSpitter,
+                        GoldfishGun,
+                        CrapStack,
+                        KnuckleBuster,
+                        ThePersuader,
+                        JailedDucks,
+                        Boombox,
+                        CanOfWorms,
+                        SkullOfDeath,
+                        Teepee,
+                        EngineShield,
                     },
                     shape: struct Shape {
                         offset: (usize, usize),
@@ -843,39 +850,6 @@ impl Upgrade {
             Shape::new(cells)
         }, 4, 0, 0, 2, 3, 2, "laser_gun".to_string(), true)
     }
-    // #[rustfmt::skip]
-    // fn new_hype_stick() -> Self {
-    //     Self::new(UpgradeKind::HypeStick, {
-    //         let mut cells = BTreeMap::new();
-    //         cells.insert((0, 0), Cell { edges: [true, true, true, true] });
-    //         cells.insert((0, 1), Cell { edges: [true, true, true, true] });
-    //         cells.insert((0, 2), Cell { edges: [true, true, true, true] });
-    //         cells.insert((0, 3), Cell { edges: [true, true, true, true] });
-    //         Shape::new(cells)
-    //     }, 0, 0, 0, 0, 0, 10, "hype_stick".to_string())
-    // }
-    #[rustfmt::skip]
-    // fn new_engine_shield() -> Self {
-    //     Self::new(UpgradeKind::EngineShield, {
-    //         let mut cells = BTreeMap::new();
-    //         cells.insert((0, 0), Cell { edges: [true, true, true, true] });
-    //         cells.insert((0, 1), Cell { edges: [true, true, true, true] });
-    //         cells.insert((1, 0), Cell { edges: [true, true, true, true] });
-    //         cells.insert((1, 1), Cell { edges: [true, true, true, true] });
-    //         Shape::new(cells)
-    //     }, 0, 5, 5, 0, 0, 0, "engine_shield".to_string())
-    // }
-    // #[rustfmt::skip]
-    // fn new_brutal_barrier() -> Self {
-    //     Self::new(UpgradeKind::, {
-    //         let mut cells = BTreeMap::new();
-    //         cells.insert((1, 0), Cell { edges: [true, true, true, true] });
-    //         cells.insert((1, 1), Cell { edges: [true, true, true, true] });
-    //         cells.insert((1, 2), Cell { edges: [true, true, true, true] });
-    //         cells.insert((0, 1), Cell { edges: [true, true, true, true] });
-    //         Shape::new(cells)
-    //     }, 0, 0, 5, 5, 0, 0, "brutal_barrier".to_string())
-    // }
     #[rustfmt::skip]
     fn new_crooked_carburetor() -> Self {
         Self::new(UpgradeKind::CrookedCarburetor, {
@@ -908,7 +882,7 @@ impl Upgrade {
 
     #[rustfmt::skip]
     fn new_boomer_bomb() -> Self {
-        Self::new(UpgradeKind::AutoRifle, {
+        Self::new(UpgradeKind::BoomerBomb, {
             let mut cells = BTreeMap::new();
             cells.insert((0, 0), Cell { edges: [false, true, false, false] });
             cells.insert((1, 0), Cell { edges: [false, false, false, false] });
@@ -918,7 +892,7 @@ impl Upgrade {
 
     #[rustfmt::skip]
     fn new_the_ripper() -> Self {
-        Self::new(UpgradeKind::AutoRifle, {
+        Self::new(UpgradeKind::TheRipper, {
             let mut cells = BTreeMap::new();
             cells.insert((0, 0), Cell { edges: [false, true, false, false] });
             cells.insert((1, 0), Cell { edges: [false, false, false, false] });
@@ -926,7 +900,101 @@ impl Upgrade {
             Shape::new(cells)
         }, 1, 0, 0, 2, 2, 1, "the_ripper".to_string(), true)
     }
-
+    fn new_slime_spitter() -> Self {
+        Self::new(UpgradeKind::SlimeSpitter, {
+            let mut cells = BTreeMap::new();
+            cells.insert((0, 0), Cell { edges: [false, true, false, false] });
+            cells.insert((1, 0), Cell { edges: [false, false, false, false] });
+            Shape::new(cells)
+        }, 1, 0, 0, 2, 2, 1, "slime_spitter".to_string(), true)
+    }
+    fn new_goldfish_gun() -> Self {
+        Self::new(UpgradeKind::GoldfishGun, {
+            let mut cells = BTreeMap::new();
+            cells.insert((0, 0), Cell { edges: [false, true, false, false] });
+            cells.insert((1, 0), Cell { edges: [false, false, false, false] });
+            cells.insert((2, 0), Cell { edges: [false, false, false, false] });
+            cells.insert((0, 1), Cell { edges: [false, false, false, false] });
+            Shape::new(cells)
+        }, 1, 0, 0, 2, 2, 1, "goldfish_gun".to_string(), true)   
+    }
+    fn new_crap_stack() -> Self {
+        Self::new(UpgradeKind::CrapStack, {
+            let mut cells = BTreeMap::new();
+            cells.insert((0, 0), Cell { edges: [false, true, false, false] });
+            Shape::new(cells)
+        }, 1, 0, 0, 2, 2, 1, "crap_stack".to_string(), true)
+    }
+    fn new_knuckle_buster() -> Self {
+        Self::new(UpgradeKind::KnuckleBuster, {
+            let mut cells = BTreeMap::new();
+            cells.insert((0, 0), Cell { edges: [false, true, false, false] });
+            cells.insert((1, 0), Cell { edges: [false, true, false, false] });
+            cells.insert((2, 0), Cell { edges: [false, true, false, false] });
+            cells.insert((3, 0), Cell { edges: [false, true, false, false] });
+            Shape::new(cells)
+        }, 1, 0, 0, 2, 2, 1, "knuckle_buster".to_string(), true)
+    }
+    fn new_the_persuader() -> Self {
+        Self::new(UpgradeKind::ThePersuader, {
+            let mut cells = BTreeMap::new();
+            cells.insert((1, 0), Cell { edges: [false, true, false, false] });
+            cells.insert((2, 0), Cell { edges: [false, true, false, false] });
+            cells.insert((3, 0), Cell { edges: [false, true, false, false] });
+            cells.insert((0, 1), Cell { edges: [false, true, false, false] });
+            cells.insert((1, 1), Cell { edges: [false, true, false, false] });
+            Shape::new(cells)
+        }, 1, 0, 0, 2, 2, 1, "the_persuader".to_string(), true)
+    }
+    fn new_jailed_ducks() -> Self {
+        Self::new(UpgradeKind::JailedDucks, {
+            let mut cells = BTreeMap::new();
+            cells.insert((0, 0), Cell { edges: [false, true, false, false] });
+            cells.insert((1, 0), Cell { edges: [false, true, false, false] });
+            cells.insert((2, 0), Cell { edges: [false, true, false, false] });
+            Shape::new(cells)
+        }, 1, 0, 0, 2, 2, 1, "jailed_ducks".to_string(), true)
+    }
+    fn new_boombox() -> Self {
+        Self::new(UpgradeKind::Boombox, {
+            let mut cells = BTreeMap::new();
+            cells.insert((0, 0), Cell { edges: [false, true, false, false] });
+            cells.insert((1, 0), Cell { edges: [false, true, false, false] });
+            Shape::new(cells)
+        }, 1, 0, 0, 2, 2, 1, "boombox".to_string(), true)
+    }
+    fn new_can_of_worms() -> Self {
+        Self::new(UpgradeKind::CanOfWorms, {
+            let mut cells = BTreeMap::new();
+            cells.insert((0, 0), Cell { edges: [false, true, false, false] });
+            Shape::new(cells)
+        }, 1, 0, 0, 2, 2, 1, "can_of_worms".to_string(), true)
+    }
+    fn new_skull_of_death() -> Self {
+        Self::new(UpgradeKind::SkullOfDeath, {
+            let mut cells = BTreeMap::new();
+            cells.insert((0, 0), Cell { edges: [false, true, false, false] });
+            Shape::new(cells)
+        }, 1, 0, 0, 2, 2, 1, "skull_of_death".to_string(), true)
+    }
+    fn new_teepee() -> Self {
+        Self::new(UpgradeKind::Teepee, {
+            let mut cells = BTreeMap::new();
+            cells.insert((0, 0), Cell { edges: [false, true, false, false] });
+            Shape::new(cells)
+        }, 1, 0, 0, 2, 2, 1, "teepee".to_string(), true)
+    }
+    fn new_engine_shield() -> Self {
+        Self::new(UpgradeKind::EngineShield, {
+            let mut cells = BTreeMap::new();
+            cells.insert((0, 0), Cell { edges: [false, true, false, false] });
+            cells.insert((0, 1), Cell { edges: [false, true, false, false] });
+            cells.insert((1, 0), Cell { edges: [false, true, false, false] });
+            cells.insert((1, 1), Cell { edges: [false, true, false, false] });
+            Shape::new(cells)
+        }, 1, 0, 0, 2, 2, 1, "engine_shield".to_string(), true)
+    }
+    
 }
 
 //Replaced this with sprite_name
@@ -1545,11 +1613,11 @@ fn car_presets() -> Vec<CarPreset> {
             upgrades: vec![
                 (Upgrade::new_truck(), (0, 5)),
                 (Upgrade::new_meat_grinder(), (2, 4)),
-                (Upgrade::new_auto_rifle(), (0, 5)),
-                (Upgrade::new_harpoon(), (1, 3)),
-                (Upgrade::new_laser_gun(), (5, 4)),
-                (Upgrade::new_auto_rifle(), (6, 5)),
+                (Upgrade::new_boomer_bomb(), (0, 5)),
+                (Upgrade::new_knuckle_buster(), (0, 3)),
+                (Upgrade::new_slime_spitter(), (6, 5)),
                 (Upgrade::new_crooked_carburetor(), (4, 2)),
+                (Upgrade::new_boombox(), (4, 1)),
             ],
         },
         CarPreset {
@@ -1557,23 +1625,23 @@ fn car_presets() -> Vec<CarPreset> {
             upgrades: vec![
                 (Upgrade::new_truck(), (0, 5)),
                 (Upgrade::new_meat_grinder(), (0, 4)),
-                (Upgrade::new_skull(), (4, 4)),
+                (Upgrade::new_skull_of_death(), (4, 4)),
                 (Upgrade::new_psyko_juice(), (5, 4)),
-                (Upgrade::new_laser_gun(), (6, 5)),
-                (Upgrade::new_auto_rifle(), (0, 3)),
-                (Upgrade::new_auto_rifle(), (2, 5)),
+                (Upgrade::new_jailed_ducks(), (5, 3)),
+                (Upgrade::new_goldfish_gun(), (0, 2)),
+                (Upgrade::new_the_persuader(), (2, 3)),
             ],
         },
         CarPreset {
             name: "lughead",
             upgrades: vec![
                 (Upgrade::new_truck(), (0, 5)),
-                (Upgrade::new_harpoon(), (0, 5)),
-                (Upgrade::new_harpoon(), (0, 2)),
-                (Upgrade::new_harpoon(), (0, 1)),
-                (Upgrade::new_meat_grinder(), (2, 3)),
-                (Upgrade::new_auto_rifle(), (4, 4)),
-                (Upgrade::new_auto_rifle(), (6, 5)),
+                (Upgrade::new_crap_stack(), (0, 5)),
+                (Upgrade::new_slime_spitter(), (1, 3)),
+                (Upgrade::new_boomer_bomb(), (0, 2)),
+                (Upgrade::new_engine_shield(), (2, 4)),
+                (Upgrade::new_the_ripper(), (4, 4)),
+                (Upgrade::new_can_of_worms(), (6, 5)),
             ],
         },
     ]
@@ -1757,7 +1825,15 @@ turbo::go!({
                         enemy.position_offset.done()
                     });
                     if all_done{
-                            screen.battle_state = BattleState::ChooseAttack { first_frame: true };   
+                        let new_effect = TextEffect::new(
+                            "TIME TO BATTLE!!",
+                            0x564f5bff,
+                            0xcbc6c1FF,
+                            180,
+                            10,
+                        );
+                        screen.text_effects.push(new_effect);
+                        screen.battle_state = BattleState::ChooseAttack { first_frame: true };   
                         }
                     }
                 }
