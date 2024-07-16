@@ -41,7 +41,7 @@ turbo::init! {
     }
 }
 
-turbo::go! {
+turbo::go! ({
     let mut state = GameState::load();
 
     let paddle_speed = 4.0;
@@ -134,4 +134,4 @@ turbo::go! {
 
     // Save game state for the next frame
     state.save();
-}
+})

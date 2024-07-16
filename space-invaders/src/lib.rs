@@ -64,7 +64,7 @@ impl GameState {
 }
 
 // Implement the game loop
-turbo::go! {
+turbo::go!({
     let mut state = GameState::load();
 
     let won_game = state.invaders.is_empty();
@@ -126,8 +126,10 @@ turbo::go! {
         state.bullets.retain_mut(|bullet| {
             let mut bullet_hit = false;
             state.invaders.retain_mut(|invader| {
-                let did_hit = bullet.x < invader.x + 16.0 && bullet.x + 2.0 > invader.x &&
-                    bullet.y < invader.y + 8.0 && bullet.y + 2.0 > invader.y;
+                let did_hit = bullet.x < invader.x + 16.0
+                    && bullet.x + 2.0 > invader.x
+                    && bullet.y < invader.y + 8.0
+                    && bullet.y + 2.0 > invader.y;
                 bullet_hit = bullet_hit || did_hit;
                 if did_hit {
                     state.score += 1; // Increase score for hitting an invader
@@ -164,14 +166,26 @@ turbo::go! {
 
     if won_game {
         // TODO: draw game over text
-        text!("YOU WIN!", x = 80, y = 80, font = Font::L, color = 0xffffffff);
+        text!(
+            "YOU WIN!",
+            x = 80,
+            y = 80,
+            font = Font::L,
+            color = 0xffffffff
+        );
     }
     if lost_game {
         // TODO: draw game over text
-        text!("GAME OVER", x = 76, y = 80, font = Font::L, color = 0xffffffff);
+        text!(
+            "GAME OVER",
+            x = 76,
+            y = 80,
+            font = Font::L,
+            color = 0xffffffff
+        );
     }
 
     // Save game state for the next frame
     state.tick += 1;
     state.save();
-}
+});

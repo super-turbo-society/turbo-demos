@@ -65,7 +65,7 @@ turbo::init! {
     }
 }
 
-turbo::go! {
+turbo::go!({
     // Load game state
     let mut state = GameState::load();
     let mut tanks = state.tanks.iter_mut();
@@ -73,7 +73,7 @@ turbo::go! {
     let mut tank2 = tanks.next().unwrap();
 
     // Draw stuff
-    rect!(w = 256,h = 144, color = 0x222222ff);
+    rect!(w = 256, h = 144, color = 0x222222ff);
     draw_blocks(&state.blocks);
     draw_tank(&tank1);
     draw_tank(&tank2);
@@ -101,7 +101,7 @@ turbo::go! {
 
     // Save the game state
     state.save();
-}
+});
 
 fn did_hit_missile(tank: &Tank, missiles: &[Missile]) -> bool {
     let tank_hitbox = tank.hitbox();
