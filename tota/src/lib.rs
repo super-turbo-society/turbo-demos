@@ -1931,6 +1931,7 @@ turbo::go!({
                     // Restore the saved Battle screen state and update upgrades
                     if let Some(mut battle_screen) = state.saved_battle_screen.take() {
                         battle_screen.upgrades = screen.upgrades.clone();
+                        battle_screen.battle_state = BattleState::StartingNewWave;
                         new_screen = Some(Screen::Battle(battle_screen));
                     }
                 },
@@ -2298,7 +2299,13 @@ turbo::go!({
                 }, 
 
                 BattleState::StartingNewWave => {
-                    // Draw enemies and move them into position
+                    //do all the cleanup here, e.g. make anything blank that needs to be blank
+                    screen.bullets.clear();
+                    screen.explosions.clear();
+                    for upgrade in &mut screen.upgrades{
+                        upgrade.cooldown_counter = 0;
+                    }
+                    screen.selected_index = 1;
                     //include any wave transition stuff in here later, for now just transition to choose attack
                     screen.battle_state = BattleState::PreCombat  { first_frame: tick() };
 
