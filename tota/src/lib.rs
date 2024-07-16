@@ -746,9 +746,9 @@ impl Upgrade {
     }
     pub fn random() -> Self {
         match rand() % 9 {
-            0 => Self::new_auto_rifle(),
-            1 => Self::new_harpoon(),
-            2 => Self::new_laser_gun(),
+            0 => Self::new_boomer_bomb(),
+            1 => Self::new_goldfish_gun(),
+            2 => Self::new_the_persuader(),
             3 => Self::new_meat_grinder(),
             4 => Self::new_crooked_carburetor(),
             5 => Self::new_psyko_juice(),
@@ -759,9 +759,9 @@ impl Upgrade {
     }
     pub fn random_placeable(shapes: &[Shape]) -> Option<Self> {
         let upgrades = [
-            Self::new_auto_rifle(),
-            Self::new_harpoon(),
-            Self::new_laser_gun(),
+            Self::new_the_persuader(),
+            Self::new_crooked_carburetor(),
+            Self::new_skull(),
             Self::new_meat_grinder(),
         ];
         let len = upgrades.len();
@@ -821,34 +821,6 @@ impl Upgrade {
             cells.insert((1, 1), Cell { edges: [true, true, true, true] });
             Shape::new(cells)
         }, 5, 0, 8, 1, 0, 9, "meat_grinder".to_string(), false)
-    }
-    #[rustfmt::skip]
-    fn new_auto_rifle() -> Self {
-        Self::new(UpgradeKind::AutoRifle, {
-            let mut cells = BTreeMap::new();
-            cells.insert((0, 0), Cell { edges: [false, true, false, false] });
-            cells.insert((1, 0), Cell { edges: [false, false, false, false] });
-            Shape::new(cells)
-        }, 3, 0, 0, 1, 2, 1, "auto_rifle".to_string(), true)
-    }
-    #[rustfmt::skip]
-    fn new_harpoon() -> Self {
-        Self::new(UpgradeKind::Harpoon, {
-            let mut cells = BTreeMap::new();
-            cells.insert((0, 0), Cell { edges: [false, false, true, false] });
-            cells.insert((1, 0), Cell { edges: [false, false, false, false] });
-            cells.insert((2, 0), Cell { edges: [false, false, false, false] });
-            Shape::new(cells)
-        }, 4, 0, 0, 12, 5, 3, "harpoon".to_string(), true)
-    }
-    #[rustfmt::skip]
-    fn new_laser_gun() -> Self {
-        Self::new(UpgradeKind::LaserGun, {
-            let mut cells = BTreeMap::new();
-            cells.insert((0, 0), Cell { edges: [false, true, false, false] });
-            cells.insert((1, 0), Cell { edges: [false, false, false, false] });
-            Shape::new(cells)
-        }, 4, 0, 0, 2, 3, 2, "laser_gun".to_string(), true)
     }
     #[rustfmt::skip]
     fn new_crooked_carburetor() -> Self {
@@ -923,7 +895,7 @@ impl Upgrade {
             let mut cells = BTreeMap::new();
             cells.insert((0, 0), Cell { edges: [false, true, false, false] });
             Shape::new(cells)
-        }, 1, 0, 0, 2, 2, 1, "crap_stack".to_string(), true)
+        }, 1, 0, 0, 2, 2, 1, "crap_stack".to_string(), false)
     }
     fn new_knuckle_buster() -> Self {
         Self::new(UpgradeKind::KnuckleBuster, {
@@ -953,7 +925,7 @@ impl Upgrade {
             cells.insert((1, 0), Cell { edges: [false, true, false, false] });
             cells.insert((2, 0), Cell { edges: [false, true, false, false] });
             Shape::new(cells)
-        }, 1, 0, 0, 2, 2, 1, "jailed_ducks".to_string(), true)
+        }, 1, 0, 0, 2, 2, 1, "jailed_ducks".to_string(), false)
     }
     fn new_boombox() -> Self {
         Self::new(UpgradeKind::Boombox, {
@@ -961,28 +933,28 @@ impl Upgrade {
             cells.insert((0, 0), Cell { edges: [false, true, false, false] });
             cells.insert((1, 0), Cell { edges: [false, true, false, false] });
             Shape::new(cells)
-        }, 1, 0, 0, 2, 2, 1, "boombox".to_string(), true)
+        }, 1, 0, 0, 2, 2, 1, "boombox".to_string(), false)
     }
     fn new_can_of_worms() -> Self {
         Self::new(UpgradeKind::CanOfWorms, {
             let mut cells = BTreeMap::new();
             cells.insert((0, 0), Cell { edges: [false, true, false, false] });
             Shape::new(cells)
-        }, 1, 0, 0, 2, 2, 1, "can_of_worms".to_string(), true)
+        }, 1, 0, 0, 2, 2, 1, "can_of_worms".to_string(), false)
     }
     fn new_skull_of_death() -> Self {
         Self::new(UpgradeKind::SkullOfDeath, {
             let mut cells = BTreeMap::new();
             cells.insert((0, 0), Cell { edges: [false, true, false, false] });
             Shape::new(cells)
-        }, 1, 0, 0, 2, 2, 1, "skull_of_death".to_string(), true)
+        }, 1, 0, 0, 2, 2, 1, "skull_of_death".to_string(), false)
     }
     fn new_teepee() -> Self {
         Self::new(UpgradeKind::Teepee, {
             let mut cells = BTreeMap::new();
             cells.insert((0, 0), Cell { edges: [false, true, false, false] });
             Shape::new(cells)
-        }, 1, 0, 0, 2, 2, 1, "teepee".to_string(), true)
+        }, 1, 0, 0, 2, 2, 1, "teepee".to_string(), false)
     }
     fn new_engine_shield() -> Self {
         Self::new(UpgradeKind::EngineShield, {
@@ -992,9 +964,8 @@ impl Upgrade {
             cells.insert((1, 0), Cell { edges: [false, true, false, false] });
             cells.insert((1, 1), Cell { edges: [false, true, false, false] });
             Shape::new(cells)
-        }, 1, 0, 0, 2, 2, 1, "engine_shield".to_string(), true)
-    }
-    
+        }, 1, 0, 0, 2, 2, 1, "engine_shield".to_string(), false)
+    } 
 }
 
 //Replaced this with sprite_name
@@ -1845,6 +1816,17 @@ turbo::go!({
                                 upgrade.cooldown_counter -= 1;
                             }
                         }
+                        
+                        //set selected weapon to a usable weapon
+                        let mut next_index = screen.selected_index;
+                        loop {
+                            next_index = (next_index + 1) % screen.upgrades.len();
+                            if screen.upgrades[next_index].cooldown_counter == 0 && screen.upgrades[next_index].is_active{
+                                break;
+                            }
+                        }
+                        screen.selected_index = next_index;
+
                         *first_frame = false;
                     }
 
@@ -1855,7 +1837,7 @@ turbo::go!({
                         let mut next_index = screen.selected_index;
                         loop {
                             next_index = (next_index + 1) % screen.upgrades.len();
-                            if screen.upgrades[next_index].cooldown_counter == 0 && screen.upgrades[next_index].kind != UpgradeKind::Truck && screen.upgrades[next_index].kind != UpgradeKind::MeatGrinder {
+                            if screen.upgrades[next_index].cooldown_counter == 0 && screen.upgrades[next_index].is_active{
                                 break;
                             }
                         }
@@ -1869,7 +1851,7 @@ turbo::go!({
                             } else {
                                 prev_index -= 1;
                             }
-                            if screen.upgrades[prev_index].cooldown_counter == 0 && screen.upgrades[prev_index].kind != UpgradeKind::Truck && screen.upgrades[prev_index].kind != UpgradeKind::MeatGrinder {
+                            if screen.upgrades[prev_index].cooldown_counter == 0 && screen.upgrades[prev_index].is_active {
                                 break;
                             }
                         }
@@ -1881,17 +1863,41 @@ turbo::go!({
                         let selected_upgrade = &mut screen.upgrades[screen.selected_index];
                         if selected_upgrade.cooldown_counter == 0 {
                             let mut target_enemies = vec![];
+                            //determine which enemies are getting hit
 
                             match selected_upgrade.kind {
-                                UpgradeKind::AutoRifle => {
-                                    if let Some((index, _)) = screen.enemies.iter().enumerate().min_by_key(|(_, enemy)| enemy.grid_position.0) {
-                                        target_enemies.push(index);
+                                UpgradeKind::BoomerBomb => {
+                                    for (index, enemy) in screen.enemies.iter().enumerate(){
+                                        if enemy.grid_position.0 == 0{
+                                            if enemy.grid_position.1 == 1 || enemy.grid_position.1 == 2{
+                                                target_enemies.push(index);
+                                            }
+                                        }
                                     }
                                 },
-                                UpgradeKind::Harpoon => {
+                                UpgradeKind::GoldfishGun=> {
                                     for (index, enemy) in screen.enemies.iter().enumerate() {
-                                        if enemy.grid_position.1 == 1 {
+                                        if enemy.grid_position.0 == 0 && enemy.grid_position.1 == 0 {
                                             target_enemies.push(index);
+                                            for (index, next_enemy) in screen.enemies.iter().enumerate() {
+                                                if next_enemy.grid_position.0 ==0{
+                                                    if next_enemy.grid_position.1 == 1 || next_enemy.grid_position.1 == 2{
+                                                        target_enemies.push(index);
+                                                        break;
+                                                    }
+                                                }    
+                                        }
+                                        break;
+                                    }
+                                    else if enemy.grid_position.0 == 1 && enemy.grid_position.1 == 0{
+                                        target_enemies.push(index);
+                                            for (index, next_enemy) in screen.enemies.iter().enumerate() {
+                                                if next_enemy.grid_position.0 == 1{
+                                                    if next_enemy.grid_position.1 == 1 || next_enemy.grid_position.1 == 2{
+                                                        target_enemies.push(index)
+                                                    }
+                                                }    
+                                            }
                                         }
                                     }
                                 },
