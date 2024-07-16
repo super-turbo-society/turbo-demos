@@ -971,6 +971,7 @@ impl Upgrade {
     fn target_enemies_list(&self, enemies: Vec<Enemy>) -> Vec<usize>{
         let mut target_enemies = Vec::new();
         match self.kind{
+            //find the closest 
             UpgradeKind::BoomerBomb => {
                 for (index, enemy) in enemies.iter().enumerate(){
                     if enemy.grid_position.0 == 0{
@@ -980,6 +981,7 @@ impl Upgrade {
                     }
                 }
             },
+            //Find the closest plane, then also target any cars directly below it
             UpgradeKind::GoldfishGun=> {
                 for (index, enemy) in enemies.iter().enumerate() {
                     if enemy.grid_position.0 == 0 && enemy.grid_position.1 == 0 {
@@ -1042,6 +1044,56 @@ impl Upgrade {
                 
                 }
             },
+            //target 1 enemy, starting with the closest, starting from the bottom
+            UpgradeKind::SlimeSpitter => {
+                for (index, enemy) in enemies.iter().enumerate(){
+                    if enemy.grid_position.0 == 0{
+                        if enemy.grid_position.1 == 0{
+                            target_enemies.push(index);
+                            break;
+                        }
+                        else if enemy.grid_position.1 == 1{
+                            target_enemies.push(index);
+                            break;
+                        }
+                        else{
+                            target_enemies.push(index);
+                            break;
+                        }
+                    }
+                    else if enemy.grid_position.0 == 1{
+                        if enemy.grid_position.1 == 0{
+                            target_enemies.push(index);
+                            break;
+                        }
+                        else if enemy.grid_position.1 == 1{
+                            target_enemies.push(index);
+                            break;
+                        }
+                        else{
+                            target_enemies.push(index);
+                            break;
+                        }
+
+                    }
+                }
+            },
+
+            //targets all air enemies
+            UpgradeKind::ThePersuader => {
+                for (index, enemy) in enemies.iter().enumerate(){
+                if enemy.grid_position.1 == 0{
+                    target_enemies.push(index);
+                }
+                }
+            },
+            
+            //target all enemies
+            UpgradeKind::TheRipper => {
+                for (index, enemy) in enemies.iter().enumerate(){
+                    target_enemies.push(index);
+                }
+            }
             _ => {}
         }
         return target_enemies;
@@ -2267,7 +2319,6 @@ turbo::go!({
 
             // Highlight target enemies - this will change when we have a new highlight system
             for &enemy_index in &target_enemies {
-                turbo::println!("IN TARGET ENEMIES");
                 let enemy = &screen.enemies[enemy_index];
                 let (column, row) = enemy.grid_position;
                 let y_position = ROW_POSITIONS[row as usize];
