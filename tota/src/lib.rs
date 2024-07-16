@@ -573,7 +573,7 @@ impl UpgradeSelectionScreen {
     }
 
     fn handle_input(&mut self) -> ScreenTransition {
-        // Navigate through the options
+       
         if self.placing_upgrade {
             // Move the upgrade
             if let Some(last_upgrade) = self.upgrades.last_mut() {
@@ -595,7 +595,7 @@ impl UpgradeSelectionScreen {
             if gamepad(0).a.just_pressed() {
                 if let Some(last_upgrade) = self.upgrades.last() {
                     if self.can_place_upgrade(last_upgrade) {
-                        turbo::println!("NO OVERLAP, SHOULD TRANSITION");
+                       //turbo::println!("NO OVERLAP, SHOULD TRANSITION");
                         return ScreenTransition::BackToBattle;
                     }
                 }
@@ -822,7 +822,7 @@ impl Upgrade {
             cells.insert((0, 1), Cell { edges: [true, true, true, true] });
             cells.insert((1, 1), Cell { edges: [true, true, true, true] });
             Shape::new(cells)
-        }, 5, 0, 8, 1, 0, 9, "meat_grinder".to_string(), false)
+        }, 5, 0, 10, 5, 0, 2, "meat_grinder".to_string(), false)
     }
     #[rustfmt::skip]
     fn new_crooked_carburetor() -> Self {
@@ -833,7 +833,7 @@ impl Upgrade {
             cells.insert((0, 1), Cell { edges: [true, true, true, true] });
             cells.insert((0, 2), Cell { edges: [true, true, true, true] });
             Shape::new(cells)
-        }, 0, 5, 0, 5, 0, 0, "crooked_carburetor".to_string(), false)
+        }, 0, 7, 3, 3, 0, 0, "crooked_carburetor".to_string(), false)
     }
 
     #[rustfmt::skip]
@@ -842,7 +842,7 @@ impl Upgrade {
             let mut cells = BTreeMap::new();
             cells.insert((0, 0), Cell { edges: [true, true, true, true] });
             Shape::new(cells)
-        }, 0, 6, 0, 1, 0, 3, "psyko_juice".to_string(), false)
+        }, 0, 4, 0, 0, 0, 0, "psyko_juice".to_string(), false)
     }
 
     #[rustfmt::skip]
@@ -861,7 +861,7 @@ impl Upgrade {
             cells.insert((0, 0), Cell { edges: [false, true, false, false] });
             cells.insert((1, 0), Cell { edges: [false, false, false, false] });
             Shape::new(cells)
-        }, 3, 0, 0, 4, 3, 2, "boomer_bomb".to_string(), true)
+        }, 3, 0, 0, 0, 3, 0, "boomer_bomb".to_string(), true)
     }
 
     #[rustfmt::skip]
@@ -872,7 +872,7 @@ impl Upgrade {
             cells.insert((1, 0), Cell { edges: [false, false, false, false] });
             cells.insert((2, 0), Cell { edges: [false, false, false, false] });
             Shape::new(cells)
-        }, 1, 0, 0, 2, 1, 1, "the_ripper".to_string(), true)
+        }, 2, 0, 0, 0, 1, 0, "the_ripper".to_string(), true)
     }
     fn new_slime_spitter() -> Self {
         Self::new(UpgradeKind::SlimeSpitter, {
@@ -880,7 +880,7 @@ impl Upgrade {
             cells.insert((0, 0), Cell { edges: [false, true, false, false] });
             cells.insert((1, 0), Cell { edges: [false, false, false, false] });
             Shape::new(cells)
-        }, 1, 0, 0, 2, 3, 1, "slime_spitter".to_string(), true)
+        }, 3, 0, 0, 0, 3, 0, "slime_spitter".to_string(), true)
     }
     fn new_goldfish_gun() -> Self {
         Self::new(UpgradeKind::GoldfishGun, {
@@ -890,14 +890,14 @@ impl Upgrade {
             cells.insert((2, 0), Cell { edges: [false, false, false, false] });
             cells.insert((0, 1), Cell { edges: [false, false, false, false] });
             Shape::new(cells)
-        }, 3, 0, 0, 2, 2, 1, "goldfish_gun".to_string(), true)   
+        }, 3, 0, 0, 0, 2, 0, "goldfish_gun".to_string(), true)   
     }
     fn new_crap_stack() -> Self {
         Self::new(UpgradeKind::CrapStack, {
             let mut cells = BTreeMap::new();
             cells.insert((0, 0), Cell { edges: [false, true, false, false] });
             Shape::new(cells)
-        }, 1, 0, 0, 2, 2, 1, "crap_stack".to_string(), false)
+        }, 1, 0, 0, 4, 0, 0, "crap_stack".to_string(), false)
     }
     fn new_knuckle_buster() -> Self {
         Self::new(UpgradeKind::KnuckleBuster, {
@@ -907,7 +907,7 @@ impl Upgrade {
             cells.insert((2, 0), Cell { edges: [false, true, false, false] });
             cells.insert((3, 0), Cell { edges: [false, true, false, false] });
             Shape::new(cells)
-        }, 1, 0, 0, 2, 2, 1, "knuckle_buster".to_string(), true)
+        }, 3, 0, 0, 0, 2, 0, "knuckle_buster".to_string(), true)
     }
     fn new_the_persuader() -> Self {
         Self::new(UpgradeKind::ThePersuader, {
@@ -918,7 +918,7 @@ impl Upgrade {
             cells.insert((0, 1), Cell { edges: [false, true, false, false] });
             cells.insert((1, 1), Cell { edges: [false, true, false, false] });
             Shape::new(cells)
-        }, 1, 0, 0, 2, 2, 1, "the_persuader".to_string(), true)
+        }, 2, 0, 0, 0, 2, 0, "the_persuader".to_string(), true)
     }
     fn new_jailed_ducks() -> Self {
         Self::new(UpgradeKind::JailedDucks, {
@@ -927,7 +927,7 @@ impl Upgrade {
             cells.insert((1, 0), Cell { edges: [false, true, false, false] });
             cells.insert((2, 0), Cell { edges: [false, true, false, false] });
             Shape::new(cells)
-        }, 1, 0, 0, 2, 2, 1, "jailed_ducks".to_string(), false)
+        }, 1, 2, 0, 10, 0, 3, "jailed_ducks".to_string(), false)
     }
     fn new_boombox() -> Self {
         Self::new(UpgradeKind::Boombox, {
@@ -935,28 +935,28 @@ impl Upgrade {
             cells.insert((0, 0), Cell { edges: [false, true, false, false] });
             cells.insert((1, 0), Cell { edges: [false, true, false, false] });
             Shape::new(cells)
-        }, 1, 0, 0, 2, 2, 1, "boombox".to_string(), false)
+        }, 1, 5, 2, 0, 0, 5, "boombox".to_string(), false)
     }
     fn new_can_of_worms() -> Self {
         Self::new(UpgradeKind::CanOfWorms, {
             let mut cells = BTreeMap::new();
             cells.insert((0, 0), Cell { edges: [false, true, false, false] });
             Shape::new(cells)
-        }, 1, 0, 0, 2, 2, 1, "can_of_worms".to_string(), false)
+        }, 1, 0, 4, 0, 0, 0, "can_of_worms".to_string(), false)
     }
     fn new_skull_of_death() -> Self {
         Self::new(UpgradeKind::SkullOfDeath, {
             let mut cells = BTreeMap::new();
             cells.insert((0, 0), Cell { edges: [false, true, false, false] });
             Shape::new(cells)
-        }, 1, 0, 0, 2, 2, 1, "skull_of_death".to_string(), false)
+        }, 1, 0, 0, 4, 0, 0, "skull_of_death".to_string(), false)
     }
     fn new_teepee() -> Self {
         Self::new(UpgradeKind::Teepee, {
             let mut cells = BTreeMap::new();
             cells.insert((0, 0), Cell { edges: [false, true, false, false] });
             Shape::new(cells)
-        }, 1, 0, 0, 2, 2, 1, "teepee".to_string(), false)
+        }, 1, 2, 0, 0, 0, 2, "teepee".to_string(), false)
     }
     fn new_engine_shield() -> Self {
         Self::new(UpgradeKind::EngineShield, {
@@ -1295,15 +1295,15 @@ impl Shape {
     fn draw(&self, is_active: bool, can_place: bool, offset_x: i32, offset_y: i32) {
         let (x, y) = self.offset;
         let color = if can_place {
-            0x00ff0044u32
+            0x00ff0080u32
         } else {
-            0xff000044u32
+            0xff000080u32
         };
         for (pos, cell) in &self.cells {
             let (x, y) = (x + pos.0, y + pos.1);
             if x < 8 && y < 8 {
-                let (x, y) = ((x * 16) + 1 + offset_x as usize +TRUCK_BASE_OFFSET_X as usize, (y * 16) + 1 + offset_y as usize + 32);
-                let (w, h) = (14, 14);
+                let (x, y) = ((x * 16) + 1 + offset_x as usize, (y * 16) + 1 + offset_y as usize);
+                let (w, h) = (16, 16);
                 if is_active {
                     rect!(w = w, h = h, x = x, y = y, color = color);
                 }
@@ -1768,6 +1768,7 @@ fn car_presets() -> Vec<CarPreset> {
                 (Upgrade::new_jailed_ducks(), (5, 3)),
                 (Upgrade::new_goldfish_gun(), (0, 2)),
                 (Upgrade::new_the_persuader(), (2, 3)),
+                (Upgrade::new_the_ripper(), (2, 1)),
             ],
         },
         CarPreset {
@@ -1892,6 +1893,7 @@ turbo::go!({
             // Draw the grid
             sprite!("main_grid_16x16", x=grid_offset_x, y=grid_offset_y);
             let mut _x = 0;
+
             for upgrade in &screen.upgrades {
                 if upgrade.kind == UpgradeKind::Truck {
                     draw_truck(Some(upgrade.shape.offset.0 as i32 * 16 + grid_offset_x as i32), Some(upgrade.shape.offset.1 as i32 * 16 + grid_offset_y as i32), false, &state.driver_name);
@@ -2029,85 +2031,10 @@ turbo::go!({
                     // Handle attack selection
                     if gamepad(0).a.just_pressed() {
                         let selected_upgrade = &mut screen.upgrades[screen.selected_index];
+                        //check if the weapon isn't on cooldown (theoretically should never happen bc of selection system)
                         if selected_upgrade.cooldown_counter == 0 {
                             let target_enemies = selected_upgrade.target_enemies_list(screen.enemies.clone());
-                            //determine which enemies are getting hit
-
-                            // match selected_upgrade.kind {
-                            //     UpgradeKind::BoomerBomb => {
-                            //         for (index, enemy) in screen.enemies.iter().enumerate(){
-                            //             if enemy.grid_position.0 == 0{
-                            //                 if enemy.grid_position.1 == 1 || enemy.grid_position.1 == 2{
-                            //                     target_enemies.push(index);
-                            //                 }
-                            //             }
-                            //         }
-                            //     },
-                            //     UpgradeKind::GoldfishGun=> {
-                            //         for (index, enemy) in screen.enemies.iter().enumerate() {
-                            //             if enemy.grid_position.0 == 0 && enemy.grid_position.1 == 0 {
-                            //                 target_enemies.push(index);
-                            //                 for (index, next_enemy) in screen.enemies.iter().enumerate() {
-                            //                     if next_enemy.grid_position.0 ==0{
-                            //                         if next_enemy.grid_position.1 == 1 || next_enemy.grid_position.1 == 2{
-                            //                             target_enemies.push(index);
-                            //                             break;
-                            //                         }
-                            //                     }    
-                            //             }
-                            //             break;
-                            //         }
-                            //         else if enemy.grid_position.0 == 1 && enemy.grid_position.1 == 0{
-                            //             target_enemies.push(index);
-                            //                 for (index, next_enemy) in screen.enemies.iter().enumerate() {
-                            //                     if next_enemy.grid_position.0 == 1{
-                            //                         if next_enemy.grid_position.1 == 1 || next_enemy.grid_position.1 == 2{
-                            //                             target_enemies.push(index)
-                            //                         }
-                            //                     }    
-                            //                 }
-                            //             }
-                            //         }
-                            //     },
-                            //     //find the row with the most enemies, prioritizing the lowest, and add all in that row
-                            //     UpgradeKind::KnuckleBuster => {
-
-                            //         let mut a = 0;
-                            //         let mut b = 0;
-                            //         let mut c = 0;
-                            //         for enemy in screen.enemies.clone() {
-                            //             if enemy.grid_position.1 == 0 {
-                            //                 a+=1;
-                            //             }
-                            //             else if enemy.grid_position.1 == 1 {
-                            //                 b +=1;
-                            //             }
-                            //             else if enemy.grid_position.1 == 2{
-                            //                 c +=1;
-                            //             }
-                            //         }
-                            //         for (index, enemy) in screen.enemies.iter().enumerate() {
-                            //             if c >= b && c >= a {
-                            //                 if enemy.grid_position.1 == 2{
-                            //                     target_enemies.push(index);
-                            //                 }
-                            //             }
-                            //             else if b >= a{
-                            //                 if enemy.grid_position.1 == 1 {
-                            //                     target_enemies.push(index);
-                            //                 }
-                            //             }
-                            //             else{
-                            //                 if enemy.grid_position.1 == 0{
-                            //                     target_enemies.push(index);
-                            //                 }
-                            //             }
-                                    
-                            //         }
-                            //     },
-                            //     _ => {}
-                            // }
-                            //have the harpoons shoot a different sprite
+                           //TODO: fix this for new weapons
                             let weapon_sprite = match selected_upgrade.kind {
                                 UpgradeKind::Harpoon => "harpoon_bullet".to_string(),
                                 //change this later if we get a new sprite for the laser
@@ -2305,6 +2232,7 @@ turbo::go!({
                     for upgrade in &mut screen.upgrades{
                         upgrade.cooldown_counter = 0;
                     }
+                    //probably a better way to deal with this...
                     screen.selected_index = 1;
                     //include any wave transition stuff in here later, for now just transition to choose attack
                     screen.battle_state = BattleState::PreCombat  { first_frame: tick() };
@@ -2347,7 +2275,7 @@ turbo::go!({
                         opacity = 1
                     );
                 }
-                upgrade.shape.draw(is_selected, true, 0, 0); // Draw with green rectangle if selected
+                upgrade.shape.draw(is_selected, true, TRUCK_BASE_OFFSET_X, 32); // Draw with green rectangle if selected
             }
 
              // Draw enemies
