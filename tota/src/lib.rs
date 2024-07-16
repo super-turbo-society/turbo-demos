@@ -783,6 +783,7 @@ impl Upgrade {
         }
         None
     }
+
     #[rustfmt::skip]
     fn new_truck() -> Self {
         Self::new(UpgradeKind::Truck, {
@@ -965,6 +966,85 @@ impl Upgrade {
             cells.insert((1, 1), Cell { edges: [false, true, false, false] });
             Shape::new(cells)
         }, 1, 0, 0, 2, 2, 1, "engine_shield".to_string(), false)
+    }
+
+    fn target_enemies_list(&self, enemies: Vec<Enemy>) -> Vec<usize>{
+        let mut target_enemies = Vec::new();
+        match self.kind{
+            UpgradeKind::BoomerBomb => {
+                for (index, enemy) in enemies.iter().enumerate(){
+                    if enemy.grid_position.0 == 0{
+                        if enemy.grid_position.1 == 1 || enemy.grid_position.1 == 2{
+                            target_enemies.push(index);
+                        }
+                    }
+                }
+            },
+            UpgradeKind::GoldfishGun=> {
+                for (index, enemy) in enemies.iter().enumerate() {
+                    if enemy.grid_position.0 == 0 && enemy.grid_position.1 == 0 {
+                        target_enemies.push(index);
+                        for (index, next_enemy) in enemies.iter().enumerate() {
+                            if next_enemy.grid_position.0 ==0{
+                                if next_enemy.grid_position.1 == 1 || next_enemy.grid_position.1 == 2{
+                                    target_enemies.push(index);
+                                    break;
+                                }
+                            }    
+                    }
+                    break;
+                }
+                else if enemy.grid_position.0 == 1 && enemy.grid_position.1 == 0{
+                    target_enemies.push(index);
+                        for (index, next_enemy) in enemies.iter().enumerate() {
+                            if next_enemy.grid_position.0 == 1{
+                                if next_enemy.grid_position.1 == 1 || next_enemy.grid_position.1 == 2{
+                                    target_enemies.push(index)
+                                }
+                            }    
+                        }
+                    }
+                }
+            },
+            //find the row with the most enemies, prioritizing the lowest, and add all in that row
+            UpgradeKind::KnuckleBuster => {
+
+                let mut a = 0;
+                let mut b = 0;
+                let mut c = 0;
+                for enemy in enemies.clone() {
+                    if enemy.grid_position.1 == 0 {
+                        a+=1;
+                    }
+                    else if enemy.grid_position.1 == 1 {
+                        b +=1;
+                    }
+                    else if enemy.grid_position.1 == 2{
+                        c +=1;
+                    }
+                }
+                for (index, enemy) in enemies.iter().enumerate() {
+                    if c >= b && c >= a {
+                        if enemy.grid_position.1 == 2{
+                            target_enemies.push(index);
+                        }
+                    }
+                    else if b >= a{
+                        if enemy.grid_position.1 == 1 {
+                            target_enemies.push(index);
+                        }
+                    }
+                    else{
+                        if enemy.grid_position.1 == 0{
+                            target_enemies.push(index);
+                        }
+                    }
+                
+                }
+            },
+            _ => {}
+        }
+        return target_enemies;
     } 
 }
 
@@ -1862,54 +1942,83 @@ turbo::go!({
                     if gamepad(0).a.just_pressed() {
                         let selected_upgrade = &mut screen.upgrades[screen.selected_index];
                         if selected_upgrade.cooldown_counter == 0 {
-                            let mut target_enemies = vec![];
+                            let target_enemies = selected_upgrade.target_enemies_list(screen.enemies.clone());
                             //determine which enemies are getting hit
 
-                            match selected_upgrade.kind {
-                                UpgradeKind::BoomerBomb => {
-                                    for (index, enemy) in screen.enemies.iter().enumerate(){
-                                        if enemy.grid_position.0 == 0{
-                                            if enemy.grid_position.1 == 1 || enemy.grid_position.1 == 2{
-                                                target_enemies.push(index);
-                                            }
-                                        }
-                                    }
-                                },
-                                UpgradeKind::GoldfishGun=> {
-                                    for (index, enemy) in screen.enemies.iter().enumerate() {
-                                        if enemy.grid_position.0 == 0 && enemy.grid_position.1 == 0 {
-                                            target_enemies.push(index);
-                                            for (index, next_enemy) in screen.enemies.iter().enumerate() {
-                                                if next_enemy.grid_position.0 ==0{
-                                                    if next_enemy.grid_position.1 == 1 || next_enemy.grid_position.1 == 2{
-                                                        target_enemies.push(index);
-                                                        break;
-                                                    }
-                                                }    
-                                        }
-                                        break;
-                                    }
-                                    else if enemy.grid_position.0 == 1 && enemy.grid_position.1 == 0{
-                                        target_enemies.push(index);
-                                            for (index, next_enemy) in screen.enemies.iter().enumerate() {
-                                                if next_enemy.grid_position.0 == 1{
-                                                    if next_enemy.grid_position.1 == 1 || next_enemy.grid_position.1 == 2{
-                                                        target_enemies.push(index)
-                                                    }
-                                                }    
-                                            }
-                                        }
-                                    }
-                                },
-                                UpgradeKind::LaserGun => {
-                                    for (index, enemy) in screen.enemies.iter().enumerate() {
-                                        if enemy.grid_position.1 == 0 {
-                                            target_enemies.push(index);
-                                        }
-                                    }
-                                },
-                                _ => {}
-                            }
+                            // match selected_upgrade.kind {
+                            //     UpgradeKind::BoomerBomb => {
+                            //         for (index, enemy) in screen.enemies.iter().enumerate(){
+                            //             if enemy.grid_position.0 == 0{
+                            //                 if enemy.grid_position.1 == 1 || enemy.grid_position.1 == 2{
+                            //                     target_enemies.push(index);
+                            //                 }
+                            //             }
+                            //         }
+                            //     },
+                            //     UpgradeKind::GoldfishGun=> {
+                            //         for (index, enemy) in screen.enemies.iter().enumerate() {
+                            //             if enemy.grid_position.0 == 0 && enemy.grid_position.1 == 0 {
+                            //                 target_enemies.push(index);
+                            //                 for (index, next_enemy) in screen.enemies.iter().enumerate() {
+                            //                     if next_enemy.grid_position.0 ==0{
+                            //                         if next_enemy.grid_position.1 == 1 || next_enemy.grid_position.1 == 2{
+                            //                             target_enemies.push(index);
+                            //                             break;
+                            //                         }
+                            //                     }    
+                            //             }
+                            //             break;
+                            //         }
+                            //         else if enemy.grid_position.0 == 1 && enemy.grid_position.1 == 0{
+                            //             target_enemies.push(index);
+                            //                 for (index, next_enemy) in screen.enemies.iter().enumerate() {
+                            //                     if next_enemy.grid_position.0 == 1{
+                            //                         if next_enemy.grid_position.1 == 1 || next_enemy.grid_position.1 == 2{
+                            //                             target_enemies.push(index)
+                            //                         }
+                            //                     }    
+                            //                 }
+                            //             }
+                            //         }
+                            //     },
+                            //     //find the row with the most enemies, prioritizing the lowest, and add all in that row
+                            //     UpgradeKind::KnuckleBuster => {
+
+                            //         let mut a = 0;
+                            //         let mut b = 0;
+                            //         let mut c = 0;
+                            //         for enemy in screen.enemies.clone() {
+                            //             if enemy.grid_position.1 == 0 {
+                            //                 a+=1;
+                            //             }
+                            //             else if enemy.grid_position.1 == 1 {
+                            //                 b +=1;
+                            //             }
+                            //             else if enemy.grid_position.1 == 2{
+                            //                 c +=1;
+                            //             }
+                            //         }
+                            //         for (index, enemy) in screen.enemies.iter().enumerate() {
+                            //             if c >= b && c >= a {
+                            //                 if enemy.grid_position.1 == 2{
+                            //                     target_enemies.push(index);
+                            //                 }
+                            //             }
+                            //             else if b >= a{
+                            //                 if enemy.grid_position.1 == 1 {
+                            //                     target_enemies.push(index);
+                            //                 }
+                            //             }
+                            //             else{
+                            //                 if enemy.grid_position.1 == 0{
+                            //                     target_enemies.push(index);
+                            //                 }
+                            //             }
+                                    
+                            //         }
+                            //     },
+                            //     _ => {}
+                            // }
                             //have the harpoons shoot a different sprite
                             let weapon_sprite = match selected_upgrade.kind {
                                 UpgradeKind::Harpoon => "harpoon_bullet".to_string(),
@@ -2154,33 +2263,11 @@ turbo::go!({
             // Determine the target enemies based on the selected weapon
             // Would be good to get this out of being 'every frame' eventually
             let selected_upgrade = &screen.upgrades[screen.selected_index];
-            let mut target_enemies = vec![];
-
-            match selected_upgrade.kind {
-                UpgradeKind::AutoRifle => {
-                    if let Some((index, _)) = screen.enemies.iter().enumerate().min_by_key(|(_, enemy)| enemy.grid_position.0) {
-                        target_enemies.push(index);
-                    }
-                },
-                UpgradeKind::Harpoon => {
-                    for (index, enemy) in screen.enemies.iter().enumerate() {
-                        if enemy.grid_position.1 == 1 {
-                            target_enemies.push(index);
-                        }
-                    }
-                },
-                UpgradeKind::LaserGun => {
-                    for (index, enemy) in screen.enemies.iter().enumerate() {
-                        if enemy.grid_position.1 == 0 {
-                            target_enemies.push(index);
-                        }
-                    }
-                },
-                _ => {}
-            }
+            let target_enemies = selected_upgrade.target_enemies_list(screen.enemies.clone());
 
             // Highlight target enemies - this will change when we have a new highlight system
             for &enemy_index in &target_enemies {
+                turbo::println!("IN TARGET ENEMIES");
                 let enemy = &screen.enemies[enemy_index];
                 let (column, row) = enemy.grid_position;
                 let y_position = ROW_POSITIONS[row as usize];
