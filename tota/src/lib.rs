@@ -405,6 +405,7 @@ turbo::init! {
                         Plane,
                     },
                     grid_position: (i32, i32),
+                    max_health: i32,
                     health: i32,
                     damage: i32, //this is how much damage this enemy does when it attacks
                     position_offset: Tween<f32>, // This is the code to move the enemies into place
@@ -688,18 +689,18 @@ impl BattleScreen {
         let waves = vec![
         Wave {
             enemies: vec![
-                Enemy { kind: EnemyKind::Car, grid_position: (0, 1), health: 3, damage: 3, position_offset: tween.clone().duration(90+rand() as usize %120) },
-                Enemy { kind: EnemyKind::Plane, grid_position: (0, 0), health: 2, damage: 2, position_offset: tween.clone().duration(90+rand() as usize %120) },
-                Enemy { kind: EnemyKind::Car, grid_position: (1, 1), health: 3, damage: 3, position_offset: tween.clone().duration(90+rand() as usize %120) },
-                Enemy { kind: EnemyKind::Car, grid_position: (1, 2), health: 3, damage: 3, position_offset: tween.clone().duration(90+rand() as usize %120) },
+                Enemy { kind: EnemyKind::Car, grid_position: (0, 1), max_health: 3, health: 3, damage: 3, position_offset: tween.clone().duration(90+rand() as usize %120) },
+                Enemy { kind: EnemyKind::Plane, grid_position: (0, 0), max_health: 2, health: 2, damage: 2, position_offset: tween.clone().duration(90+rand() as usize %120) },
+                Enemy { kind: EnemyKind::Car, grid_position: (1, 1), max_health: 3, health: 3, damage: 3, position_offset: tween.clone().duration(90+rand() as usize %120) },
+                Enemy { kind: EnemyKind::Car, grid_position: (1, 2), max_health: 3, health: 3, damage: 3, position_offset: tween.clone().duration(90+rand() as usize %120) },
             ],
         },
         Wave {
             enemies: vec![
-                Enemy { kind: EnemyKind::Plane, grid_position: (0, 0), health: 2, damage: 2, position_offset: tween.clone().duration(90+rand() as usize %120) },
-                Enemy { kind: EnemyKind::Plane, grid_position: (1, 0), health: 2, damage: 2, position_offset: tween.clone().duration(90+rand() as usize %120) },
-                Enemy { kind: EnemyKind::Car, grid_position: (1, 1), health: 3, damage: 3, position_offset: tween.clone().duration(90+rand() as usize %120) },
-                Enemy { kind: EnemyKind::Car, grid_position: (0, 2), health: 3, damage: 3, position_offset: tween.clone().duration(90+rand() as usize %120) },
+                Enemy { kind: EnemyKind::Plane, grid_position: (0, 0), max_health: 2, health: 2, damage: 2, position_offset: tween.clone().duration(90+rand() as usize %120) },
+                Enemy { kind: EnemyKind::Plane, grid_position: (1, 0), max_health: 2, health: 2, damage: 2, position_offset: tween.clone().duration(90+rand() as usize %120) },
+                Enemy { kind: EnemyKind::Car, grid_position: (1, 1), max_health: 3, health: 3, damage: 3, position_offset: tween.clone().duration(90+rand() as usize %120) },
+                Enemy { kind: EnemyKind::Car, grid_position: (0, 2), max_health: 3, health: 3, damage: 3, position_offset: tween.clone().duration(90+rand() as usize %120) },
 
             ],
         },
@@ -1404,6 +1405,12 @@ fn show_health(player_health: i32) {
         y = y,
         color = 0xff0000ff // Red color
     );
+
+    //border
+    let border_color: u32 =  0xa69e9aff;
+    rect!(w = full_rect_width + 2, h = rect_height, x = x-1, 
+        y = y, color = 0, border_color = border_color, 
+        border_width = 2, border_radius = 3);
 }
 
 fn draw_truck(x: Option<i32>, y: Option<i32>, should_animate: bool, driver_name: &str) {
@@ -1472,16 +1479,24 @@ fn draw_enemies(enemies: &mut [Enemy]) {
         let (column, row) = enemy.grid_position;
         let x = COLUMN_POSITIONS[column as usize] + enemy.position_offset.get() as i32;
         let y = ROW_POSITIONS[row as usize];
-        //if i == 0 {turbo::println!("End X {:?}", end_x_position);}
-        
-
+        //health bar
+        let x_bar = x + 32;
+        let y_bar = y - 10;
+        let w_bar = 10 * enemy.max_health;
+        let h_bar = 8;
+        let border_color: u32 =  0xa69e9aff;
+        let main_color: u32 = 0xff0000ff;
+        let back_color: u32 = 0x000000ff;
+        let mut health_width = (enemy.health as f32 / enemy.max_health as f32 * w_bar as f32) as i32;
+        health_width = health_width.max(0);
+        //turbo::println!("Health Width: {:?}", health_width);
         match enemy.kind {
             EnemyKind::Car => {
                 // Draw enemy driver
                 sprite!(
                     "lughead_small",
                     x = x + 40, // Adjust this offset as needed
-                    y = y + 0,  // Adjust this offset as needed
+                    y = y,  // Adjust this offset as needed
                 );
 
                 // Draw enemy base
@@ -1512,6 +1527,26 @@ fn draw_enemies(enemies: &mut [Enemy]) {
                 );
             },
         }
+        //draw health bar
+        rect!(
+            w = w_bar,
+            h = h_bar,
+            x = x_bar,
+            y = y_bar,
+            color = back_color
+        );
+        
+        rect!(
+            w = health_width,
+            h = h_bar,
+            x = x_bar,
+            y = y_bar,
+            color = main_color
+        );
+        //border
+        rect!(w = w_bar + 2, h = h_bar, x = x_bar-1, 
+            y = y_bar, color = 0, border_color = border_color, 
+            border_width = 2, border_radius = 3);
     }
 }
 
@@ -2140,7 +2175,6 @@ turbo::go!({
                                 {
                                     let enemy = &mut screen.enemies[enemy_index];
                                     enemy.health -= bullet.damage;
-                                    turbo::println!("Hit Enemy"); 
                                     if rand_out_of_100(calculate_brutality(&screen.upgrades) as u32) {
                                         let new_effect = TextEffect::new(
                                             "Brutality: Critical Hit",
