@@ -437,7 +437,7 @@ turbo::init! {
                         target_enemies: Vec<usize>,
                         num_enemies_hit: usize,
                         active: bool,
-                        weapon_kind: UpgradeKind,
+                        damage: i32,
                     },
                     EnemiesAttack {
                         first_frame: bool,
@@ -871,7 +871,7 @@ impl Upgrade {
             cells.insert((1, 0), Cell { edges: [false, false, false, false] });
             cells.insert((2, 0), Cell { edges: [false, false, false, false] });
             Shape::new(cells)
-        }, 1, 0, 0, 2, 2, 1, "the_ripper".to_string(), true)
+        }, 1, 0, 0, 2, 1, 1, "the_ripper".to_string(), true)
     }
     fn new_slime_spitter() -> Self {
         Self::new(UpgradeKind::SlimeSpitter, {
@@ -879,7 +879,7 @@ impl Upgrade {
             cells.insert((0, 0), Cell { edges: [false, true, false, false] });
             cells.insert((1, 0), Cell { edges: [false, false, false, false] });
             Shape::new(cells)
-        }, 1, 0, 0, 2, 2, 1, "slime_spitter".to_string(), true)
+        }, 1, 0, 0, 2, 3, 1, "slime_spitter".to_string(), true)
     }
     fn new_goldfish_gun() -> Self {
         Self::new(UpgradeKind::GoldfishGun, {
@@ -889,7 +889,7 @@ impl Upgrade {
             cells.insert((2, 0), Cell { edges: [false, false, false, false] });
             cells.insert((0, 1), Cell { edges: [false, false, false, false] });
             Shape::new(cells)
-        }, 1, 0, 0, 2, 2, 1, "goldfish_gun".to_string(), true)   
+        }, 3, 0, 0, 2, 2, 1, "goldfish_gun".to_string(), true)   
     }
     fn new_crap_stack() -> Self {
         Self::new(UpgradeKind::CrapStack, {
@@ -1087,13 +1087,13 @@ impl Upgrade {
                 }
                 }
             },
-            
+
             //target all enemies
             UpgradeKind::TheRipper => {
                 for (index, enemy) in enemies.iter().enumerate(){
                     target_enemies.push(index);
                 }
-            }
+            },
             _ => {}
         }
         return target_enemies;
@@ -2098,7 +2098,7 @@ turbo::go!({
                                 target_enemies,
                                 num_enemies_hit: 0,
                                 active: true,
-                                weapon_kind: selected_upgrade.kind.clone(),
+                                damage: selected_upgrade.firepower,
                             };
                         }
                     }
@@ -2111,7 +2111,7 @@ turbo::go!({
                     ref mut target_enemies,
                     ref mut num_enemies_hit, 
                     ref mut active,
-                    ref weapon_kind 
+                    ref damage, 
                 } => {
                     let mut new_battle_state: Option<BattleState> = None; // Temporary variable to hold the new battle state
 
@@ -2121,7 +2121,7 @@ turbo::go!({
                             weapon_position.1,
                             target_position.0,
                             target_position.1,
-                            1, // make this come from the weapon_kind later
+                            *damage, // make this come from the weapon_kind later
                             false,
                         );
 
