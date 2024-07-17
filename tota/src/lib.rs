@@ -28,11 +28,12 @@ enum Easing {
     EaseInCirc,
     EaseOutCirc,
     EaseInOutCirc,
+    EaseInBack,
 }
 
 #[allow(unused)]
 impl Easing {
-    pub const ALL: [Self; 22] = [
+    pub const ALL: [Self; 23] = [
         Self::Linear,
         Self::EaseInQuad,
         Self::EaseOutQuad,
@@ -55,6 +56,7 @@ impl Easing {
         Self::EaseInCirc,
         Self::EaseOutCirc,
         Self::EaseInOutCirc,
+        Self::EaseInBack,
     ];
     fn apply(&self, t: f64) -> f64 {
         match *self {
@@ -143,6 +145,11 @@ impl Easing {
                 } else {
                     0.5 * ((-((2.0 * t - 2.0).powi(2) - 1.0)).sqrt() + 1.0)
                 }
+            }
+            Easing::EaseInBack => {
+                let c1 = 1.70158;
+                let c3 = c1 + 1.;
+                c3 * t * t * t - c1 * t * t
             }
         }
     }
@@ -398,6 +405,7 @@ turbo::init! {
                 existing_upgrades: Vec<Upgrade>, 
             }),
             Battle(struct BattleScreen {
+                truck_tween: Tween<f32>,
                 upgrades: Vec<Upgrade>,
                 enemies: Vec<struct Enemy {
                     kind: enum EnemyKind {
@@ -445,6 +453,9 @@ turbo::init! {
                     },
                     StartingNewWave,
                     End,
+                    PostCombat{
+                        first_frame: usize,
+                    },
                 },
                 bg_objects: Vec<struct ScrollingObject {
                     scroll_pos: i32,
@@ -479,6 +490,7 @@ turbo::init! {
             driver_name: "shoota".to_string(),
             saved_battle_screen: None,
             fade_out: Tween::new(0.0).duration(20).ease(Easing::EaseInQuad),
+            
         }
     }
 }
@@ -733,21 +745,22 @@ impl Default for GameState {
 
 impl BattleScreen {
     fn new(upgrades: Vec<Upgrade>) -> Self {
-        let tween = Tween::new(ENEMY_OFFSET_START).duration(90).ease(Easing::EaseOutQuart);
+        let tween_dur = 90;
+        let tween = Tween::new(ENEMY_OFFSET_START).duration(tween_dur).ease(Easing::EaseOutQuart);
         // Initialize the waves
         let waves = vec![
         Wave {
             enemies: vec![
-                Enemy { kind: EnemyKind::Car, grid_position: (0, 1), max_health: 3, health: 3, damage: 3, position_offset: tween.clone().duration(90+rand() as usize %120) },
-                Enemy { kind: EnemyKind::Plane, grid_position: (0, 0), max_health: 2, health: 2, damage: 2, position_offset: tween.clone().duration(90+rand() as usize %120) },
+                Enemy { kind: EnemyKind::Car, grid_position: (0, 1), max_health: 3, health: 3, damage: 3, position_offset: tween.clone().duration(tween_dur+rand() as usize %120) },
+                Enemy { kind: EnemyKind::Plane, grid_position: (0, 0), max_health: 2, health: 2, damage: 2, position_offset: tween.clone().duration(tween_dur+rand() as usize %120) },
             ],
         },
         Wave {
             enemies: vec![
-                Enemy { kind: EnemyKind::Plane, grid_position: (0, 0), max_health: 2, health: 2, damage: 2, position_offset: tween.clone().duration(90+rand() as usize %120) },
-                Enemy { kind: EnemyKind::Plane, grid_position: (1, 0), max_health: 2, health: 2, damage: 2, position_offset: tween.clone().duration(90+rand() as usize %120) },
-                Enemy { kind: EnemyKind::Car, grid_position: (1, 1), max_health: 3, health: 3, damage: 3, position_offset: tween.clone().duration(90+rand() as usize %120) },
-                Enemy { kind: EnemyKind::Car, grid_position: (0, 2), max_health: 3, health: 3, damage: 3, position_offset: tween.clone().duration(90+rand() as usize %120) },
+                Enemy { kind: EnemyKind::Plane, grid_position: (0, 0), max_health: 2, health: 2, damage: 2, position_offset: tween.clone().duration(tween_dur+rand() as usize %120) },
+                Enemy { kind: EnemyKind::Plane, grid_position: (1, 0), max_health: 2, health: 2, damage: 2, position_offset: tween.clone().duration(tween_dur+rand() as usize %120) },
+                Enemy { kind: EnemyKind::Car, grid_position: (1, 1), max_health: 3, health: 3, damage: 3, position_offset: tween.clone().duration(tween_dur+rand() as usize %120) },
+                Enemy { kind: EnemyKind::Car, grid_position: (0, 2), max_health: 3, health: 3, damage: 3, position_offset: tween.clone().duration(tween_dur+rand() as usize %120) },
 
             ],
         },
@@ -771,6 +784,7 @@ impl BattleScreen {
             waves, // Store the waves
             current_wave: 0, // Start with the first wave
             text_effects : vec![], //Store the text effects
+            truck_tween: Tween::new(0.0),
         }
     }
 }
@@ -2190,21 +2204,9 @@ turbo::go!({
                     
 
                 BattleState::EnemiesAttack { ref mut first_frame } => {
+                    //if all enemies are dead, transition to postcombat phase
                     if screen.enemies.is_empty() {
-                        //if we have more waves, then transition to new wave
-                        if screen.current_wave + 1 < screen.waves.len() {
-                            screen.current_wave += 1;
-                            screen.enemies = screen.waves[screen.current_wave].enemies.clone();
-                            state.saved_battle_screen = Some(screen.clone()); // Save current Battle screen state
-                            //instead of going to new screen, lets move all of this into a new battlestate called post Combat
-                            //and tween the truck off the screen
-                            //and then transition
-                            //this will also set us up to add some wiggle around the truck later on
-                            new_screen = Some(Screen::UpgradeSelection(UpgradeSelectionScreen::new(screen.upgrades.clone())));
-                        }
-                        else {
-                            screen.battle_state = BattleState::End;
-                        }
+                        screen.battle_state = BattleState::PostCombat { first_frame: tick() };
                     } 
                     else {
                         if *first_frame {
@@ -2292,7 +2294,32 @@ turbo::go!({
                     //include any wave transition stuff in here later, for now just transition to choose attack
                     screen.battle_state = BattleState::PreCombat  { first_frame: tick() };
 
-                },             
+                },   
+                BattleState::PostCombat {first_frame } => {
+                    if tick() == *first_frame+1{
+                        turbo::println!("Setting Truck Tween");
+                        //set a tween for a truck offset position
+                        screen.truck_tween = Tween::new(0.0).duration(60).set(400.0).ease(Easing::EaseInBack);
+                        //make the tween part of the game state
+                        //
+                    }
+                    //transition to upgrade selection
+                    if screen.truck_tween.done(){
+                        if screen.current_wave + 1 < screen.waves.len() {
+                            screen.current_wave += 1;
+                            screen.enemies = screen.waves[screen.current_wave].enemies.clone();
+                            screen.truck_tween = Tween::new(0.0);
+                            state.saved_battle_screen = Some(screen.clone()); // Save current Battle screen state
+                            //this will also set us up to add some wiggle around the truck later on
+                            new_screen = Some(Screen::UpgradeSelection(UpgradeSelectionScreen::new(screen.upgrades.clone())));
+                            
+                        }
+                        else {
+                            screen.battle_state = BattleState::End;
+                        }
+                        //screen.truck_tween.set(0.0);
+                    }
+                },          
              
                 BattleState::End => {
                     clear!(0x000000ff); // Black background
@@ -2318,14 +2345,15 @@ turbo::go!({
             draw_background(&mut screen.bg_objects);
             
             // Draw upgrades
+            let truck_pos = TRUCK_BASE_OFFSET_X + (screen.truck_tween.get() as i32);
             for (index, upgrade) in screen.upgrades.iter().enumerate() {
                 let is_selected = index == screen.selected_index;
                 if upgrade.kind == UpgradeKind::Truck {
-                    draw_truck(None, None, true, &state.driver_name);
+                    draw_truck(Some(truck_pos), None, true, &state.driver_name);
                 } else {
                     sprite!(
                         &upgrade.sprite_name,
-                        x = (upgrade.shape.offset.0 * 16) + TRUCK_BASE_OFFSET_X as usize,
+                        x = (upgrade.shape.offset.0 * 16) + truck_pos as usize,
                         y = (upgrade.shape.offset.1 * 16) + 32,
                         opacity = 1
                     );
