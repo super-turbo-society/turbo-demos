@@ -1537,6 +1537,15 @@ fn create_player_bullet(bullets: &mut Vec<Bullet>, x: f32, y: f32, target_x: f32
     bullets.push(Bullet::new(x, y, target_x, target_y, damage, false));
 }
 
+fn should_draw_UI(battle_state: &BattleState) -> bool {
+    matches!(
+        battle_state,
+        BattleState::AnimateAttack { .. }
+        | BattleState::ChooseAttack { .. }
+        | BattleState::EnemiesAttack { .. }
+    )
+}
+
 fn draw_enemies(enemies: &mut [Enemy]) {
     // Iterate over enemies and set their positions using tweens
     for (i, enemy) in enemies.iter_mut().enumerate() {
@@ -1559,8 +1568,8 @@ fn draw_enemies(enemies: &mut [Enemy]) {
                 // Draw enemy driver
                 sprite!(
                     "lughead_small",
-                    x = x + 40, // Adjust this offset as needed
-                    y = y,  // Adjust this offset as needed
+                    x = x + 40,
+                    y = y,  
                 );
 
                 // Draw enemy base
@@ -2297,11 +2306,8 @@ turbo::go!({
                 },   
                 BattleState::PostCombat {first_frame } => {
                     if tick() == *first_frame+1{
-                        turbo::println!("Setting Truck Tween");
                         //set a tween for a truck offset position
                         screen.truck_tween = Tween::new(0.0).duration(60).set(400.0).ease(Easing::EaseInBack);
-                        //make the tween part of the game state
-                        //
                     }
                     //transition to upgrade selection
                     if screen.truck_tween.done(){
@@ -2358,7 +2364,9 @@ turbo::go!({
                         opacity = 1
                     );
                 }
-                upgrade.shape.draw(is_selected, true, TRUCK_BASE_OFFSET_X, 32); // Draw with green rectangle if selected
+                if should_draw_UI(&screen.battle_state){
+                    upgrade.shape.draw(is_selected, true, TRUCK_BASE_OFFSET_X, 32);
+                 }
             }
 
              // Draw enemies
@@ -2384,15 +2392,17 @@ turbo::go!({
             }
 
             // Highlight upgrades that have positive cooldown (e.g. turn red bc you can't use them)
-            for upgrade in &screen.upgrades {
-                if upgrade.cooldown_counter > 0 {
-                    rect!(
-                        w = upgrade.shape.size.0 as i32 * 16,
-                        h = upgrade.shape.size.1 as i32 * 16,
-                        x = upgrade.shape.offset.0 as i32 * 16 + TRUCK_BASE_OFFSET_X,
-                        y = upgrade.shape.offset.1 as i32 * 16 + 32,
-                        color = 0xff0000aa // More solid red rectangle with higher opacity
-                    );
+            if should_draw_UI(&screen.battle_state){
+                for upgrade in &screen.upgrades {
+                    if upgrade.cooldown_counter > 0 {
+                        rect!(
+                            w = upgrade.shape.size.0 as i32 * 16,
+                            h = upgrade.shape.size.1 as i32 * 16,
+                            x = upgrade.shape.offset.0 as i32 * 16 + TRUCK_BASE_OFFSET_X,
+                            y = upgrade.shape.offset.1 as i32 * 16 + 32,
+                            color = 0xff0000aa // More solid red rectangle with higher opacity
+                        );
+                    }
                 }
             }
 
@@ -2404,7 +2414,9 @@ turbo::go!({
             }
 
             // Show player health
-            show_health(screen.player_health);
+            if should_draw_UI(&screen.battle_state){
+                show_health(screen.player_health);
+            }
             
             screen.text_effects.retain_mut(|text_effect| {
                 text_effect.update();
