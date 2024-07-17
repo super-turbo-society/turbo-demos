@@ -471,12 +471,14 @@ turbo::init! {
         },
         driver_name: String,
         saved_battle_screen: Option<BattleScreen>,
+        fade_out: Tween<f32>,
     } = {
         Self {
             screen: Screen::Title(TitleScreen { elapsed: 0 }),
             //set this as "shoota" by default, but if you change the presets you have to change this to match the first preset
             driver_name: "shoota".to_string(),
             saved_battle_screen: None,
+            fade_out: Tween::new(0.0).duration(20).ease(Easing::EaseInQuad),
         }
     }
 }
@@ -532,25 +534,46 @@ impl GarageScreen {
 
 impl UpgradeSelectionScreen {
     fn new(upgrades: Vec<Upgrade>) -> Self {
+        let options = Self {
+            upgrades: vec![],
+            options: vec![],
+            selected_index: 0,
+            placing_upgrade: false,
+            existing_upgrades: upgrades.clone(),
+        }
+        .generate_options();
+
+        Self {
+            upgrades: upgrades.clone(),
+            options,
+            selected_index: 0,
+            placing_upgrade: false,
+            existing_upgrades: upgrades,
+        }
+    }
+
+    fn generate_options(&self) -> Vec<Upgrade> {
         let mut options = Vec::new();
         let mut existing_kinds = Vec::new();
         while options.len() < 3 {
             let mut new_upgrade = Upgrade::random();
-            while new_upgrade.kind == UpgradeKind::Truck || existing_kinds.contains(&new_upgrade.kind) {
+            while new_upgrade.kind == UpgradeKind::Truck
+                || existing_kinds.contains(&new_upgrade.kind)
+                || !self.can_place_anywhere(&new_upgrade)
+            {
                 new_upgrade = Upgrade::random();
             }
             existing_kinds.push(new_upgrade.kind.clone());
             options.push(new_upgrade);
         }
-        let existing_upgrades = upgrades.clone();
-        Self { upgrades, options, selected_index:0, placing_upgrade: false, existing_upgrades,}
+        options
     }
 
     fn is_touching_below(&self, new_upgrade: &Upgrade) -> bool {
         for (pos, _) in &new_upgrade.shape.cells {
             let (new_x, new_y) = (pos.0 + new_upgrade.shape.offset.0, pos.1 + new_upgrade.shape.offset.1);
 
-            for upgrade in &self.upgrades {
+            for upgrade in &self.existing_upgrades {
                 if upgrade as *const _ != new_upgrade as *const _ {
                     for (u_pos, _) in &upgrade.shape.cells {
                         let (existing_x, existing_y) = (u_pos.0 + upgrade.shape.offset.0, u_pos.1 + upgrade.shape.offset.1);
@@ -567,13 +590,38 @@ impl UpgradeSelectionScreen {
     }
     
     fn can_place_upgrade(&self, new_upgrade: &Upgrade) -> bool {
-        //upgrade_shapes = screen.upgrades.iter().map(|u| u.shape.clone()).collect::<Vec<_>>();
         let existing_shapes: Vec<Shape> = self.existing_upgrades.iter().map(|u| u.shape.clone()).collect::<Vec<_>>();
-        !new_upgrade.shape.overlaps_any(&existing_shapes)&& self.is_touching_below(new_upgrade)
+        let can_place = !new_upgrade.shape.overlaps_any(&existing_shapes) && self.is_touching_below(new_upgrade);
+        can_place
+    }
+
+    fn can_place_upgrade_at_position(&self, new_upgrade: &Upgrade, position: (usize, usize)) -> bool {
+        let mut new_upgrade = new_upgrade.clone();
+        new_upgrade.shape.offset = position;
+
+        // Check if the new shape would be out of bounds
+        let (offset_x, offset_y) = position;
+        let (shape_width, shape_height) = new_upgrade.shape.size;
+        if offset_x + shape_width > 8 || offset_y + shape_height > 8 {
+            return false;
+        }
+
+        let can_place = self.can_place_upgrade(&new_upgrade);
+        can_place
+    }
+
+    fn can_place_anywhere(&self, new_upgrade: &Upgrade) -> bool {
+        for x in 0..8 {
+            for y in 0..8 {
+                if self.can_place_upgrade_at_position(new_upgrade, (x, y)) {
+                    return true;
+                }
+            }
+        }
+        false
     }
 
     fn handle_input(&mut self) -> ScreenTransition {
-       
         if self.placing_upgrade {
             // Move the upgrade
             if let Some(last_upgrade) = self.upgrades.last_mut() {
@@ -595,7 +643,6 @@ impl UpgradeSelectionScreen {
             if gamepad(0).a.just_pressed() {
                 if let Some(last_upgrade) = self.upgrades.last() {
                     if self.can_place_upgrade(last_upgrade) {
-                       //turbo::println!("NO OVERLAP, SHOULD TRANSITION");
                         return ScreenTransition::BackToBattle;
                     }
                 }
@@ -647,7 +694,7 @@ impl UpgradeSelectionScreen {
         }
         if self.placing_upgrade {
             if let Some(last_upgrade) = self.upgrades.last() {
-                let can_place = self.can_place_upgrade(last_upgrade);
+                let can_place = self.can_place_upgrade_at_position(last_upgrade, last_upgrade.shape.offset);
                 let color = if can_place { 0x00ff0044u32 } else { 0xff000044u32 };
                 last_upgrade.shape.draw(true, can_place, grid_offset_x as i32, grid_offset_y as i32);
             }
@@ -660,17 +707,18 @@ impl UpgradeSelectionScreen {
         }
         draw_stats_panel(&self.upgrades, &upgrades_with_selected.to_vec());
 
-        text!("CHOOSE AN UPGRADE", x = canvas_w/2 - 69, y = 20, font = Font::L, color = 0x564f5bff);
+        text!("CHOOSE AN UPGRADE", x = canvas_w / 2 - 69, y = 20, font = Font::L, color = 0x564f5bff);
         //draw arrows
         sprite!("arrow", x = 7, y = 105, rotate = 270);
         sprite!("arrow", x = 99, y = 105, rotate = 90);
         //draw upgrade
-        sprite!(&self.options[self.selected_index].sprite_name, x=30, y=79);
+        sprite!(&self.options[self.selected_index].sprite_name, x = 30, y = 79);
         //draw frame
-        sprite!("driver_frame", x=30, y=79);
+        sprite!("driver_frame", x = 30, y = 79);
         // Draw the new upgrade options on the left side of the screen
     }
 }
+
 
 impl Default for GameState {
     fn default() -> Self {
@@ -678,6 +726,7 @@ impl Default for GameState {
             screen: Screen::Title(TitleScreen { elapsed: 0 }),
             driver_name: "shoota".to_string(),
             saved_battle_screen: None,
+            fade_out: Tween::new(0.0).duration(20).ease(Easing::EaseInQuad),
         }
     }
 }
@@ -691,8 +740,6 @@ impl BattleScreen {
             enemies: vec![
                 Enemy { kind: EnemyKind::Car, grid_position: (0, 1), max_health: 3, health: 3, damage: 3, position_offset: tween.clone().duration(90+rand() as usize %120) },
                 Enemy { kind: EnemyKind::Plane, grid_position: (0, 0), max_health: 2, health: 2, damage: 2, position_offset: tween.clone().duration(90+rand() as usize %120) },
-                Enemy { kind: EnemyKind::Car, grid_position: (1, 1), max_health: 3, health: 3, damage: 3, position_offset: tween.clone().duration(90+rand() as usize %120) },
-                Enemy { kind: EnemyKind::Car, grid_position: (1, 2), max_health: 3, health: 3, damage: 3, position_offset: tween.clone().duration(90+rand() as usize %120) },
             ],
         },
         Wave {
@@ -746,44 +793,47 @@ impl Upgrade {
         }
     }
     pub fn random() -> Self {
-        match rand() % 9 {
+        match rand() % 12 {
             0 => Self::new_boomer_bomb(),
             1 => Self::new_goldfish_gun(),
             2 => Self::new_the_persuader(),
             3 => Self::new_meat_grinder(),
             4 => Self::new_crooked_carburetor(),
             5 => Self::new_psyko_juice(),
-            6 => Self::new_skull(),
+            6 => Self::new_skull_of_death(),
             7 => Self::new_the_ripper(),
+            8 => Self::new_teepee(),
+            9 => Self::new_crap_stack(),
+            10 => Self::new_can_of_worms(),
             _ => Self::new_boomer_bomb(),
         }
     }
-    pub fn random_placeable(shapes: &[Shape]) -> Option<Self> {
-        let upgrades = [
-            Self::new_the_persuader(),
-            Self::new_crooked_carburetor(),
-            Self::new_skull(),
-            Self::new_meat_grinder(),
-        ];
-        let len = upgrades.len();
-        let n = rand() as usize;
-        for i in 0..len {
-            let u = &mut upgrades[(n + i) % len].clone();
-            let (w, h) = u.shape.size;
-            let max_x = (8_usize).saturating_sub(w);
-            let max_y = (8_usize).saturating_sub(h);
-            for i in 0..=max_x {
-                for j in 0..=max_y {
-                    u.shape.offset = (i, j);
-                    if !u.shape.overlaps_any(&shapes) && u.shape.can_stick_any(&shapes) {
-                        //turbo::println!("NO OVERLAP AND CAN STICK! {:?}", u.shape.offset);
-                        return Some(u.clone());
-                    }
-                }
-            }
-        }
-        None
-    }
+    // pub fn random_placeable(shapes: &[Shape]) -> Option<Self> {
+    //     let upgrades = [
+    //         Self::new_the_persuader(),
+    //         Self::new_crooked_carburetor(),
+    //         Self::new_skull(),
+    //         Self::new_meat_grinder(),
+    //     ];
+    //     let len = upgrades.len();
+    //     let n = rand() as usize;
+    //     for i in 0..len {
+    //         let u = &mut upgrades[(n + i) % len].clone();
+    //         let (w, h) = u.shape.size;
+    //         let max_x = (8_usize).saturating_sub(w);
+    //         let max_y = (8_usize).saturating_sub(h);
+    //         for i in 0..=max_x {
+    //             for j in 0..=max_y {
+    //                 u.shape.offset = (i, j);
+    //                 if !u.shape.overlaps_any(&shapes) && u.shape.can_stick_any(&shapes) {
+    //                     //turbo::println!("NO OVERLAP AND CAN STICK! {:?}", u.shape.offset);
+    //                     return Some(u.clone());
+    //                 }
+    //             }
+    //         }
+    //     }
+    //     None
+    // }
 
     #[rustfmt::skip]
     fn new_truck() -> Self {
@@ -1865,6 +1915,8 @@ turbo::go!({
                 if screen.elapsed < canvas_h {
                     screen.elapsed = canvas_h;
                 } else {
+                    // state.fade_out = Tween::new(1.0);
+                    // state.fade_out.set(0.0);
                     state.screen = Screen::Garage(GarageScreen::new());
                 }
             } else {
@@ -2143,9 +2195,11 @@ turbo::go!({
                         if screen.current_wave + 1 < screen.waves.len() {
                             screen.current_wave += 1;
                             screen.enemies = screen.waves[screen.current_wave].enemies.clone();
-                            //set the battle screen back to choose attack, then change the screen
-                            screen.battle_state = BattleState::ChooseAttack { first_frame: (true) };
                             state.saved_battle_screen = Some(screen.clone()); // Save current Battle screen state
+                            //instead of going to new screen, lets move all of this into a new battlestate called post Combat
+                            //and tween the truck off the screen
+                            //and then transition
+                            //this will also set us up to add some wiggle around the truck later on
                             new_screen = Some(Screen::UpgradeSelection(UpgradeSelectionScreen::new(screen.upgrades.clone())));
                         }
                         else {
@@ -2229,6 +2283,7 @@ turbo::go!({
                     //do all the cleanup here, e.g. make anything blank that needs to be blank
                     screen.bullets.clear();
                     screen.explosions.clear();
+                    screen.text_effects.clear();
                     for upgrade in &mut screen.upgrades{
                         upgrade.cooldown_counter = 0;
                     }
@@ -2323,19 +2378,22 @@ turbo::go!({
             // Show player health
             show_health(screen.player_health);
             
-            for text_effect in &mut screen.text_effects{
+            screen.text_effects.retain_mut(|text_effect| {
                 text_effect.update();
-                if text_effect.text_duration < 0{
-                    //remove it from array
-                }
-                else{
+                if text_effect.text_duration < 0 {
+                    false // Remove it from the array
+                } else {
                     text_effect.draw();
+                    true // Keep it in the array
                 }
-            }
-
+            });
         }
-    }
 
+    }
+    // let o = state.fade_out.get();
+    // //turbo::println!("tween val {:?}", o);
+    // rect!(x = 0, y=0, w=canvas_size()[0], h = canvas_size()[1], color = black_with_opacity(o));
+    //rect!(x=0, y=0, w=100, h=100, color = 0x00ff0080u32);
     //change screens whenever new_screen is different from screen    
     if let Some(screen) = new_screen {
         //turbo::println!("IN THE LAST SCREEN FUNCTION");
@@ -2344,3 +2402,13 @@ turbo::go!({
 
     state.save();
 });
+
+
+fn black_with_opacity(opacity: f32) -> u32 {
+    // Convert the opacity to an 8-bit value (0-255)
+    let alpha = (opacity * 255.0).round() as u32;
+
+    // Combine the alpha value with the black color (0x000000)
+    // Format: 0x000000AA
+    0x00000000 | (alpha & 0xFF)
+}
