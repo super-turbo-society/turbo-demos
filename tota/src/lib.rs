@@ -745,23 +745,48 @@ impl Default for GameState {
 
 impl BattleScreen {
     fn new(upgrades: Vec<Upgrade>) -> Self {
-        let tween_dur = 90;
-        let tween = Tween::new(ENEMY_OFFSET_START).duration(tween_dur).ease(Easing::EaseOutQuart);
+        let tween_dur_min = 90;
+        let tween_rand_adj = 120;
+        let tween = Tween::new(ENEMY_OFFSET_START).duration(tween_dur_min).ease(Easing::EaseOutQuart);
         // Initialize the waves
         let waves = vec![
         Wave {
             enemies: vec![
-                Enemy { kind: EnemyKind::Car, grid_position: (0, 1), max_health: 3, health: 3, damage: 3, position_offset: tween.clone().duration(tween_dur+rand() as usize %120) },
-                Enemy { kind: EnemyKind::Plane, grid_position: (0, 0), max_health: 2, health: 2, damage: 2, position_offset: tween.clone().duration(tween_dur+rand() as usize %120) },
+                Enemy { kind: EnemyKind::Car, grid_position: (0, 1), max_health: 4, health: 4, damage: 3, position_offset: tween.clone().duration(tween_dur_min+rand() as usize %tween_rand_adj) },
+                Enemy { kind: EnemyKind::Plane, grid_position: (1, 0), max_health: 2, health: 2, damage: 5, position_offset: tween.clone().duration(tween_dur_min+rand() as usize %tween_rand_adj) },
             ],
         },
         Wave {
             enemies: vec![
-                Enemy { kind: EnemyKind::Plane, grid_position: (0, 0), max_health: 2, health: 2, damage: 2, position_offset: tween.clone().duration(tween_dur+rand() as usize %120) },
-                Enemy { kind: EnemyKind::Plane, grid_position: (1, 0), max_health: 2, health: 2, damage: 2, position_offset: tween.clone().duration(tween_dur+rand() as usize %120) },
-                Enemy { kind: EnemyKind::Car, grid_position: (1, 1), max_health: 3, health: 3, damage: 3, position_offset: tween.clone().duration(tween_dur+rand() as usize %120) },
-                Enemy { kind: EnemyKind::Car, grid_position: (0, 2), max_health: 3, health: 3, damage: 3, position_offset: tween.clone().duration(tween_dur+rand() as usize %120) },
-
+                Enemy { kind: EnemyKind::Car, grid_position: (0, 1), max_health: 6, health: 6, damage: 3, position_offset: tween.clone().duration(tween_dur_min+rand() as usize %tween_rand_adj) },
+                Enemy { kind: EnemyKind::Car, grid_position: (0, 2), max_health: 4, health: 4, damage: 3, position_offset: tween.clone().duration(tween_dur_min+rand() as usize %tween_rand_adj) },
+                Enemy { kind: EnemyKind::Plane, grid_position: (1, 0), max_health: 2, health: 2, damage: 5, position_offset: tween.clone().duration(tween_dur_min+rand() as usize %tween_rand_adj) },
+            ],
+        },
+        Wave {
+            enemies: vec![
+                Enemy { kind: EnemyKind::Car, grid_position: (0, 1), max_health: 7, health: 7, damage: 3, position_offset: tween.clone().duration(tween_dur_min+rand() as usize %tween_rand_adj) },
+                Enemy { kind: EnemyKind::Car, grid_position: (0, 2), max_health: 5, health: 5, damage: 3, position_offset: tween.clone().duration(tween_dur_min+rand() as usize %tween_rand_adj) },
+                Enemy { kind: EnemyKind::Plane, grid_position: (0, 0), max_health: 3, health: 3, damage: 5, position_offset: tween.clone().duration(tween_dur_min+rand() as usize %tween_rand_adj) },
+                Enemy { kind: EnemyKind::Plane, grid_position: (1, 0), max_health: 3, health: 3, damage: 5, position_offset: tween.clone().duration(tween_dur_min+rand() as usize %tween_rand_adj) },
+            ],
+        },
+        Wave {
+            enemies: vec![
+                Enemy { kind: EnemyKind::Plane, grid_position: (0, 0), max_health: 3, health: 3, damage: 5, position_offset: tween.clone().duration(tween_dur_min+rand() as usize %tween_rand_adj) },
+                Enemy { kind: EnemyKind::Plane, grid_position: (1, 0), max_health: 4, health: 4, damage: 5, position_offset: tween.clone().duration(tween_dur_min+rand() as usize %tween_rand_adj) },
+                Enemy { kind: EnemyKind::Car, grid_position: (1, 1), max_health: 6, health: 6, damage: 4, position_offset: tween.clone().duration(tween_dur_min+rand() as usize %tween_rand_adj) },
+                Enemy { kind: EnemyKind::Car, grid_position: (0, 2), max_health: 6, health: 6, damage: 5, position_offset: tween.clone().duration(tween_dur_min+rand() as usize %tween_rand_adj) },
+            ],
+        },
+        Wave {
+            enemies: vec![
+                Enemy { kind: EnemyKind::Plane, grid_position: (0, 0), max_health: 3, health: 3, damage: 5, position_offset: tween.clone().duration(tween_dur_min+rand() as usize %tween_rand_adj) },
+                Enemy { kind: EnemyKind::Plane, grid_position: (1, 0), max_health: 4, health: 4, damage: 5, position_offset: tween.clone().duration(tween_dur_min+rand() as usize %tween_rand_adj) },
+                Enemy { kind: EnemyKind::Car, grid_position: (1, 1), max_health: 6, health: 6, damage: 4, position_offset: tween.clone().duration(tween_dur_min+rand() as usize %tween_rand_adj) },
+                Enemy { kind: EnemyKind::Car, grid_position: (0, 2), max_health: 7, health: 7, damage: 4, position_offset: tween.clone().duration(tween_dur_min+rand() as usize %tween_rand_adj) },
+                Enemy { kind: EnemyKind::Car, grid_position: (1, 2), max_health: 8, health: 8, damage: 4, position_offset: tween.clone().duration(tween_dur_min+rand() as usize %tween_rand_adj) },
+                Enemy { kind: EnemyKind::Car, grid_position: (0, 1), max_health: 9, health: 9, damage: 4, position_offset: tween.clone().duration(tween_dur_min+rand() as usize %tween_rand_adj) },
             ],
         },
     ];
@@ -2026,6 +2051,8 @@ turbo::go!({
 
             match &mut screen.battle_state {
                BattleState::PreCombat {first_frame } => {
+                //reset the truck position
+                screen.truck_tween = Tween::new(0.0);
                 //sit and wait for 5 secoinds
                 if tick() - *first_frame > 20{
                     for enemy in &mut screen.enemies{
@@ -2314,7 +2341,6 @@ turbo::go!({
                         if screen.current_wave + 1 < screen.waves.len() {
                             screen.current_wave += 1;
                             screen.enemies = screen.waves[screen.current_wave].enemies.clone();
-                            screen.truck_tween = Tween::new(0.0);
                             state.saved_battle_screen = Some(screen.clone()); // Save current Battle screen state
                             //this will also set us up to add some wiggle around the truck later on
                             new_screen = Some(Screen::UpgradeSelection(UpgradeSelectionScreen::new(screen.upgrades.clone())));
