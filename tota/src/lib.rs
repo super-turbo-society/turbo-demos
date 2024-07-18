@@ -329,7 +329,7 @@ turbo::cfg! {r#"
     name = "Titans of the Apocalypse"
     version = "1.0.0"
     author = "Turbo"
-    description = "Place shapes on a grid!"
+    description = "Stack up your guns on the road to destruction!"
     [settings]
     resolution = [384, 216]
 "#}
@@ -346,6 +346,8 @@ const ENEMY_OFFSET_START: f32 = 240.0;
 const TWEEN_DUR_MIN: usize = 90;
 const TWEEN_RAND_ADJ: usize = 120;
 
+const CHAR_WIDTH_L: u32 = 8;
+
 // Define the game state initialization using the turbo::init! macro
 turbo::init! {
 
@@ -357,9 +359,6 @@ turbo::init! {
             Garage(struct GarageScreen {
                 upgrade: Option<struct Upgrade {
                     kind: enum UpgradeKind {
-                        AutoRifle,
-                        Harpoon,
-                        LaserGun,
                         MeatGrinder,
                         Truck,
                         CrookedCarburetor,
@@ -806,7 +805,6 @@ impl BattleScreen {
                 ScrollingObject::new("desert_bg".to_string(), 0, 256, 0),
                 ScrollingObject::new("mid_dunes".to_string(), 1, 256, 60),
                 ScrollingObject::new("fg_path".to_string(), 2, 256, TRUCK_BASE_OFFSET_Y+10),
-                //ScrollingObject::new("mid_dunes".to_string(), 3, 256, 152),
                 ScrollingObject::new("mid_dunes".to_string(), 4, 256, 190),
             ],
             player_health: 100,
@@ -915,14 +913,6 @@ impl Upgrade {
         }, 0, 4, 0, 0, 0, 0, "psyko_juice".to_string(), false)
     }
 
-    // #[rustfmt::skip]
-    // fn new_skull() -> Self {
-    //     Self::new(UpgradeKind::Skull, {
-    //         let mut cells = BTreeMap::new();
-    //         cells.insert((0, 0), Cell { edges: [true, true, true, true] });
-    //         Shape::new(cells)
-    //     }, 0, 1, 2, 3, 0, 1, "skull".to_string(), false)
-    // }
     #[rustfmt::skip]
     fn new_boomer_bomb() -> Self {
         Self::new(UpgradeKind::BoomerBomb, {
@@ -1170,19 +1160,6 @@ impl Upgrade {
     } 
 }
 
-//Replaced this with sprite_name
-// impl UpgradeKind {
-//     fn to_str<'a>(&self) -> &'a str {
-//         match self {
-//             Self::AutoRifle => "auto_rifle",
-//             Self::Harpoon => "harpoon",
-//             Self::LaserGun => "laser_gun",
-//             Self::SkullBox => "skull_box",
-//             Self::Truck => "truck",
-//             Self::HypeStick => "hype_stick",
-//         }
-//     }
-// }
 
 impl Shape {
     fn new(cells: BTreeMap<(usize, usize), Cell>) -> Self {
@@ -1226,47 +1203,6 @@ impl Shape {
         cells.insert((6, 2), Cell { edges: [false, false, false, false] });
         cells.insert((7, 2), Cell { edges: [false, false, false, false] });
 
-        Self::new(cells)
-    }
-
-    #[rustfmt::skip]
-    fn new_weird_slash() -> Self {
-        let mut cells = BTreeMap::new();
-        cells.insert((0, 0), Cell { edges: [true, false, false, true] });
-        cells.insert((1, 1), Cell { edges: [false, true, true, false] });
-        cells.insert((2, 2), Cell { edges: [true, false, true, false] });
-        cells.insert((3, 3), Cell { edges: [false, true, false, true] });
-        Self::new(cells)
-    }
-
-    #[rustfmt::skip]
-    fn new_square_2x2() -> Self {
-        let mut cells = BTreeMap::new();
-        cells.insert((0, 0), Cell { edges: [true, true, true, true] });
-        cells.insert((1, 0), Cell { edges: [true, true, true, true] });
-        cells.insert((0, 1), Cell { edges: [true, true, true, true] });
-        cells.insert((1, 1), Cell { edges: [true, true, true, true] });
-        Self::new(cells)
-    }
-
-    #[rustfmt::skip]
-    fn new_s_thing() -> Self {
-        let mut cells = BTreeMap::new();
-        cells.insert((0, 0), Cell { edges: [true, true, true, true] });
-        cells.insert((0, 1), Cell { edges: [true, true, true, true] });
-        cells.insert((1, 1), Cell { edges: [true, true, true, true] });
-        cells.insert((1, 2), Cell { edges: [true, true, true, true] });
-        Self::new(cells)
-    }
-
-    #[rustfmt::skip]
-    fn new_l_guy() -> Self {
-        let mut cells = BTreeMap::new();
-        cells.insert((0, 0), Cell { edges: [true, true, true, true] });
-        cells.insert((0, 1), Cell { edges: [true, true, true, true] });
-        cells.insert((0, 2), Cell { edges: [true, true, true, true] });
-        cells.insert((0, 3), Cell { edges: [true, true, true, true] });
-        cells.insert((1, 3), Cell { edges: [true, true, true, true] });
         Self::new(cells)
     }
 
@@ -1557,6 +1493,7 @@ impl ScrollingObject {
     }
 }
 
+//TODO: separate draw and update
 fn scroll_bg_object(objects: &mut [ScrollingObject], index: usize) {
     if let Some(object) = objects.get_mut(index) {
         object.update();
@@ -1600,8 +1537,9 @@ fn draw_truck(x: Option<i32>, y: Option<i32>, should_animate: bool, driver_name:
     let x = x.unwrap_or(TRUCK_BASE_OFFSET_X); // Default x position
     let y = y.unwrap_or(TRUCK_BASE_OFFSET_Y); // Default y position
     let s_n = format!("{}_small", driver_name);
+    let driver_x_offset = 76;
     sprite!("truck_base", x = x, y = y, sw = 128);
-    sprite!(s_n.as_str(), x=x+76, y=y);
+    sprite!(s_n.as_str(), x=x+driver_x_offset, y=y);
     if should_animate{
         sprite!("truck_tires", x = x, y = y, sw = 128, fps = fps::FAST);
         sprite!("truck_shadow", x=x, y=y, sw = 128, fps = fps::FAST);
@@ -1613,6 +1551,7 @@ fn draw_truck(x: Option<i32>, y: Option<i32>, should_animate: bool, driver_name:
 }
 
 // New function to draw the scrolling background
+//TODO: Separate update and draw, and then stop scrolling if you are in the choosing attack phase
 fn draw_background(objects: &mut [ScrollingObject]) {
     //draw the sun
     circ!(color = 0xfcf7b3ff, x=60, y=12, d=120);
@@ -1652,11 +1591,12 @@ fn create_enemy_bullet(bullets: &mut Vec<Bullet>, x: f32, y: f32, target_x: f32,
     bullets.push(Bullet::new(x, y, adjusted_target_x, adjusted_target_y, damage, true));
 }
 
+//TODO: Figure out why this is never used
 fn create_player_bullet(bullets: &mut Vec<Bullet>, x: f32, y: f32, target_x: f32, target_y: f32, damage: i32) {
     bullets.push(Bullet::new(x, y, target_x, target_y, damage, false));
 }
 
-fn should_draw_UI(battle_state: &BattleState) -> bool {
+fn should_draw_ui(battle_state: &BattleState) -> bool {
     matches!(
         battle_state,
         BattleState::AnimateAttack { .. }
@@ -1671,13 +1611,62 @@ fn draw_enemies(enemies: &mut [Enemy]) {
     }
 }
 
-fn draw_enemy_UI(enemies: &mut [Enemy]) {
+fn draw_enemy_ui(enemies: &mut [Enemy]) {
     for enemy in enemies.iter_mut() {
         enemy.draw_UI();
     }
 }
 
-// Function to move and draw bullets
+impl Bullet{
+    fn new(x: f32, y: f32, target_x: f32, target_y: f32, damage: i32, is_enemy: bool) -> Self {
+        Self {
+            x,
+            y,
+            target_x,
+            target_y,
+            damage,
+            is_enemy,
+        }
+    }
+    fn move_bullet(&mut self) -> bool {
+        let dx = self.target_x - self.x;
+        let dy = self.target_y - self.y;
+        let distance = (dx * dx + dy * dy).sqrt();
+        if distance > 1.0 {
+            let direction_x = dx / distance;
+            let direction_y = dy / distance;
+            self.x += direction_x * BULLET_SPEED;
+            self.y += direction_y * BULLET_SPEED;
+        } else {
+            self.x = self.target_x;
+            self.y = self.target_y;
+        }
+
+        (self.x - self.target_x).abs() < BULLET_SPEED && (self.y - self.target_y).abs() < BULLET_SPEED
+    }
+
+    fn draw_bullet(&self) {
+        let angle = (self.target_y - self.y).atan2(self.target_x - self.x);
+        sprite!(
+            "bullet",
+            x = self.x,
+            y = self.y,
+            rotate = angle.to_degrees() + 90.0,
+            scale_x = 0.175,
+            scale_y = 0.175
+        );
+    }
+
+    fn has_reached_target(&self) -> bool {
+        (self.x - self.target_x).abs() < BULLET_SPEED && (self.y - self.target_y).abs() < BULLET_SPEED
+    }
+
+    fn set_target(&mut self, t_x: f32, t_y: f32){
+        self.target_x = t_x;
+        self.target_y = t_y;
+    }
+}
+
 fn move_bullets(bullets: &mut Vec<Bullet>) {
     for bullet in bullets.iter_mut() {
         bullet.move_bullet();
@@ -1762,12 +1751,11 @@ impl TextEffect{
     }
 
     fn draw(&self,) {
-        let font_char_width = 8;
-        let rect_width = self.text.len() as i32 * font_char_width;
+        let rect_width = self.text.len() as i32 * CHAR_WIDTH_L as i32 + 2;
         let border_color: u32 = 0xa69e9aff;
-        let rect_height = 20;
+        let rect_height = 16;
         rect!(
-           x = self.text_x - rect_width/2,
+           x = self.text_x-1,
            y = self.text_y,
            w = rect_width,
            h = rect_height,
@@ -1775,13 +1763,13 @@ impl TextEffect{
         );
         text!(
             &self.text,
-            x = self.text_x - rect_width/2 + 2,
+            x = self.text_x,
             y = self.text_y + 5,
             font = Font::L,
             color = self.text_color,
          );
          // Draw the rounded border
-        rect!(w = rect_width + 2, h = rect_height, x = self.text_x - rect_width/2, 
+        rect!(w = rect_width + 2, h = rect_height, x = self.text_x-2, 
             y = self.text_y, color = 0, border_color = border_color, 
             border_width = 2, border_radius = 3);
     }
@@ -1913,79 +1901,39 @@ fn car_presets() -> Vec<CarPreset> {
     ]
 }
 
-//stat effects
+//utilites
+fn text_pixel_width(text: &str) -> u32{
+    return text.len() as u32 * CHAR_WIDTH_L;
+}
+
+fn centered_text_position(text: &str) -> u32{
+    return  canvas_size()[0]/2 - text_pixel_width(text)/2;
+}
+
 fn rand_out_of_100(odds: u32) -> bool {
     let chance: u32 = (rand() % 100) as u32; // Generate a random number between 0 and 99
     chance < odds // Return true if chance is less than speed, otherwise false
 }
-
-impl Bullet{
-    fn new(x: f32, y: f32, target_x: f32, target_y: f32, damage: i32, is_enemy: bool) -> Self {
-        Self {
-            x,
-            y,
-            target_x,
-            target_y,
-            damage,
-            is_enemy,
-        }
-    }
-    fn move_bullet(&mut self) -> bool {
-        let dx = self.target_x - self.x;
-        let dy = self.target_y - self.y;
-        let distance = (dx * dx + dy * dy).sqrt();
-        if distance > 1.0 {
-            let direction_x = dx / distance;
-            let direction_y = dy / distance;
-            self.x += direction_x * BULLET_SPEED;
-            self.y += direction_y * BULLET_SPEED;
-        } else {
-            self.x = self.target_x;
-            self.y = self.target_y;
-        }
-
-        (self.x - self.target_x).abs() < BULLET_SPEED && (self.y - self.target_y).abs() < BULLET_SPEED
-    }
-
-    fn draw_bullet(&self) {
-        let angle = (self.target_y - self.y).atan2(self.target_x - self.x);
-        sprite!(
-            "bullet",
-            x = self.x,
-            y = self.y,
-            rotate = angle.to_degrees() + 90.0,
-            scale_x = 0.175,
-            scale_y = 0.175
-        );
-    }
-
-    fn has_reached_target(&self) -> bool {
-        (self.x - self.target_x).abs() < BULLET_SPEED && (self.y - self.target_y).abs() < BULLET_SPEED
-    }
-
-    fn set_target(&mut self, t_x: f32, t_y: f32){
-        self.target_x = t_x;
-        self.target_y = t_y;
-    }
-}
-
 
 
 turbo::go!({
     // Load the game state
     let mut state = GameState::load();
    
-    //let mut upgrades_for_battle = vec![];
-    let mut new_screen: Option<Screen> = None;
+    //use next_screen to transition screens
+    let mut next_screen: Option<Screen> = None;
     
     match &mut state.screen {
         Screen::Title(screen) => {
             clear!(0xfad6b8ff);
             let [canvas_w, canvas_h] = canvas_size!();
             let top = canvas_h.saturating_sub(screen.elapsed);
+            //TODO: Turn these into tweens
+            let foreground_start_pos = 78;
+            let foreground_end_pos = 216;
+
             sprite!("title", y = top);
-            sprite!("title_foreground", y = canvas_h.saturating_sub(((screen.elapsed as f32 / 2.7 as f32) as u32) + (canvas_h-78)).max(canvas_h - 216));
-            //sprite!("title_foreground", y=0);
+            sprite!("title_foreground", y = canvas_h.saturating_sub(((screen.elapsed as f32 / 2.7 as f32) as u32) + (canvas_h-foreground_start_pos)).max(canvas_h - foreground_end_pos));
             if top == 0 && tick() % 64 < 32 {
                 text!("PRESS START", y = canvas_h - 32, x = (canvas_w / 2) - ((11 * 8) / 2), font = Font::L);
             }
@@ -1995,7 +1943,7 @@ turbo::go!({
                 } else {
                     // state.fade_out = Tween::new(1.0);
                     // state.fade_out.set(0.0);
-                    state.screen = Screen::Garage(GarageScreen::new());
+                    next_screen = Some(Screen::Garage(GarageScreen::new()));
                 }
             } else {
                 screen.elapsed += 1;
@@ -2003,27 +1951,21 @@ turbo::go!({
         },
         Screen::Garage(screen) => {
             clear!(0xeae0ddff);
-            let mut can_place_upgrade = false;
 
             let [canvas_w, canvas_h] = canvas_size!();
-            let grid_offset_x = ((canvas_w - 128) / 2 ) as usize; // Adjust 128 based on grid width
-            let grid_offset_y = ((canvas_h - 128) / 2 ) as usize; // Adjust 128 based on grid height
+            let grid_offset_x = ((canvas_w - 128) / 2 ) as usize; //Adjust 128 based on grid width to cetner it
+            let grid_offset_y = ((canvas_h - 128) / 2 ) as usize; //Adjust 128 based on grid height
             
             screen.handle_input(&mut state.driver_name); 
 
-            //TODO: Move this into handle input if there is time
-            if gamepad(0).start.just_pressed() && screen.upgrade.is_none() {
-                // Save the current Battle screen state before transitioning
-                // if let Screen::Battle(battle_screen) = &state.screen {
-                //     state.saved_battle_screen = Some(battle_screen.clone());
-                // }
-                new_screen = Some(Screen::Battle(BattleScreen::new(screen.upgrades.clone())));
+            if gamepad(0).start.just_pressed() {
+                next_screen = Some(Screen::Battle(BattleScreen::new(screen.upgrades.clone())));
             }
             
-            // Draw the grid
+            //Draw the grid
             sprite!("main_grid_16x16", x=grid_offset_x, y=grid_offset_y);
-            let mut _x = 0;
 
+            //Draw the upgraades
             for upgrade in &screen.upgrades {
                 if upgrade.kind == UpgradeKind::Truck {
                     draw_truck(Some(upgrade.shape.offset.0 as i32 * 16 + grid_offset_x as i32), Some(upgrade.shape.offset.1 as i32 * 16 + grid_offset_y as i32), false, &state.driver_name);
@@ -2035,24 +1977,14 @@ turbo::go!({
                         opacity = 1
                     );
                 }
-                upgrade.shape.draw(false, false, grid_offset_x as i32, grid_offset_y as i32);
-                _x += 9;
-            }
-            // Draw the current shape
-            if let Some(upgrade) = &screen.upgrade {
-                sprite!(
-                    &upgrade.sprite_name,
-                    x = upgrade.shape.offset.0 * 16 + grid_offset_x,
-                    y = upgrade.shape.offset.1 * 16 + grid_offset_y,
-                );
-                upgrade.shape.draw(true, can_place_upgrade, grid_offset_x as i32, grid_offset_y as i32);
             }
 
             draw_portrait(&state.driver_name); 
-            //draw the stats panel
             draw_stats_panel(&screen.upgrades, &screen.upgrades);
+            
             //draw central text
-            text!("CHOOSE YOUR DRIVER", x = canvas_w/2 - 69, y = 20, font = Font::L, color = 0x564f5bff);
+            let text = "CHOOSE YOUR DRIVER";
+            text!(text, x = centered_text_position(text), y = 20, font = Font::L, color = 0x564f5bff);
 
         }
 
@@ -2064,7 +1996,7 @@ turbo::go!({
                     if let Some(mut battle_screen) = state.saved_battle_screen.take() {
                         battle_screen.upgrades = screen.upgrades.clone();
                         battle_screen.battle_state = BattleState::StartingNewWave;
-                        new_screen = Some(Screen::Battle(battle_screen));
+                        next_screen = Some(Screen::Battle(battle_screen));
                     }
                 },
                 ScreenTransition::None => {},
@@ -2098,13 +2030,15 @@ turbo::go!({
                         enemy.position_offset.done()
                     });
                     if all_done{
+                        let text = "TIME TO BATTLE!!";
                         let new_effect = TextEffect::new(
-                            "TIME TO BATTLE!!",
-                            0x564f5bff,
+                            text,
+                            0x564f5bFF,
                             0xcbc6c1FF,
-                            180,
+                            centered_text_position(text) as i32,
                             10,
                         );
+                        turbo::println!("CTP {:?}", centered_text_position(text));
                         screen.text_effects.push(new_effect);
                         screen.battle_state = BattleState::ChooseAttack { first_frame: true };   
                         }
@@ -2166,13 +2100,9 @@ turbo::go!({
                         //check if the weapon isn't on cooldown (theoretically should never happen bc of selection system)
                         if selected_upgrade.cooldown_counter == 0 {
                             let target_enemies = selected_upgrade.target_enemies_list(screen.enemies.clone());
-                           //TODO: fix this for new weapons
-                            let weapon_sprite = match selected_upgrade.kind {
-                                UpgradeKind::Harpoon => "harpoon_bullet".to_string(),
-                                //change this later if we get a new sprite for the laser
-                                UpgradeKind::LaserGun => "bullet".to_string(),
-                                _ => "bullet".to_string(),
-                            };
+                           
+                           //TODO: set new sprites for each weapon to use as the bullet
+                            let weapon_sprite = "bullet".to_string();
 
                             let target_position = if target_enemies.is_empty() {
                                 let [canvas_w, _canvas_h] = canvas_size!();
@@ -2184,7 +2114,7 @@ turbo::go!({
                             selected_upgrade.cooldown_counter = selected_upgrade.cooldown_max;
                             
                             screen.battle_state = BattleState::AnimateAttack {
-                                weapon_sprite: selected_upgrade.sprite_name.to_string(),
+                                weapon_sprite: weapon_sprite,
                                 weapon_position: (
                                     selected_upgrade.shape.offset.0 as f32 * 16.0 + TRUCK_BASE_OFFSET_X as f32,
                                     selected_upgrade.shape.offset.1 as f32 * 16.0 + 32 as f32,
@@ -2338,7 +2268,7 @@ turbo::go!({
 
                         if screen.bullets.is_empty() {
                             if screen.player_health <= 0 {
-                                new_screen = Some(Screen::GameEnd(GameEndScreen { did_win: false }));
+                                next_screen = Some(Screen::GameEnd(GameEndScreen { did_win: false }));
                             } else {
                                 screen.battle_state = BattleState::ChooseAttack { first_frame: true };
                             }
@@ -2370,14 +2300,15 @@ turbo::go!({
                         if screen.current_wave + 1 < screen.waves.len() {
                             screen.current_wave += 1;
                             screen.enemies = screen.waves[screen.current_wave].enemies.clone();
+                            //give back 20 health (cap at 100)
                             screen.player_health = (screen.player_health + 20).min(100);
                             state.saved_battle_screen = Some(screen.clone()); // Save current Battle screen state
                             //this will also set us up to add some wiggle around the truck later on
-                            new_screen = Some(Screen::UpgradeSelection(UpgradeSelectionScreen::new(screen.upgrades.clone())));
+                            next_screen = Some(Screen::UpgradeSelection(UpgradeSelectionScreen::new(screen.upgrades.clone())));
                             
                         }
                         else {
-                            new_screen = Some(Screen::GameEnd(GameEndScreen { did_win: true }));
+                            next_screen = Some(Screen::GameEnd(GameEndScreen { did_win: true }));
                         }
                         //screen.truck_tween.set(0.0);
                     }
@@ -2402,7 +2333,7 @@ turbo::go!({
                             opacity = 1
                         );
                     }
-                    if should_draw_UI(&screen.battle_state){
+                    if should_draw_ui(&screen.battle_state){
                         upgrade.shape.draw(is_selected, true, TRUCK_BASE_OFFSET_X, 32);
                     }
                 }
@@ -2430,7 +2361,7 @@ turbo::go!({
                 }
 
                 // Highlight upgrades that have positive cooldown (e.g. turn red bc you can't use them)
-                if should_draw_UI(&screen.battle_state){
+                if should_draw_ui(&screen.battle_state){
                     for upgrade in &screen.upgrades {
                         if upgrade.cooldown_counter > 0 {
                             rect!(
@@ -2452,9 +2383,9 @@ turbo::go!({
                 }
 
                 // Show player health
-                if should_draw_UI(&screen.battle_state){
+                if should_draw_ui(&screen.battle_state){
                     show_health(screen.player_health);
-                    draw_enemy_UI(&mut screen.enemies);
+                    draw_enemy_ui(&mut screen.enemies);
                 }
                 
                 screen.text_effects.retain_mut(|text_effect| {
@@ -2466,7 +2397,7 @@ turbo::go!({
                         true // Keep it in the array
                     }
                 });
-        },
+            },
         Screen::GameEnd(screen) => {
             clear!(0x000000ff); // Black background
             let [canvas_w, canvas_h] = canvas_size!();
@@ -2489,8 +2420,8 @@ turbo::go!({
     // //turbo::println!("tween val {:?}", o);
     // rect!(x = 0, y=0, w=canvas_size()[0], h = canvas_size()[1], color = black_with_opacity(o));
     //rect!(x=0, y=0, w=100, h=100, color = 0x00ff0080u32);
-    //change screens whenever new_screen is different from screen    
-    if let Some(screen) = new_screen {
+    //change screens whenever next_screen is different from screen    
+    if let Some(screen) = next_screen {
         //turbo::println!("IN THE LAST SCREEN FUNCTION");
         state.screen = screen;
     }
