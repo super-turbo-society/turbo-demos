@@ -343,6 +343,8 @@ const TRUCK_BASE_OFFSET_Y: i32 = 112;
 //Enemy details
 const ENEMY_MOVE_SPEED: f32 = 2.0;
 const ENEMY_OFFSET_START: f32 = 240.0;
+const TWEEN_DUR_MIN: usize = 90;
+const TWEEN_RAND_ADJ: usize = 120;
 
 // Define the game state initialization using the turbo::init! macro
 turbo::init! {
@@ -752,46 +754,46 @@ impl BattleScreen {
         let tween = Tween::new(ENEMY_OFFSET_START).duration(tween_dur_min).ease(Easing::EaseOutQuart);
         // Initialize the waves
         let waves = vec![
-        Wave {
-            enemies: vec![
-                Enemy { kind: EnemyKind::Car, grid_position: (0, 1), max_health: 4, health: 4, damage: 3, position_offset: tween.clone().duration(tween_dur_min+rand() as usize %tween_rand_adj) },
-                Enemy { kind: EnemyKind::Plane, grid_position: (1, 0), max_health: 2, health: 2, damage: 5, position_offset: tween.clone().duration(tween_dur_min+rand() as usize %tween_rand_adj) },
-            ],
-        },
-        Wave {
-            enemies: vec![
-                Enemy { kind: EnemyKind::Car, grid_position: (0, 1), max_health: 6, health: 6, damage: 3, position_offset: tween.clone().duration(tween_dur_min+rand() as usize %tween_rand_adj) },
-                Enemy { kind: EnemyKind::Car, grid_position: (0, 2), max_health: 4, health: 4, damage: 3, position_offset: tween.clone().duration(tween_dur_min+rand() as usize %tween_rand_adj) },
-                Enemy { kind: EnemyKind::Plane, grid_position: (1, 0), max_health: 2, health: 2, damage: 5, position_offset: tween.clone().duration(tween_dur_min+rand() as usize %tween_rand_adj) },
-            ],
-        },
-        Wave {
-            enemies: vec![
-                Enemy { kind: EnemyKind::Car, grid_position: (0, 1), max_health: 7, health: 7, damage: 3, position_offset: tween.clone().duration(tween_dur_min+rand() as usize %tween_rand_adj) },
-                Enemy { kind: EnemyKind::Car, grid_position: (0, 2), max_health: 5, health: 5, damage: 3, position_offset: tween.clone().duration(tween_dur_min+rand() as usize %tween_rand_adj) },
-                Enemy { kind: EnemyKind::Plane, grid_position: (0, 0), max_health: 3, health: 3, damage: 5, position_offset: tween.clone().duration(tween_dur_min+rand() as usize %tween_rand_adj) },
-                Enemy { kind: EnemyKind::Plane, grid_position: (1, 0), max_health: 3, health: 3, damage: 5, position_offset: tween.clone().duration(tween_dur_min+rand() as usize %tween_rand_adj) },
-            ],
-        },
-        Wave {
-            enemies: vec![
-                Enemy { kind: EnemyKind::Plane, grid_position: (0, 0), max_health: 3, health: 3, damage: 5, position_offset: tween.clone().duration(tween_dur_min+rand() as usize %tween_rand_adj) },
-                Enemy { kind: EnemyKind::Plane, grid_position: (1, 0), max_health: 4, health: 4, damage: 5, position_offset: tween.clone().duration(tween_dur_min+rand() as usize %tween_rand_adj) },
-                Enemy { kind: EnemyKind::Car, grid_position: (1, 1), max_health: 6, health: 6, damage: 4, position_offset: tween.clone().duration(tween_dur_min+rand() as usize %tween_rand_adj) },
-                Enemy { kind: EnemyKind::Car, grid_position: (0, 2), max_health: 6, health: 6, damage: 5, position_offset: tween.clone().duration(tween_dur_min+rand() as usize %tween_rand_adj) },
-            ],
-        },
-        Wave {
-            enemies: vec![
-                Enemy { kind: EnemyKind::Plane, grid_position: (0, 0), max_health: 3, health: 3, damage: 5, position_offset: tween.clone().duration(tween_dur_min+rand() as usize %tween_rand_adj) },
-                Enemy { kind: EnemyKind::Plane, grid_position: (1, 0), max_health: 4, health: 4, damage: 5, position_offset: tween.clone().duration(tween_dur_min+rand() as usize %tween_rand_adj) },
-                Enemy { kind: EnemyKind::Car, grid_position: (1, 1), max_health: 6, health: 6, damage: 4, position_offset: tween.clone().duration(tween_dur_min+rand() as usize %tween_rand_adj) },
-                Enemy { kind: EnemyKind::Car, grid_position: (0, 2), max_health: 7, health: 7, damage: 4, position_offset: tween.clone().duration(tween_dur_min+rand() as usize %tween_rand_adj) },
-                Enemy { kind: EnemyKind::Car, grid_position: (1, 2), max_health: 8, health: 8, damage: 4, position_offset: tween.clone().duration(tween_dur_min+rand() as usize %tween_rand_adj) },
-                Enemy { kind: EnemyKind::Car, grid_position: (0, 1), max_health: 9, health: 9, damage: 4, position_offset: tween.clone().duration(tween_dur_min+rand() as usize %tween_rand_adj) },
-            ],
-        },
-    ];
+            Wave {
+                enemies: vec![
+                    Enemy::new_car((0, 1), 4, 2),
+                    Enemy::new_plane((1, 0), 2, 2),
+                ],
+            },
+            Wave {
+                enemies: vec![
+                    Enemy::new_car((0, 1), 6, 3),
+                    Enemy::new_car((0, 2), 4, 3),
+                    Enemy::new_plane((1, 0), 2, 3),
+                ],
+            },
+            Wave {
+                enemies: vec![
+                    Enemy::new_car((0, 1), 7, 3),
+                    Enemy::new_car((0, 2), 5, 3),
+                    Enemy::new_plane((0, 0), 3, 4),
+                    Enemy::new_plane((1, 0), 3, 4),
+                ],
+            },
+            Wave {
+                enemies: vec![
+                    Enemy::new_plane((0, 0), 3, 4),
+                    Enemy::new_plane((1, 0), 4, 4),
+                    Enemy::new_car((1, 1), 6, 3),
+                    Enemy::new_car((0, 2), 6, 3),
+                ],
+            },
+            Wave {
+                enemies: vec![
+                    Enemy::new_plane((0, 0), 3, 4),
+                    Enemy::new_plane((1, 0), 4, 4),
+                    Enemy::new_car((1, 1), 6, 3),
+                    Enemy::new_car((0, 2), 7, 3),
+                    Enemy::new_car((1, 2), 8, 3),
+                    Enemy::new_car((0, 1), 9, 3),
+                ],
+            },
+        ];
 
         Self {
             upgrades,
@@ -808,9 +810,9 @@ impl BattleScreen {
                 ScrollingObject::new("mid_dunes".to_string(), 4, 256, 190),
             ],
             player_health: 100,
-            waves, // Store the waves
-            current_wave: 0, // Start with the first wave
-            text_effects : vec![], //Store the text effects
+            waves, 
+            current_wave: 0, 
+            text_effects : vec![], 
             truck_tween: Tween::new(0.0),
         }
     }
@@ -834,19 +836,22 @@ impl Upgrade {
         }
     }
     pub fn random() -> Self {
-        match rand() % 12 {
-            0 => Self::new_boomer_bomb(),
-            1 => Self::new_goldfish_gun(),
-            2 => Self::new_the_persuader(),
-            3 => Self::new_meat_grinder(),
-            4 => Self::new_crooked_carburetor(),
-            5 => Self::new_psyko_juice(),
-            6 => Self::new_skull_of_death(),
-            7 => Self::new_the_ripper(),
-            8 => Self::new_teepee(),
-            9 => Self::new_crap_stack(),
-            10 => Self::new_can_of_worms(),
-            _ => Self::new_boomer_bomb(),
+        match rand() % 15 {
+            0 => Self::new_meat_grinder(),
+            1 => Self::new_crooked_carburetor(),
+            2 => Self::new_psyko_juice(),
+            3 => Self::new_boomer_bomb(),
+            4 => Self::new_the_ripper(),
+            5 => Self::new_slime_spitter(),
+            6 => Self::new_goldfish_gun(),
+            7 => Self::new_crap_stack(),
+            8 => Self::new_knuckle_buster(),
+            9 => Self::new_the_persuader(),
+            10 => Self::new_jailed_ducks(),
+            11 => Self::new_boombox(),
+            12 => Self::new_can_of_worms(),
+            13 => Self::new_skull_of_death(),
+            _ => Self::new_teepee(),
         }
     }
 
@@ -910,15 +915,14 @@ impl Upgrade {
         }, 0, 4, 0, 0, 0, 0, "psyko_juice".to_string(), false)
     }
 
-    #[rustfmt::skip]
-    fn new_skull() -> Self {
-        Self::new(UpgradeKind::Skull, {
-            let mut cells = BTreeMap::new();
-            cells.insert((0, 0), Cell { edges: [true, true, true, true] });
-            Shape::new(cells)
-        }, 0, 1, 2, 3, 0, 1, "skull".to_string(), false)
-    }
-
+    // #[rustfmt::skip]
+    // fn new_skull() -> Self {
+    //     Self::new(UpgradeKind::Skull, {
+    //         let mut cells = BTreeMap::new();
+    //         cells.insert((0, 0), Cell { edges: [true, true, true, true] });
+    //         Shape::new(cells)
+    //     }, 0, 1, 2, 3, 0, 1, "skull".to_string(), false)
+    // }
     #[rustfmt::skip]
     fn new_boomer_bomb() -> Self {
         Self::new(UpgradeKind::BoomerBomb, {
@@ -1412,6 +1416,30 @@ impl Shape {
 }
 
 impl Enemy {
+    fn new_car(grid_position: (i32, i32), max_health: i32, damage: i32) -> Self {
+        let tween = Tween::new(ENEMY_OFFSET_START).duration(TWEEN_DUR_MIN).ease(Easing::EaseOutQuart);
+        Self {
+            kind: EnemyKind::Car,
+            grid_position,
+            max_health,
+            health: max_health,
+            damage,
+            position_offset: tween.clone().duration(TWEEN_DUR_MIN + rand() as usize % TWEEN_RAND_ADJ),
+        }
+    }
+
+    fn new_plane(grid_position: (i32, i32), max_health: i32, damage: i32) -> Self {
+        let tween = Tween::new(ENEMY_OFFSET_START).duration(TWEEN_DUR_MIN).ease(Easing::EaseOutQuart);
+        Self {
+            kind: EnemyKind::Plane,
+            grid_position,
+            max_health,
+            health: max_health,
+            damage,
+            position_offset: tween.clone().duration(TWEEN_DUR_MIN + rand() as usize % TWEEN_RAND_ADJ),
+        }
+    }
+    
     fn draw(&mut self) {
         let (column, row) = self.grid_position;
         let x = COLUMN_POSITIONS[column as usize] + self.position_offset.get() as i32;
@@ -1425,7 +1453,15 @@ impl Enemy {
                     x = x,
                     y = y,
                     sw = 96,
+                    flip_x = true
                 );
+                // sprite!(
+                //     "enemy_red_car",
+                //     x = x,
+                //     y = y,
+                //     sw = 96,
+                //     //flip_x = true
+                // );
                 // Draw enemy tires
                 sprite!(
                     "enemy_01_tires",
@@ -1434,6 +1470,7 @@ impl Enemy {
                     sw = 95,
                     fps = fps::FAST,
                 );
+                
                 // Draw enemy shooter
                 sprite!(
                     "enemy_gun_01",
@@ -1458,7 +1495,7 @@ impl Enemy {
         let x = COLUMN_POSITIONS[column as usize] + self.position_offset.get() as i32;
         let y = ROW_POSITIONS[row as usize];
         let x_bar = x + 32;
-        let y_bar = y - 10;
+        let y_bar = y - 12;
         let w_bar = 10 * self.max_health;
         let h_bar = 8;
         let border_color: u32 = 0xa69e9aff;
@@ -1543,7 +1580,7 @@ fn show_health(player_health: i32) {
     );
 
     // Draw the current health bar (red)
-    let health_width = (player_health as f32 / 100.0 * full_rect_width as f32) as i32;
+    let health_width = (player_health.max(0) as f32 / 100.0 * full_rect_width as f32) as i32;
     rect!(
         w = health_width,
         h = rect_height,
@@ -1868,7 +1905,7 @@ fn car_presets() -> Vec<CarPreset> {
                 (Upgrade::new_crap_stack(), (0, 5)),
                 (Upgrade::new_slime_spitter(), (1, 3)),
                 (Upgrade::new_boomer_bomb(), (0, 2)),
-                (Upgrade::new_engine_shield(), (2, 4)),
+                (Upgrade::new_meat_grinder(), (2, 4)),
                 (Upgrade::new_the_ripper(), (4, 4)),
                 (Upgrade::new_can_of_worms(), (6, 5)),
             ],
@@ -2333,6 +2370,7 @@ turbo::go!({
                         if screen.current_wave + 1 < screen.waves.len() {
                             screen.current_wave += 1;
                             screen.enemies = screen.waves[screen.current_wave].enemies.clone();
+                            screen.player_health = (screen.player_health + 20).min(100);
                             state.saved_battle_screen = Some(screen.clone()); // Save current Battle screen state
                             //this will also set us up to add some wiggle around the truck later on
                             new_screen = Some(Screen::UpgradeSelection(UpgradeSelectionScreen::new(screen.upgrades.clone())));
