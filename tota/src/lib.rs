@@ -849,32 +849,6 @@ impl Upgrade {
             _ => Self::new_boomer_bomb(),
         }
     }
-    // pub fn random_placeable(shapes: &[Shape]) -> Option<Self> {
-    //     let upgrades = [
-    //         Self::new_the_persuader(),
-    //         Self::new_crooked_carburetor(),
-    //         Self::new_skull(),
-    //         Self::new_meat_grinder(),
-    //     ];
-    //     let len = upgrades.len();
-    //     let n = rand() as usize;
-    //     for i in 0..len {
-    //         let u = &mut upgrades[(n + i) % len].clone();
-    //         let (w, h) = u.shape.size;
-    //         let max_x = (8_usize).saturating_sub(w);
-    //         let max_y = (8_usize).saturating_sub(h);
-    //         for i in 0..=max_x {
-    //             for j in 0..=max_y {
-    //                 u.shape.offset = (i, j);
-    //                 if !u.shape.overlaps_any(&shapes) && u.shape.can_stick_any(&shapes) {
-    //                     //turbo::println!("NO OVERLAP AND CAN STICK! {:?}", u.shape.offset);
-    //                     return Some(u.clone());
-    //                 }
-    //             }
-    //         }
-    //     }
-    //     None
-    // }
 
     #[rustfmt::skip]
     fn new_truck() -> Self {
@@ -1437,6 +1411,87 @@ impl Shape {
     }
 }
 
+impl Enemy {
+    fn draw(&mut self) {
+        let (column, row) = self.grid_position;
+        let x = COLUMN_POSITIONS[column as usize] + self.position_offset.get() as i32;
+        let y = ROW_POSITIONS[row as usize];
+
+        match self.kind {
+            EnemyKind::Car => {
+                // Draw enemy base
+                sprite!(
+                    "enemy_01_base",
+                    x = x,
+                    y = y,
+                    sw = 96,
+                );
+                // Draw enemy tires
+                sprite!(
+                    "enemy_01_tires",
+                    x = x,
+                    y = y,
+                    sw = 95,
+                    fps = fps::FAST,
+                );
+                // Draw enemy shooter
+                sprite!(
+                    "enemy_gun_01",
+                    x = x + 22,
+                    y = y - 12,
+                );
+            },
+            EnemyKind::Plane => {
+                sprite!(
+                    "enemy_03_base",
+                    x = x,
+                    y = y,
+                    sw = 105,
+                    fps = fps::FAST,
+                );
+            },
+        }
+    }
+
+    fn draw_UI(&mut self) {
+        let (column, row) = self.grid_position;
+        let x = COLUMN_POSITIONS[column as usize] + self.position_offset.get() as i32;
+        let y = ROW_POSITIONS[row as usize];
+        let x_bar = x + 32;
+        let y_bar = y - 10;
+        let w_bar = 10 * self.max_health;
+        let h_bar = 8;
+        let border_color: u32 = 0xa69e9aff;
+        let main_color: u32 = 0xff0000ff;
+        let back_color: u32 = 0x000000ff;
+        let mut health_width = (self.health as f32 / self.max_health as f32 * w_bar as f32) as i32;
+        health_width = health_width.max(0);
+
+        // Draw health bar background
+        rect!(
+            w = w_bar,
+            h = h_bar,
+            x = x_bar,
+            y = y_bar,
+            color = back_color
+        );
+        
+        // Draw current health bar
+        rect!(
+            w = health_width,
+            h = h_bar,
+            x = x_bar,
+            y = y_bar,
+            color = main_color
+        );
+
+        // Draw health bar border
+        rect!(w = w_bar + 2, h = h_bar, x = x_bar - 1, 
+            y = y_bar, color = 0, border_color = border_color, 
+            border_width = 2, border_radius = 3);
+    }
+}
+
 impl ScrollingObject {
     // Constructor for ScrollingObject
     fn new(sprite_name: String, scroll_speed: i32, bg_width: i32, y: i32) -> Self {
@@ -1574,79 +1629,14 @@ fn should_draw_UI(battle_state: &BattleState) -> bool {
 }
 
 fn draw_enemies(enemies: &mut [Enemy]) {
-    // Iterate over enemies and set their positions using tweens
-    for (i, enemy) in enemies.iter_mut().enumerate() {
-        let (column, row) = enemy.grid_position;
-        let x = COLUMN_POSITIONS[column as usize] + enemy.position_offset.get() as i32;
-        let y = ROW_POSITIONS[row as usize];
-        //health bar
-        let x_bar = x + 32;
-        let y_bar = y - 10;
-        let w_bar = 10 * enemy.max_health;
-        let h_bar = 8;
-        let border_color: u32 =  0xa69e9aff;
-        let main_color: u32 = 0xff0000ff;
-        let back_color: u32 = 0x000000ff;
-        let mut health_width = (enemy.health as f32 / enemy.max_health as f32 * w_bar as f32) as i32;
-        health_width = health_width.max(0);
-        //turbo::println!("Health Width: {:?}", health_width);
-        match enemy.kind {
-            EnemyKind::Car => {
-                // Draw enemy driver
-                sprite!(
-                    "lughead_small",
-                    x = x + 40,
-                    y = y,  
-                );
+    for enemy in enemies.iter_mut() {
+        enemy.draw();
+    }
+}
 
-                // Draw enemy base
-                sprite!(
-                    "enemy_01_base",
-                    x = x,
-                    y = y,
-                    sw = 95.0,
-                    flip_x = true,
-                );
-
-                // Draw enemy tires
-                sprite!(
-                    "enemy_01_tires",
-                    x = x,
-                    y = y,
-                    sw = 95,
-                    fps = fps::FAST,
-                );
-            },
-            EnemyKind::Plane => {
-                sprite!(
-                    "enemy_03_base",
-                    x = x,
-                    y = y,
-                    sw = 105,
-                    fps = fps::FAST,
-                );
-            },
-        }
-        //draw health bar
-        rect!(
-            w = w_bar,
-            h = h_bar,
-            x = x_bar,
-            y = y_bar,
-            color = back_color
-        );
-        
-        rect!(
-            w = health_width,
-            h = h_bar,
-            x = x_bar,
-            y = y_bar,
-            color = main_color
-        );
-        //border
-        rect!(w = w_bar + 2, h = h_bar, x = x_bar-1, 
-            y = y_bar, color = 0, border_color = border_color, 
-            border_width = 2, border_radius = 3);
+fn draw_enemy_UI(enemies: &mut [Enemy]) {
+    for enemy in enemies.iter_mut() {
+        enemy.draw_UI();
     }
 }
 
@@ -1957,7 +1947,8 @@ turbo::go!({
             let [canvas_w, canvas_h] = canvas_size!();
             let top = canvas_h.saturating_sub(screen.elapsed);
             sprite!("title", y = top);
-            sprite!("title_foreground", y = canvas_h.saturating_sub((screen.elapsed as f32 / 2.7 as f32) as u32).max(canvas_h - 78));
+            sprite!("title_foreground", y = canvas_h.saturating_sub(((screen.elapsed as f32 / 2.7 as f32) as u32) + (canvas_h-78)).max(canvas_h - 216));
+            //sprite!("title_foreground", y=0);
             if top == 0 && tick() % 64 < 32 {
                 text!("PRESS START", y = canvas_h - 32, x = (canvas_w / 2) - ((11 * 8) / 2), font = Font::L);
             }
@@ -2425,6 +2416,7 @@ turbo::go!({
                 // Show player health
                 if should_draw_UI(&screen.battle_state){
                     show_health(screen.player_health);
+                    draw_enemy_UI(&mut screen.enemies);
                 }
                 
                 screen.text_effects.retain_mut(|text_effect| {
