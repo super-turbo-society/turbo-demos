@@ -452,7 +452,6 @@ turbo::init! {
                         first_frame: bool,
                     },
                     StartingNewWave,
-                    End,
                     PostCombat{
                         first_frame: usize,
                     },
@@ -478,6 +477,9 @@ turbo::init! {
                     text_duration: i32,
 
                 }>,
+            }),
+            GameEnd(struct GameEndScreen{
+                did_win: bool,
             }),
         },
         driver_name: String,
@@ -2290,31 +2292,30 @@ turbo::go!({
                                 screen.text_effects.push(new_effect);
                             }
                             *first_frame = false;
-                            
-                      }
-
-                    move_bullets(&mut screen.bullets);
-                    
-                    screen.bullets.retain(|bullet| {
-                        if bullet.has_reached_target() {
-                            if bullet.is_enemy {
-                                screen.player_health -= bullet.damage;
-                                create_explosion(&mut screen.explosions, bullet.x, bullet.y);
-                            }
-                            false // Remove the bullet
-                        } else {
-                            true // Keep the bullet
                         }
-                    });
 
-                    if screen.bullets.is_empty() {
-                        if screen.player_health <= 0 {
-                            screen.battle_state = BattleState::End;
-                        } else {
-                            screen.battle_state = BattleState::ChooseAttack { first_frame: true };
+                        move_bullets(&mut screen.bullets);
+                        
+                        screen.bullets.retain(|bullet| {
+                            if bullet.has_reached_target() {
+                                if bullet.is_enemy {
+                                    screen.player_health -= bullet.damage;
+                                    create_explosion(&mut screen.explosions, bullet.x, bullet.y);
+                                }
+                                false // Remove the bullet
+                            } else {
+                                true // Keep the bullet
+                            }
+                        });
+
+                        if screen.bullets.is_empty() {
+                            if screen.player_health <= 0 {
+                                new_screen = Some(Screen::GameEnd(GameEndScreen { did_win: false }));
+                            } else {
+                                screen.battle_state = BattleState::ChooseAttack { first_frame: true };
+                            }
                         }
                     }
-                }
                 }, 
 
                 BattleState::StartingNewWave => {
@@ -2347,114 +2348,112 @@ turbo::go!({
                             
                         }
                         else {
-                            screen.battle_state = BattleState::End;
+                            new_screen = Some(Screen::GameEnd(GameEndScreen { did_win: true }));
                         }
                         //screen.truck_tween.set(0.0);
                     }
-                },          
-             
-                BattleState::End => {
-                    clear!(0x000000ff); // Black background
-                    let [canvas_w, canvas_h] = canvas_size!();
-                    let text_width = 8 * 8; // Approximate width for text (8 characters, each 8 pixels wide)
-                    let message = if screen.player_health <= 0 {
-                        "You Lose"
-                    } else {
-                        "You Win"
-                    };
-                    text!(
-                        message, 
-                        x = (canvas_w / 2) - (text_width / 2), 
-                        y = (canvas_h / 2) - 10, 
-                        font = Font::L, 
-                        color = 0xffffffff // White text
-                    );
-                },
-            }
-
-            //////////BATTLE STATE DRAWING CODE//////
-
-            draw_background(&mut screen.bg_objects);
-            
-            // Draw upgrades
-            let truck_pos = TRUCK_BASE_OFFSET_X + (screen.truck_tween.get() as i32);
-            for (index, upgrade) in screen.upgrades.iter().enumerate() {
-                let is_selected = index == screen.selected_index;
-                if upgrade.kind == UpgradeKind::Truck {
-                    draw_truck(Some(truck_pos), None, true, &state.driver_name);
-                } else {
-                    sprite!(
-                        &upgrade.sprite_name,
-                        x = (upgrade.shape.offset.0 * 16) + truck_pos as usize,
-                        y = (upgrade.shape.offset.1 * 16) + 32,
-                        opacity = 1
-                    );
                 }
-                if should_draw_UI(&screen.battle_state){
-                    upgrade.shape.draw(is_selected, true, TRUCK_BASE_OFFSET_X, 32);
-                 }
-            }
-
-             // Draw enemies
-            draw_enemies(&mut screen.enemies);
+            }          
             
-            // Determine the target enemies based on the selected weapon
-            // Would be good to get this out of being 'every frame' eventually
-            let selected_upgrade = &screen.upgrades[screen.selected_index];
-            let target_enemies = selected_upgrade.target_enemies_list(screen.enemies.clone());
+                //////////BATTLE STATE DRAWING CODE//////
 
-            // Highlight target enemies - this will change when we have a new highlight system
-            for &enemy_index in &target_enemies {
-                let enemy = &screen.enemies[enemy_index];
-                let (column, row) = enemy.grid_position;
-                let y_position = ROW_POSITIONS[row as usize];
-                rect!(
-                    w = 96,
-                    h = 50,
-                    x = COLUMN_POSITIONS[column as usize],
-                    y = y_position,
-                    color = 0xff0000aa // More solid red rectangle with higher opacity
-                );
-            }
-
-            // Highlight upgrades that have positive cooldown (e.g. turn red bc you can't use them)
-            if should_draw_UI(&screen.battle_state){
-                for upgrade in &screen.upgrades {
-                    if upgrade.cooldown_counter > 0 {
-                        rect!(
-                            w = upgrade.shape.size.0 as i32 * 16,
-                            h = upgrade.shape.size.1 as i32 * 16,
-                            x = upgrade.shape.offset.0 as i32 * 16 + TRUCK_BASE_OFFSET_X,
-                            y = upgrade.shape.offset.1 as i32 * 16 + 32,
-                            color = 0xff0000aa // More solid red rectangle with higher opacity
+                draw_background(&mut screen.bg_objects);
+                
+                // Draw upgrades
+                let truck_pos = TRUCK_BASE_OFFSET_X + (screen.truck_tween.get() as i32);
+                for (index, upgrade) in screen.upgrades.iter().enumerate() {
+                    let is_selected = index == screen.selected_index;
+                    if upgrade.kind == UpgradeKind::Truck {
+                        draw_truck(Some(truck_pos), None, true, &state.driver_name);
+                    } else {
+                        sprite!(
+                            &upgrade.sprite_name,
+                            x = (upgrade.shape.offset.0 * 16) + truck_pos as usize,
+                            y = (upgrade.shape.offset.1 * 16) + 32,
+                            opacity = 1
                         );
                     }
+                    if should_draw_UI(&screen.battle_state){
+                        upgrade.shape.draw(is_selected, true, TRUCK_BASE_OFFSET_X, 32);
+                    }
                 }
-            }
 
-            draw_bullets(&mut screen.bullets);
-           
-            // Advance explosion animations
-            if !screen.explosions.is_empty() {
-                advance_explosion_animation(&mut screen.explosions);
-            }
+                // Draw enemies
+                draw_enemies(&mut screen.enemies);
+                
+                // Determine the target enemies based on the selected weapon
+                // Would be good to get this out of being 'every frame' eventually
+                let selected_upgrade = &screen.upgrades[screen.selected_index];
+                let target_enemies = selected_upgrade.target_enemies_list(screen.enemies.clone());
 
-            // Show player health
-            if should_draw_UI(&screen.battle_state){
-                show_health(screen.player_health);
-            }
+                // Highlight target enemies - this will change when we have a new highlight system
+                for &enemy_index in &target_enemies {
+                    let enemy = &screen.enemies[enemy_index];
+                    let (column, row) = enemy.grid_position;
+                    let y_position = ROW_POSITIONS[row as usize];
+                    rect!(
+                        w = 96,
+                        h = 50,
+                        x = COLUMN_POSITIONS[column as usize],
+                        y = y_position,
+                        color = 0xff0000aa // More solid red rectangle with higher opacity
+                    );
+                }
+
+                // Highlight upgrades that have positive cooldown (e.g. turn red bc you can't use them)
+                if should_draw_UI(&screen.battle_state){
+                    for upgrade in &screen.upgrades {
+                        if upgrade.cooldown_counter > 0 {
+                            rect!(
+                                w = upgrade.shape.size.0 as i32 * 16,
+                                h = upgrade.shape.size.1 as i32 * 16,
+                                x = upgrade.shape.offset.0 as i32 * 16 + TRUCK_BASE_OFFSET_X,
+                                y = upgrade.shape.offset.1 as i32 * 16 + 32,
+                                color = 0xff0000aa // More solid red rectangle with higher opacity
+                            );
+                        }
+                    }
+                }
+
+                draw_bullets(&mut screen.bullets);
             
-            screen.text_effects.retain_mut(|text_effect| {
-                text_effect.update();
-                if text_effect.text_duration < 0 {
-                    false // Remove it from the array
-                } else {
-                    text_effect.draw();
-                    true // Keep it in the array
+                // Advance explosion animations
+                if !screen.explosions.is_empty() {
+                    advance_explosion_animation(&mut screen.explosions);
                 }
-            });
-        }
 
+                // Show player health
+                if should_draw_UI(&screen.battle_state){
+                    show_health(screen.player_health);
+                }
+                
+                screen.text_effects.retain_mut(|text_effect| {
+                    text_effect.update();
+                    if text_effect.text_duration < 0 {
+                        false // Remove it from the array
+                    } else {
+                        text_effect.draw();
+                        true // Keep it in the array
+                    }
+                });
+        },
+        Screen::GameEnd(screen) => {
+            clear!(0x000000ff); // Black background
+            let [canvas_w, canvas_h] = canvas_size!();
+            let text_width = 8 * 8; // Approximate width for text (8 characters, each 8 pixels wide)
+            let message = if screen.did_win {
+                "You Win"
+            } else {
+                "You Lose"
+            };
+            text!(
+                message, 
+                x = (canvas_w / 2) - (text_width / 2), 
+                y = (canvas_h / 2) - 10, 
+                font = Font::L, 
+                color = 0xffffffff // White text
+            );
+        },
     }
     // let o = state.fade_out.get();
     // //turbo::println!("tween val {:?}", o);
