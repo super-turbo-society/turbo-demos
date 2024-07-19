@@ -422,10 +422,10 @@ turbo::init! {
                 bullets: Vec<struct Bullet {
                     x: f32,
                     y: f32,
-                    target_x: f32,
-                    target_y: f32,
                     damage: i32,
                     is_enemy: bool,
+                    path: Vec<(f32, f32)>,
+                    current_path_index: usize,
                 }>,
                 explosions: Vec<struct Explosion {
                     x: f32,
@@ -457,13 +457,6 @@ turbo::init! {
                         first_frame: usize,
                     },
                 },
-                bg_objects: Vec<struct ScrollingObject {
-                    scroll_pos: i32,
-                    sprite_name: String,
-                    scroll_speed: i32,
-                    bg_width: i32,
-                    y: i32,
-                }>,
                 player_health: i32,
                 waves: Vec<struct Wave{
                     enemies: Vec<Enemy>,
@@ -801,12 +794,6 @@ impl BattleScreen {
             explosions: vec![],
             selected_index: 1,
             battle_state: BattleState::StartingNewWave,
-            bg_objects: vec![
-                ScrollingObject::new("desert_bg".to_string(), 0, 256, 0),
-                ScrollingObject::new("mid_dunes".to_string(), 1, 256, 60),
-                ScrollingObject::new("fg_path".to_string(), 2, 256, TRUCK_BASE_OFFSET_Y+10),
-                ScrollingObject::new("mid_dunes".to_string(), 4, 256, 190),
-            ],
             player_health: 100,
             waves, 
             current_wave: 0, 
@@ -1047,6 +1034,43 @@ impl Upgrade {
                     path.push((x, y));
                 }
             },
+
+            UpgradeKind::KnuckleBuster => {
+                if let Some(first_enemy) = enemies.first() {
+                    let start_position = (
+                        self.shape.offset.0 as f32 * 16.0 + TRUCK_BASE_OFFSET_X as f32,
+                        self.shape.offset.1 as f32 * 16.0 + 32.0,
+                    );
+                    let mid_position = (
+                        start_position.0,
+                        ROW_POSITIONS[first_enemy.grid_position.1 as usize] as f32,
+                    );
+                    let end_position = (
+                        canvas_size()[0] as f32,
+                        mid_position.1,
+                    );
+                    
+                    let num_vertical_points = 3;
+                    let num_horizontal_points = 6;
+
+                    // Add vertical part of the path
+                    for i in 0..=num_vertical_points {
+                        let t = i as f32 / num_vertical_points as f32;
+                        let x = start_position.0;
+                        let y = start_position.1 * (1.0 - t) + mid_position.1 * t;
+                        path.push((x, y));
+                    }
+
+                    // Add horizontal part of the path
+                    for i in 0..=num_horizontal_points {
+                        let t = i as f32 / num_horizontal_points as f32;
+                        let x = mid_position.0 * (1.0 - t) + end_position.0 * t;
+                        let y = mid_position.1;
+                        path.push((x, y));
+                    }
+                }
+            }
+
             _ => {
                 let target_enemies = self.target_enemies_list(enemies.to_vec());
                 if let Some(&first_enemy_index) = target_enemies.first() {
@@ -1205,6 +1229,10 @@ impl Upgrade {
         }
         return target_enemies;
     } 
+    fn get_start_position(&self) -> f32{
+        let rightmost = self.shape.cells.keys().map(|&(x, _)| x).max().unwrap_or(0) + 1;
+        (self.shape.offset.0 + rightmost) as f32 * 16.0 + TRUCK_BASE_OFFSET_X as f32
+    }
 }
 
 
@@ -1431,26 +1459,26 @@ impl Enemy {
         match self.kind {
             EnemyKind::Car => {
                 // Draw enemy base
-                sprite!(
-                    "enemy_01_base",
-                    x = x,
-                    y = y,
-                    sw = 96,
-                    flip_x = true
-                 );
                 // sprite!(
-                //     "enemy_red_car",
+                //     "enemy_01_base",
                 //     x = x,
                 //     y = y,
                 //     sw = 96,
-                //     //flip_x = true
-                // );
-                // Draw enemy tires
+                //     flip_x = true
+                //  );
                 sprite!(
-                    "enemy_01_tires",
+                    "enemy_blue_car",
                     x = x,
                     y = y,
-                    sw = 95,
+                    sw = 96,
+                    //flip_x = true
+                );
+                // Draw enemy tires
+                sprite!(
+                    "enemy_blue_car_tires",
+                    x = x,
+                    y = y,
+                    sw = 96,
                     fps = fps::FAST,
                 );
                 
@@ -1512,41 +1540,6 @@ impl Enemy {
     }
 }
 
-impl ScrollingObject {
-    // Constructor for ScrollingObject
-    fn new(sprite_name: String, scroll_speed: i32, bg_width: i32, y: i32) -> Self {
-        Self {
-            scroll_pos: 0,
-            sprite_name,
-            scroll_speed,
-            bg_width,
-            y,
-        }
-    }
-
-    // Update the scroll position
-    fn update(&mut self) {
-        self.scroll_pos -= self.scroll_speed;
-        if self.scroll_pos <= -self.bg_width {
-            self.scroll_pos += self.bg_width;
-        }
-    }
-
-    // Draw the scrolling background
-    fn draw(&self) {
-        sprite!(&self.sprite_name, x = self.scroll_pos, y = self.y);
-        sprite!(&self.sprite_name, x = self.scroll_pos + self.bg_width, y = self.y);
-        sprite!(&self.sprite_name, x = self.scroll_pos + 2 * self.bg_width, y = self.y);
-    }
-}
-
-//TODO: separate draw and update
-fn scroll_bg_object(objects: &mut [ScrollingObject], index: usize) {
-    if let Some(object) = objects.get_mut(index) {
-        object.update();
-        object.draw();
-    }
-}
 
 fn show_health(player_health: i32) {
     let full_rect_width = 40;
@@ -1599,20 +1592,21 @@ fn draw_truck(x: Option<i32>, y: Option<i32>, should_animate: bool, driver_name:
 
 // New function to draw the scrolling background
 //TODO: Separate update and draw, and then stop scrolling if you are in the choosing attack phase
-fn draw_background(objects: &mut [ScrollingObject]) {
+fn draw_background() {
     //draw the sun
     circ!(color = 0xfcf7b3ff, x=60, y=12, d=120);
-    //Scroll mountain bg (it's actually static though, just implemented this way for now)
-    scroll_bg_object(objects, 0);
-    //draw rolling middle bg
-    scroll_bg_object(objects, 1);
-    //draw a rect for the rest of the road
+    let width = canvas_size()[0];
+    let t = tick() as f32;
+    //draw the mountain
+    sprite!("desert_bg",repeat = true, w=width, tx= -t * 0.5);
+    //draw the bg dunes
+    sprite!("mid_dunes",repeat = true, w=width, tx= -t*1.25, y=60);
+    //draw the sides of the road
     rect!(color = 0xE1BF89ff, x = 0, y = canvas_size()[1] - 130, w = canvas_size()[0], h = 130);
-    //draw scrolling road in middle
-    scroll_bg_object(objects, 2);
-    //draw the dunes at the bottom
-    scroll_bg_object(objects,3 );
-    scroll_bg_object(objects,4);
+    //draw the rocks in the road
+    sprite!("fg_path",repeat = true, w=width, tx= -t*2.5, y=TRUCK_BASE_OFFSET_Y+9);
+    //draw the foreground dunes
+    sprite!("mid_dunes",repeat = true, w=width, tx= -t*4., y=190);
 }
 
 
@@ -1627,21 +1621,28 @@ fn create_enemy_bullet(bullets: &mut Vec<Bullet>, x: f32, y: f32, target_x: f32,
     let max_rand_x = 60.0;
     let max_rand_y = 15.0;
 
-    // Generate random values between -max_rand_x and max_rand_x, and -max_rand_y and max_rand_y
     let random_x = (rand() as i32 % (2 * max_rand_x as i32 + 1) - max_rand_x as i32) as f32;
     let random_y = (rand() as i32 % (2 * max_rand_y as i32 + 1) - max_rand_y as i32) as f32;
 
-    // Add randomness to the target position
     let adjusted_target_x = target_x + random_x;
     let adjusted_target_y = target_y + random_y;
 
-    bullets.push(Bullet::new(x, y, adjusted_target_x, adjusted_target_y, damage, true));
+    let num_circles = 10;
+    let mut path = Vec::new();
+    for i in 0..num_circles {
+        let t = i as f32 / (num_circles - 1) as f32;
+        let x = x + t * (adjusted_target_x - x);
+        let y = y + t * (adjusted_target_y - y);
+        path.push((x, y));
+    }
+
+    bullets.push(Bullet::new(x, y, damage, true, path));
 }
 
 //TODO: Figure out why this is never used
-fn create_player_bullet(bullets: &mut Vec<Bullet>, x: f32, y: f32, target_x: f32, target_y: f32, damage: i32) {
-    bullets.push(Bullet::new(x, y, target_x, target_y, damage, false));
-}
+// fn create_player_bullet(bullets: &mut Vec<Bullet>, x: f32, y: f32, target_x: f32, target_y: f32, damage: i32) {
+//     bullets.push(Bullet::new(x, y, target_x, target_y, damage, false));
+// }
 
 fn should_draw_ui(battle_state: &BattleState) -> bool {
     matches!(
@@ -1664,36 +1665,48 @@ fn draw_enemy_ui(enemies: &mut [Enemy]) {
     }
 }
 
-impl Bullet{
-    fn new(x: f32, y: f32, target_x: f32, target_y: f32, damage: i32, is_enemy: bool) -> Self {
+impl Bullet {
+    fn new(x: f32, y: f32, damage: i32, is_enemy: bool, path: Vec<(f32, f32)>) -> Self {
         Self {
             x,
             y,
-            target_x,
-            target_y,
             damage,
             is_enemy,
+            path,
+            current_path_index: 0,
         }
     }
     fn move_bullet(&mut self) -> bool {
-        let dx = self.target_x - self.x;
-        let dy = self.target_y - self.y;
+        if self.current_path_index >= self.path.len() {
+            return true;
+        }
+
+        let (target_x, target_y) = self.path[self.current_path_index];
+        let dx = target_x - self.x;
+        let dy = target_y - self.y;
         let distance = (dx * dx + dy * dy).sqrt();
-        if distance > 1.0 {
+
+        if distance > BULLET_SPEED {
             let direction_x = dx / distance;
             let direction_y = dy / distance;
             self.x += direction_x * BULLET_SPEED;
             self.y += direction_y * BULLET_SPEED;
         } else {
-            self.x = self.target_x;
-            self.y = self.target_y;
+            self.x = target_x;
+            self.y = target_y;
+            self.current_path_index += 1;
         }
 
-        (self.x - self.target_x).abs() < BULLET_SPEED && (self.y - self.target_y).abs() < BULLET_SPEED
+        self.current_path_index >= self.path.len()
     }
 
     fn draw_bullet(&self) {
-        let angle = (self.target_y - self.y).atan2(self.target_x - self.x);
+        let (next_x, next_y) = if self.current_path_index < self.path.len() {
+            self.path[self.current_path_index]
+        } else {
+            (self.x, self.y)
+        };
+        let angle = (next_y - self.y).atan2(next_x - self.x);
         sprite!(
             "bullet",
             x = self.x,
@@ -1705,12 +1718,13 @@ impl Bullet{
     }
 
     fn has_reached_target(&self) -> bool {
-        (self.x - self.target_x).abs() < BULLET_SPEED && (self.y - self.target_y).abs() < BULLET_SPEED
+        self.current_path_index >= self.path.len()
     }
 
-    fn set_target(&mut self, t_x: f32, t_y: f32){
-        self.target_x = t_x;
-        self.target_y = t_y;
+    fn set_target(&mut self, t_x: f32, t_y: f32) {
+        if self.current_path_index < self.path.len() {
+            self.path[self.current_path_index] = (t_x, t_y);
+        }
     }
 }
 
@@ -2188,16 +2202,18 @@ turbo::go!({
                     let mut new_battle_state: Option<BattleState> = None; // Temporary variable to hold the new battle state
 
                     if *active {
+                        let selected_upgrade = &screen.upgrades[screen.selected_index];
+                        let bullet_path = selected_upgrade.get_weapon_path(&screen.enemies);
                         let bullet = Bullet::new(
                             weapon_position.0,
                             weapon_position.1,
-                            target_position.0,
-                            target_position.1,
-                            *damage, // make this come from the weapon_kind later
+                            *damage,
                             false,
+                            bullet_path,
                         );
 
                         screen.bullets.push(bullet);
+
 
                         *active = false;
                     }
@@ -2213,18 +2229,19 @@ turbo::go!({
                                     let enemy = &mut screen.enemies[enemy_index];
                                     enemy.health -= bullet.damage;
                                     if rand_out_of_100(calculate_brutality(&screen.upgrades) as u32) {
+                                        let text = "Brutality: Critical Hit";
                                         let new_effect = TextEffect::new(
-                                            "Brutality: Critical Hit",
+                                            text,
                                             0x564f5bff,
                                             0xcbc6c1FF,
-                                            160,
+                                            centered_text_position(text) as i32,
                                             10,
                                         );
                                         screen.text_effects.push(new_effect);
                                         enemy.health = 0;
                                     }
                                 }
-                                create_explosion(&mut screen.explosions, bullet.target_x, bullet.target_y);
+                                create_explosion(&mut screen.explosions, bullet.x, bullet.y);
 
                                 *num_enemies_hit += 1;
 
@@ -2269,13 +2286,13 @@ turbo::go!({
                                         
                                         //create an endurance pop up - 
                                         //TODO: move this to when the damage is applied or just change how it works
+                                        let text = "Endurance: Damage Blocked";
                                         let new_effect = TextEffect::new(
-                                            "Endurance: Damage Blocked",
+                                            text,
                                             0x564f5bff,
                                             0xcbc6c1FF,
-                                            160,
+                                            centered_text_position(text) as i32,
                                             10,
-        
                                         );
                                         screen.text_effects.push(new_effect);
 
@@ -2364,7 +2381,7 @@ turbo::go!({
             
                 //////////BATTLE STATE DRAWING CODE//////
 
-                draw_background(&mut screen.bg_objects);
+                draw_background();
                 
                 // Draw upgrades
                 let truck_pos = TRUCK_BASE_OFFSET_X + (screen.truck_tween.get() as i32);
