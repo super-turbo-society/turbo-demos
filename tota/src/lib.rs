@@ -1028,6 +1028,53 @@ impl Upgrade {
         }, 1, 0, 0, 2, 2, 1, "engine_shield".to_string(), false)
     }
 
+    fn get_weapon_path(&self, enemies: &[Enemy]) -> Vec<(f32, f32)> {
+        let mut path = Vec::new();
+
+        match self.kind {
+            UpgradeKind::BoomerBomb => {
+                let start_x = (self.shape.offset.0 * 16 + TRUCK_BASE_OFFSET_X as usize) as f32;
+                let start_y = (self.shape.offset.1 * 16 + 32) as f32;
+                let end_x = (COLUMN_POSITIONS[0] + COLUMN_POSITIONS[1]) as f32 / 2.0;
+                let end_y = (ROW_POSITIONS[1] + ROW_POSITIONS[2]) as f32 / 2.0;
+
+                let num_circles = 10; // Number of circles to draw
+                for i in 0..num_circles {
+                    let t = i as f32 / (num_circles - 1) as f32;
+                    let x = start_x + t * (end_x - start_x);
+                    // Create a parabolic effect
+                    let y = start_y + t * (end_y - start_y) - (4.0 * t * (1.0 - t) * 50.0);
+                    path.push((x, y));
+                }
+            },
+            _ => {
+                let target_enemies = self.target_enemies_list(enemies.to_vec());
+                if let Some(&first_enemy_index) = target_enemies.first() {
+                    let start_x = (self.shape.offset.0 * 16 + TRUCK_BASE_OFFSET_X as usize) as f32;
+                    let start_y = (self.shape.offset.1 * 16 + 32) as f32;
+                    let (end_x, end_y) = calculate_target_position(enemies[first_enemy_index].grid_position);
+
+                    let num_circles = 10; // Number of circles to draw
+                    for i in 0..num_circles {
+                        let t = i as f32 / (num_circles - 1) as f32;
+                        let x = start_x + t * (end_x - start_x);
+                        let y = start_y + t * (end_y - start_y);
+                        path.push((x, y));
+                    }
+                }
+            },
+        }
+        path
+    }
+
+    fn draw_weapon_path(&self, path: &[(f32, f32)]) {
+        let circle_radius = 4.0;
+        let circle_color : u32 = 0xff0000ff;
+        for &(x, y) in path {
+            circ!(x = x as i32, y = y as i32, d = circle_radius as u32, color = circle_color);
+        }
+    }
+
     fn target_enemies_list(&self, enemies: Vec<Enemy>) -> Vec<usize>{
         let mut target_enemies = Vec::new();
         match self.kind{
@@ -1390,7 +1437,7 @@ impl Enemy {
                     y = y,
                     sw = 96,
                     flip_x = true
-                );
+                 );
                 // sprite!(
                 //     "enemy_red_car",
                 //     x = x,
@@ -2330,7 +2377,6 @@ turbo::go!({
                             &upgrade.sprite_name,
                             x = (upgrade.shape.offset.0 * 16) + truck_pos as usize,
                             y = (upgrade.shape.offset.1 * 16) + 32,
-                            opacity = 1
                         );
                     }
                     if should_draw_ui(&screen.battle_state){
@@ -2345,20 +2391,22 @@ turbo::go!({
                 // Would be good to get this out of being 'every frame' eventually
                 let selected_upgrade = &screen.upgrades[screen.selected_index];
                 let target_enemies = selected_upgrade.target_enemies_list(screen.enemies.clone());
+                let path = selected_upgrade.get_weapon_path(&screen.enemies);
+                selected_upgrade.draw_weapon_path(&path);
 
-                // Highlight target enemies - this will change when we have a new highlight system
-                for &enemy_index in &target_enemies {
-                    let enemy = &screen.enemies[enemy_index];
-                    let (column, row) = enemy.grid_position;
-                    let y_position = ROW_POSITIONS[row as usize];
-                    rect!(
-                        w = 96,
-                        h = 50,
-                        x = COLUMN_POSITIONS[column as usize],
-                        y = y_position,
-                        color = 0xff0000aa // More solid red rectangle with higher opacity
-                    );
-                }
+                // // Highlight target enemies - this will change when we have a new highlight system
+                // for &enemy_index in &target_enemies {
+                //     let enemy = &screen.enemies[enemy_index];
+                //     let (column, row) = enemy.grid_position;
+                //     let y_position = ROW_POSITIONS[row as usize];
+                //     rect!(
+                //         w = 96,
+                //         h = 50,
+                //         x = COLUMN_POSITIONS[column as usize],
+                //         y = y_position,
+                //         color = 0xff0000aa // More solid red rectangle with higher opacity
+                //     );
+                // }
 
                 // Highlight upgrades that have positive cooldown (e.g. turn red bc you can't use them)
                 if should_draw_ui(&screen.battle_state){
