@@ -472,13 +472,15 @@ turbo::init! {
 
                 }>,
             }),
-            GameEnd(struct GameEndScreen{
+            GameEnd(struct GameEndScreen {
                 did_win: bool,
+                did_trigger_dialog: bool,
             }),
         },
         driver_name: String,
         saved_battle_screen: Option<BattleScreen>,
         fade_out: Tween<f32>,
+        dialog_box: Option<PortraitDialogBox>,
     } = {
         Self {
             screen: Screen::Title(TitleScreen { elapsed: 0 }),
@@ -486,6 +488,7 @@ turbo::init! {
             driver_name: "shoota".to_string(),
             saved_battle_screen: None,
             fade_out: Tween::new(0.0).duration(20).ease(Easing::EaseInQuad),
+            dialog_box: None,
             
         }
     }
@@ -735,6 +738,7 @@ impl Default for GameState {
             driver_name: "shoota".to_string(),
             saved_battle_screen: None,
             fade_out: Tween::new(0.0).duration(20).ease(Easing::EaseInQuad),
+            dialog_box: None,
         }
     }
 }
@@ -1998,13 +2002,18 @@ turbo::go!({
             if top == 0 && tick() % 64 < 32 {
                 text!("PRESS START", y = canvas_h - 32, x = (canvas_w / 2) - ((11 * 8) / 2), font = Font::L);
             }
-            if gamepad(0).start.just_pressed() {
+            if state.dialog_box.is_none() && gamepad(0).start.just_pressed() {
                 if screen.elapsed < canvas_h {
                     screen.elapsed = canvas_h;
                 } else {
                     // state.fade_out = Tween::new(1.0);
                     // state.fade_out.set(0.0);
                     next_screen = Some(Screen::Garage(GarageScreen::new()));
+                    // Add Garage screen Dialog
+                    state.dialog_box = Some(PortraitDialogBox::new(
+                        Portrait::Meatbag,
+                        "This is the garage. It's like Twisted Metal meets Tetris. Choose your favorite hog and let's ride."
+                    ));
                 }
             } else {
                 screen.elapsed += 1;
@@ -2017,10 +2026,17 @@ turbo::go!({
             let grid_offset_x = ((canvas_w - 128) / 2 ) as usize; //Adjust 128 based on grid width to cetner it
             let grid_offset_y = ((canvas_h - 128) / 2 ) as usize; //Adjust 128 based on grid height
             
-            screen.handle_input(&mut state.driver_name); 
+            if state.dialog_box.is_none() {
+                screen.handle_input(&mut state.driver_name); 
+            }
 
-            if gamepad(0).start.just_pressed() {
+            if state.dialog_box.is_none() && gamepad(0).start.just_pressed() {
                 next_screen = Some(Screen::Battle(BattleScreen::new(screen.upgrades.clone())));
+                // Add Battle screen dialog
+                state.dialog_box = Some(PortraitDialogBox::new(
+                    Portrait::Meatbag,
+                    "Okay I bet you're wondering why you're here...well, don't ask me. Just go blow stuff up. Make sure people witness you or something."
+                ));
             }
             
             //Draw the grid
@@ -2050,18 +2066,49 @@ turbo::go!({
         }
 
         Screen::UpgradeSelection(screen) => {
-          
-            match screen.handle_input() {
-                ScreenTransition::BackToBattle => {
-                    // Restore the saved Battle screen state and update upgrades
-                    if let Some(mut battle_screen) = state.saved_battle_screen.take() {
-                        battle_screen.upgrades = screen.upgrades.clone();
-                        battle_screen.battle_state = BattleState::StartingNewWave;
-                        next_screen = Some(Screen::Battle(battle_screen));
-                    }
-                },
-                ScreenTransition::None => {},
-                _ => {},
+            if state.dialog_box.is_none() {
+                match screen.handle_input() {
+                    ScreenTransition::BackToBattle => {
+                        // Restore the saved Battle screen state and update upgrades
+                        if let Some(mut battle_screen) = state.saved_battle_screen.take() {
+                            let current_wave = battle_screen.current_wave;
+                            battle_screen.upgrades = screen.upgrades.clone();
+                            battle_screen.battle_state = BattleState::StartingNewWave;
+                            next_screen = Some(Screen::Battle(battle_screen));
+                            
+                            if current_wave == 1 {
+                                // Add Battle screen dialog
+                                state.dialog_box = Some(PortraitDialogBox::new(
+                                    Portrait::Meatbag,
+                                    "Alright next round. Let's do this. COME AT ME BRO!!!"
+                                ));
+                            }
+                            else if current_wave == 2 {
+                                // Add Battle screen dialog
+                                state.dialog_box = Some(PortraitDialogBox::new(
+                                    Portrait::Meatbag,
+                                    "Is that plane flying backwards? Nevermind. Let's just show this scum what we're made of!"
+                                ));
+                            }
+                            else if current_wave == 3 {
+                                // Add Battle screen dialog
+                                state.dialog_box = Some(PortraitDialogBox::new(
+                                    Portrait::Meatbag,
+                                    "Ever wonder how we always wind up strategically positioned behind our victims? Yeah me neither. I don't make the rules. Let's ride!"
+                                ));
+                            }
+                            else if current_wave == 3 {
+                                // Add Battle screen dialog
+                                state.dialog_box = Some(PortraitDialogBox::new(
+                                    Portrait::Meatbag,
+                                    "Ever wonder how we always wind up strategically positioned behind our victims? Yeah me neither. I don't make the rules. Let's ride!"
+                                ));
+                            }
+                        }
+                    },
+                    ScreenTransition::None => {},
+                    _ => {},
+                }
             }
             screen.draw(&state.driver_name);
             
@@ -2069,8 +2116,6 @@ turbo::go!({
 
         Screen::Battle(screen) => {
             clear!(0xFFE0B7ff); //beige sky
-
-
 
             match &mut screen.battle_state {
                BattleState::PreCombat {first_frame } => {
@@ -2128,7 +2173,7 @@ turbo::go!({
                     }
 
                     // Handle input for cycling through upgrades
-                    if gamepad(0).up.just_pressed() || gamepad(0).right.just_pressed() {
+                    if state.dialog_box.is_none() && (gamepad(0).up.just_pressed() || gamepad(0).right.just_pressed()) {
                         //turbo::println!("PRESSED UP OR RIGHT {:?}", screen.enemies.len().to_string());
 
                         let mut next_index = screen.selected_index;
@@ -2140,7 +2185,7 @@ turbo::go!({
                         }
                         screen.selected_index = next_index;
                     }
-                    if gamepad(0).down.just_pressed() || gamepad(0).left.just_pressed() {
+                    if state.dialog_box.is_none() && (gamepad(0).down.just_pressed() || gamepad(0).left.just_pressed()) {
                         let mut prev_index = screen.selected_index;
                         loop {
                             if prev_index == 0 {
@@ -2156,7 +2201,7 @@ turbo::go!({
                     }
 
                     // Handle attack selection
-                    if gamepad(0).a.just_pressed() {
+                    if state.dialog_box.is_none() && gamepad(0).a.just_pressed() {
                         let selected_upgrade = &mut screen.upgrades[screen.selected_index];
                         //check if the weapon isn't on cooldown (theoretically should never happen bc of selection system)
                         if selected_upgrade.cooldown_counter == 0 {
@@ -2332,7 +2377,7 @@ turbo::go!({
 
                         if screen.bullets.is_empty() {
                             if screen.player_health <= 0 {
-                                next_screen = Some(Screen::GameEnd(GameEndScreen { did_win: false }));
+                                next_screen = Some(Screen::GameEnd(GameEndScreen { did_win: false, did_trigger_dialog: false, }));
                             } else {
                                 screen.battle_state = BattleState::ChooseAttack { first_frame: true };
                             }
@@ -2369,10 +2414,40 @@ turbo::go!({
                             state.saved_battle_screen = Some(screen.clone()); // Save current Battle screen state
                             //this will also set us up to add some wiggle around the truck later on
                             next_screen = Some(Screen::UpgradeSelection(UpgradeSelectionScreen::new(screen.upgrades.clone())));
-                            
+                            if screen.current_wave == 1 {
+                                // First time upgrade
+                                state.dialog_box = Some(PortraitDialogBox::new(
+                                    Portrait::Meatbag,
+                                    "Time to pimp our ride! Choose an upgrade and put it where you want it. Just make sure it turns GREEN. If it's red, find another spot!"
+                                ));
+                            } else {
+                                let possible_dialog = [
+                                    "Time to slap a MEAT GRINDER on this beast...because why not?!",
+                                    "Don't you just love a good ole CROOKED CARBURETOR? +0 practicality but +100 style!",
+                                    "This ride needs more of that sweet sweet PSYKO JUICE!",
+                                    "Strap on the BOOMER BOMB, it's going to be a rough ride!",
+                                    "RIPPERS help a ton with traffic. Definitely shortened my commute!",
+                                    "Get me those SLIME SPITTERS! *HAWK TUAH*",
+                                    "Let's rig up a GOLDFISH GUN, confuse the enemy!",
+                                    "CRAP STACK? We'll probably scare them off before they even smell us!",
+                                    "Can never have too many KNUCKLE BUSTERS, am I right?",
+                                    "When I see a PERSUADER, I get it. No persuasion required.",
+                                    "This is gonna sound weird, but we need some JAILED DUCKS. We just do. Trust me.",
+                                    "Grab that BOOMBOX, we don't stop for anything and neither does the beat!",
+                                    "Mount a CAN OF WORMS, we're going fishing for raiders!",
+                                    "Add a SKULL OF DEATH, let's ride in style!",
+                                    "Give me that TEEPEE. We're gonna wipe... ass... No that's stupid. I'll do better next time.",
+                                ];
+                                let i = rand() as usize % possible_dialog.len();
+                                // Repeat upgrade
+                                state.dialog_box = Some(PortraitDialogBox::new(
+                                    Portrait::Meatbag,
+                                    &possible_dialog[i]
+                                ));
+                            }
                         }
                         else {
-                            next_screen = Some(Screen::GameEnd(GameEndScreen { did_win: true }));
+                            next_screen = Some(Screen::GameEnd(GameEndScreen { did_win: true, did_trigger_dialog: false }));
                         }
                         //screen.truck_tween.set(0.0);
                     }
@@ -2479,6 +2554,53 @@ turbo::go!({
                 font = Font::L, 
                 color = 0xffffffff // White text
             );
+
+            let pressed_a_or_start = gamepad(0).a.just_pressed() || gamepad(0).start.just_pressed();
+            match (screen.did_win, screen.did_trigger_dialog, state.dialog_box.is_none(), pressed_a_or_start) {
+                // Show loser dialog
+                (false, false, true, true) => {
+                    screen.did_trigger_dialog = true;
+                    state.dialog_box = Some(PortraitDialogBox::new(
+                        Portrait::Meatbag,
+                        "M E D I O C R E"
+                    ));
+                }
+                // Show winner dialog
+                (true, false, true, true) => {
+                    screen.did_trigger_dialog = true;
+                    let dialog = [
+                        "You won. What were you expecting? A post-apocalyptic remix of          ",
+                        "Smash Mouth's 1999 hit single, 'All Star'??? That's so cringe...       ",
+                        "...................................................................... ",
+                        ".......................................................Fuck it we ball ",
+                        "SOMEBODY once told me the wasteland's gonna roll me................... ",
+                        "I ain't the toughest raider in the scrap.............................. ",
+                        "She was lookin' kinda dumb with her duck jail and her gun............. ",
+                        "In the shape of an L on her sedan..................................... ",
+                        "Well, the bombs start comin' and they don't stop comin'............... ",
+                        "Fed to the flames where we hit the road runnin'....................... ",
+                        "Didn't make sense not to have big guns................................ ",
+                        "Your brain gets fried and your road is run............................ ",
+                        "So much to do, so much to see......................................... ",
+                        "So what's wrong with feelin' the FURY?................................ ",
+                        "You'll never know if you explode...................................... ",
+                        "You'll never shine if it's not chrome................................. ",
+                        "Yeah I'm not doing the chorus......................................... ",
+                        "..............................................................THE END! ",
+                    ].join("");
+                    state.dialog_box = Some(PortraitDialogBox::new(
+                        Portrait::Meatbag,
+                        &dialog,
+                        // "                                                                       "
+                    ));
+                }
+                // Dialog already triggered and dismissed, so maybe reset the game?
+                (_, true, true, true) => {
+                    // ...
+                }
+                // Chill out if dialog is already open or no button was pressed
+                (_, _, false, _) |  (_, _, _, false) => (),
+            }
         },
     }
     // let o = state.fade_out.get();
@@ -2491,15 +2613,366 @@ turbo::go!({
         state.screen = screen;
     }
 
+    // Handle dialog box
+    let mut is_dialog_done = false;
+    if let Some(ref mut dialog_box) = state.dialog_box {
+        is_dialog_done = dialog_box.draw()
+    }
+    if is_dialog_done {
+        state.dialog_box = None;
+    }
+
     state.save();
 });
 
+fn nine_slice(name: &str, size: u32, w: u32, h: u32, x: i32, y: i32) {
+    let size = size as i32;
+    let w = w as i32;
+    let h = h as i32;
+    // center
+    sprite!(
+        name,
+        x = x,
+        y = y,
+        sx = 1 * size,
+        sy = 1 * size,
+        sw = size,
+        sh = size,
+        w = w,
+        h = h,
+        repeat = true,
+    );
 
-fn black_with_opacity(opacity: f32) -> u32 {
-    // Convert the opacity to an 8-bit value (0-255)
-    let alpha = (opacity * 255.0).round() as u32;
+    // top
+    sprite!(
+        name,
+        x = x,
+        y = y,
+        sx = 1 * size,
+        sy = 0 * size,
+        sw = size,
+        sh = size,
+        w = w - size,
+        repeat = true,
+    );
+    // bottom
+    sprite!(
+        name,
+        x = x,
+        y = y + h - size,
+        sx = 1 * size,
+        sy = 2 * size,
+        sw = size,
+        sh = size,
+        w = w - size,
+        repeat = true,
+    );
+    // left
+    sprite!(
+        name,
+        x = x,
+        y = y,
+        sx = 0 * size,
+        sy = 1 * size,
+        sw = size,
+        sh = size,
+        h = h,
+        repeat = true,
+    );
+    // right
+    sprite!(
+        name,
+        x = x + w - size,
+        y = y,
+        sx = 2 * size,
+        sy = 1 * size,
+        sw = size,
+        sh = size,
+        h = h,
+        repeat = true,
+    );
 
-    // Combine the alpha value with the black color (0x000000)
-    // Format: 0x000000AA
-    0x00000000 | (alpha & 0xFF)
+    // top-left
+    sprite!(
+        name,
+        x = x,
+        y = y,
+        sx = 0 * size,
+        sy = 0,
+        sw = size,
+        sh = size,
+    );
+    // top-right
+    sprite!(
+        name,
+        x = x + w - size,
+        y = y,
+        sx = 2 * size,
+        sy = 0,
+        sw = size,
+        sh = size,
+    );
+
+    // bottom-left
+    sprite!(
+        name,
+        x = x,
+        y = y + h - size,
+        sx = 0 * size,
+        sy = 2 * size,
+        sw = size,
+        sh = size,
+    );
+    // bottom-right
+    sprite!(
+        name,
+        x = x + w - size,
+        y = y + h - size,
+        sx = 2 * size,
+        sy = 2 * size,
+        sw = size,
+        sh = size,
+    );
+}
+
+pub fn split_lines(input: &str, max_len: usize, break_words: bool) -> Vec<String> {
+    let mut lines = Vec::new();
+    let mut current_line = String::new();
+
+    for word in input.split_whitespace() {
+        if break_words && word.len() > max_len {
+            let mut part = word;
+            while part.len() > max_len {
+                let (left, right) = part.split_at(max_len - 1);
+                current_line.push_str(left);
+                current_line.push('-');
+                lines.push(current_line);
+                current_line = String::new();
+                part = right;
+            }
+            current_line.push_str(part);
+        } else {
+            if !current_line.is_empty() && current_line.len() + 1 + word.len() > max_len {
+                lines.push(current_line.clone());
+                current_line.clear();
+            }
+            if !current_line.is_empty() {
+                current_line.push(' ');
+            }
+            current_line.push_str(word);
+        }
+    }
+
+    if !current_line.is_empty() {
+        lines.push(current_line);
+    }
+
+    lines
+}
+
+#[derive(Debug, Clone, PartialEq, BorshDeserialize, BorshSerialize)]
+enum Portrait {
+    Meatbag,
+    Lughead,
+    Shoota,
+    Suzee,
+    Twiggy,
+    Warboi,
+    Zealot,
+}
+impl Portrait {
+    fn sprite<'a>(&self) -> &'a str {
+        match self {
+            Self::Meatbag => "meatbag",
+            Self::Lughead => "lughead",
+            Self::Shoota => "shoota",
+            Self::Suzee => "suzee",
+            Self::Twiggy => "twiggy",
+            Self::Warboi => "warboi",
+            Self::Zealot => "zealots"
+        }
+    }
+    fn name<'a>(&self) -> &'a str {
+        match self {
+            Self::Meatbag => "Meatbag",
+            Self::Lughead => "Lughead",
+            Self::Shoota => "Shoota",
+            Self::Suzee => "Suzee",
+            Self::Twiggy => "Twiggy",
+            Self::Warboi => "Warboi",
+            Self::Zealot => "Zealot"
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, BorshDeserialize, BorshSerialize)]
+enum DialogBoxTheme {
+    MetalPipes
+}
+impl DialogBoxTheme {
+    pub fn sprite<'a>(&self) -> &'a str {
+        match self {
+            Self::MetalPipes => "nslice_metal_pipes_smol",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, BorshDeserialize, BorshSerialize)]
+enum PortraitAlignment {
+    Left,
+    Right
+}
+
+#[derive(Debug, Clone, PartialEq, BorshDeserialize, BorshSerialize)]
+enum DialogSpeed {
+    Instant,
+    Fast,
+    Medium,
+    Slow
+}
+
+#[derive(Debug, Clone, PartialEq, BorshDeserialize, BorshSerialize)]
+struct PortraitDialogBox {
+    portrait: Portrait,
+    alignment: PortraitAlignment,
+    theme: DialogBoxTheme,
+    dialog_speed: DialogSpeed,
+    started_at: usize,
+    lines: Vec<String>,
+    current_page: usize,
+    chars_displayed: usize,
+    show_all_chars: bool,
+    vertical_offset: Tween<i32>,
+}
+
+impl PortraitDialogBox {
+    const VERTICAL_OFFSET: i32 = 128;
+    fn new(portrait: Portrait, text: &str) -> Self {
+        Self {
+            portrait,
+            alignment: PortraitAlignment::Left,
+            theme: DialogBoxTheme::MetalPipes,
+            dialog_speed: DialogSpeed::Fast,
+            started_at: tick(),
+            lines: split_lines(text, 71, false),
+            current_page: 0,
+            chars_displayed: 0,
+            show_all_chars: false,
+            vertical_offset: Tween::new(Self::VERTICAL_OFFSET).set(0).duration(30).ease(Easing::EaseOutQuad),
+        }
+    }
+
+    fn draw(&mut self) -> bool {
+        let [cw, ch] = canvas_size!();
+        let w = cw;
+        let h = 48;
+        let x = 0;
+        let y = (ch - h) as i32 + self.vertical_offset.get();
+
+        // Draw portrait
+        // TODO: potrait alignment
+        let name = self.portrait.name();
+        let name_len = name.len();
+        let name_bg_w = 68 + (name_len * 8) + 4;
+        rect!(w = name_bg_w, h = 16, x = x - 4, y = y - 14, color = 0x000000ff, border_radius = 4);
+        text!(&name.to_uppercase(), x = 64, y = y - 10, font = Font::L);
+        let portrait_sprite = self.portrait.sprite();
+        sprite!(portrait_sprite, y = y - 64 + 1, x = x + 3, color = 0x000000ff, opacity = 0.75);
+        sprite!(portrait_sprite, y = y - 64, x = x);
+
+        // Draw textbox
+        nine_slice(self.theme.sprite(), 8, w, h, x, y);
+
+        // Draw text
+        // 71 chars max per line. 2 lines max per page.
+        let y = y + 14;
+        let x = x + 14;
+        let lh = 12;
+        let mut i = 0;
+        let now = tick();
+        let display_len = if self.show_all_chars {
+            usize::MAX
+        } else {
+            match self.dialog_speed {
+                DialogSpeed::Instant => usize::MAX,
+                DialogSpeed::Fast => now - self.started_at,
+                DialogSpeed::Medium => (now / 2) - self.started_at,
+                DialogSpeed::Slow => (now / 4) - self.started_at,
+            }
+        };
+
+        // Calculate the lines for the current page
+        let start_line = self.current_page * 2;
+        let end_line = start_line + 2;
+        let lines_to_display = &self.lines[start_line..end_line.min(self.lines.len())];
+
+        // Track the total characters displayed
+        let mut total_chars_displayed = 0;
+
+        // Draw dialog
+        for line in lines_to_display {
+            let line_len = line.len();
+            if total_chars_displayed + line_len > display_len {
+                let len = display_len - total_chars_displayed;
+                let line = &line[..len];
+                text!(line, x = x, y = y + (i * lh));
+                total_chars_displayed += len;
+                break;
+            } else {
+                text!(line, x = x, y = y + (i * lh));
+                total_chars_displayed += line_len;
+            }
+            i += 1;
+        }
+
+        // Update the number of characters displayed in the current page
+        self.chars_displayed = total_chars_displayed;
+
+        // Show indicator for more dialog only if all characters in the current page are displayed
+        let num_lines_shown = lines_to_display.iter().map(|s| s.len()).sum();
+        let all_page_chars_shown = self.chars_displayed >= num_lines_shown;
+        if all_page_chars_shown {
+            if tick() / 4 % 16 < 8 {
+                rect!(w = 4, h = 4, x = cw - 16, y = ch - 16, color = 0xb8ccd8ff);
+            }
+        }
+
+        // Chekc if all pages have been shown
+        let all_pages_shown = start_line + 2 >= self.lines.len();
+
+        // Once the dialog box exits the screen, we're done
+        if all_pages_shown && all_page_chars_shown && self.vertical_offset.get() == Self::VERTICAL_OFFSET {
+            return true;
+        }
+
+        // Handle advancing the dialog
+        if self.vertical_offset.done() {
+            let gp = gamepad(0);
+            let btns = [gp.a, gp.b, gp.start];
+            for btn in btns {
+                if btn.just_pressed() {
+                    if !self.show_all_chars && self.chars_displayed < num_lines_shown {
+                        // Fast-forward to show all characters in the current page
+                        self.show_all_chars = true;
+                        self.started_at = tick(); // reset timer
+                    } else {
+                        // Check if we have displayed all pages
+                        if all_pages_shown && all_page_chars_shown {
+                            // trigger exit transition
+                            self.vertical_offset.set(Self::VERTICAL_OFFSET);
+                        } else {
+                            // Move to the next page
+                            self.current_page += 1;
+                            self.show_all_chars = false;
+                            self.chars_displayed = 0;
+                            self.started_at = tick(); // reset timer
+                        }
+
+                    }
+                }
+            }
+        }
+
+        false
+    }
 }
