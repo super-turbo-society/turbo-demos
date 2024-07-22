@@ -1694,6 +1694,11 @@ impl Bullet {
     }
     fn move_bullet(&mut self) {
 
+        if self.current_path_index < self.path.len(){
+            
+            let (target_x, target_y) = self.path[self.current_path_index];
+            let dx = target_x - self.x;
+            let dy = target_y - self.y;
             let distance = (dx * dx + dy * dy).sqrt();
 
             if distance > BULLET_SPEED {
