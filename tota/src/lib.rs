@@ -1461,10 +1461,16 @@ impl Enemy {
         }
     }
     
-    fn draw(&mut self) {
+    fn get_position(&mut self) -> Vec<i32>{
         let (column, row) = self.grid_position;
         let x = COLUMN_POSITIONS[column as usize] + self.position_offset.get() as i32;
         let y = ROW_POSITIONS[row as usize];
+        vec![x, y]
+    }
+
+    fn draw(&mut self) {
+        let x = self.get_position()[0];
+        let y = self.get_position()[1];
 
         match self.kind {
             EnemyKind::Car => {
@@ -1686,30 +1692,27 @@ impl Bullet {
             current_path_index: 0,
         }
     }
-    fn move_bullet(&mut self) -> bool {
-        if self.current_path_index >= self.path.len() {
-            return true;
+    fn move_bullet(&mut self) {
+
+            let distance = (dx * dx + dy * dy).sqrt();
+
+            if distance > BULLET_SPEED {
+                let direction_x = dx / distance;
+                let direction_y = dy / distance;
+                self.x += direction_x * BULLET_SPEED;
+                self.y += direction_y * BULLET_SPEED;
+            } else {
+                self.x = target_x;
+                self.y = target_y;
+                self.current_path_index += 1;
+            }
         }
 
-        let (target_x, target_y) = self.path[self.current_path_index];
-        let dx = target_x - self.x;
-        let dy = target_y - self.y;
-        let distance = (dx * dx + dy * dy).sqrt();
-
-        if distance > BULLET_SPEED {
-            let direction_x = dx / distance;
-            let direction_y = dy / distance;
-            self.x += direction_x * BULLET_SPEED;
-            self.y += direction_y * BULLET_SPEED;
-        } else {
-            self.x = target_x;
-            self.y = target_y;
-            self.current_path_index += 1;
-        }
-
-        self.current_path_index >= self.path.len()
     }
 
+    fn bullet_should_be_removed(self) -> bool{
+        return self.current_path_index >= self.path.len();
+    }
     fn draw_bullet(&self) {
         let (next_x, next_y) = if self.current_path_index < self.path.len() {
             self.path[self.current_path_index]
@@ -1731,10 +1734,18 @@ impl Bullet {
         self.current_path_index >= self.path.len()
     }
 
+
     fn set_target(&mut self, t_x: f32, t_y: f32) {
         if self.current_path_index < self.path.len() {
             self.path[self.current_path_index] = (t_x, t_y);
         }
+    }
+
+    fn is_hitting_enemy(&self, enemy_x : f32, enemy_y : f32) -> bool{
+        let dx = self.x - enemy_x;
+        let dy = self.y - enemy_y;
+        let distance = (dx * dx + dy * dy).sqrt();
+        return distance < BULLET_SPEED;
     }
 }
 
@@ -2273,12 +2284,13 @@ turbo::go!({
 
                     // Check if any bullet has reached its target
                     for bullet in screen.bullets.iter_mut() {
-                        if bullet.has_reached_target() && !bullet.is_enemy {
-                            if !target_enemies.is_empty() {
-                                let enemy_index = target_enemies[*num_enemies_hit];
+                        if !target_enemies.is_empty(){
+                            let enemy_index = target_enemies[*num_enemies_hit];
+                            let enemy = &mut screen.enemies[enemy_index];
+                            
+                            if bullet.is_hitting_enemy(enemy.get_position()[0] as f32, enemy.get_position()[1] as f32) && !bullet.is_enemy {
+                                enemy.health -= bullet.damage; 
                                 {
-                                    let enemy = &mut screen.enemies[enemy_index];
-                                    enemy.health -= bullet.damage;
                                     if rand_out_of_100(calculate_brutality(&screen.upgrades) as u32) {
                                         let text = "Brutality: Critical Hit";
                                         let new_effect = TextEffect::new(
@@ -2293,23 +2305,20 @@ turbo::go!({
                                     }
                                 }
                                 create_explosion(&mut screen.explosions, bullet.x, bullet.y);
-
-                                *num_enemies_hit += 1;
-
-                                if target_enemies.len() > *num_enemies_hit {
-                                    *target_position = calculate_target_position(screen.enemies[target_enemies[*num_enemies_hit]].grid_position);
-                                    bullet.set_target(target_position.0,target_position.1);
-                                } else {
-                                    new_battle_state = Some(BattleState::EnemiesAttack { first_frame: true });
-                                }
-                            } else {
-                                new_battle_state = Some(BattleState::EnemiesAttack { first_frame: true });
-                            }
+                                //*num_enemies_hit += 1;
+                                //remove the enemy from target_enemies
+                                target_enemies.remove(target_enemies[0]);
+                            } 
                         }
                     }
-                    if let Some(state) = new_battle_state {
+                    screen.bullets.retain(|bullet| !bullet.clone().bullet_should_be_removed());
+                    //now check if all the bullets are gone, if so we should transition
+                    if screen.bullets.is_empty(){
+                        turbo::println!("Before Retain");
                         screen.enemies.retain(|e| e.health > 0);
-                        screen.battle_state = state;
+                        turbo::println!("After Retain");
+                        screen.battle_state = BattleState::EnemiesAttack { first_frame: true };
+                        turbo::println!("After state change");
                     }
                 },
                     
