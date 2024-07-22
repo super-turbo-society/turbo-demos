@@ -1024,8 +1024,8 @@ impl Upgrade {
 
         match self.kind {
             UpgradeKind::BoomerBomb => {
-                let start_x = (self.shape.offset.0 * 16 + TRUCK_BASE_OFFSET_X as usize) as f32;
-                let start_y = (self.shape.offset.1 * 16 + 32) as f32;
+                let start_x = self.get_gun_barrel_position().0;
+                let start_y = self.get_gun_barrel_position().1;
                 let end_x = (COLUMN_POSITIONS[0] + COLUMN_POSITIONS[1]) as f32 / 2.0;
                 let end_y = (ROW_POSITIONS[1] + ROW_POSITIONS[2]) as f32 / 2.0;
 
@@ -1042,8 +1042,8 @@ impl Upgrade {
             UpgradeKind::KnuckleBuster => {
                 if let Some(first_enemy) = enemies.first() {
                     let start_position = (
-                        self.shape.offset.0 as f32 * 16.0 + TRUCK_BASE_OFFSET_X as f32,
-                        self.shape.offset.1 as f32 * 16.0 + 32.0,
+                        self.get_gun_barrel_position().0,
+                        self.get_gun_barrel_position().1,
                     );
                     let mid_position = (
                         start_position.0,
@@ -1078,8 +1078,8 @@ impl Upgrade {
             _ => {
                 let target_enemies = self.target_enemies_list(enemies.to_vec());
                 if let Some(&first_enemy_index) = target_enemies.first() {
-                    let start_x = (self.shape.offset.0 * 16 + TRUCK_BASE_OFFSET_X as usize) as f32;
-                    let start_y = (self.shape.offset.1 * 16 + 32) as f32;
+                    let start_x = self.get_gun_barrel_position().0;
+                    let start_y = self.get_gun_barrel_position().1;
                     let (end_x, end_y) = calculate_target_position(enemies[first_enemy_index].grid_position);
 
                     let num_circles = 10; // Number of circles to draw
@@ -1233,12 +1233,18 @@ impl Upgrade {
         }
         return target_enemies;
     } 
-    fn get_start_position(&self) -> f32{
+    
+    fn get_gun_barrel_position(&self) -> (f32, f32) {
+        // Calculate the rightmost position as before
         let rightmost = self.shape.cells.keys().map(|&(x, _)| x).max().unwrap_or(0) + 1;
-        (self.shape.offset.0 + rightmost) as f32 * 16.0 + TRUCK_BASE_OFFSET_X as f32
+        let x = (self.shape.offset.0 + rightmost) as f32 * 16.0 + TRUCK_BASE_OFFSET_X as f32;
+    
+        // Calculate the y value based on the provided logic
+        let y = self.shape.offset.1 as f32 * 16.0 + 36.0;
+    
+        (x, y)
     }
 }
-
 
 impl Shape {
     fn new(cells: BTreeMap<(usize, usize), Cell>) -> Self {
@@ -2222,8 +2228,8 @@ turbo::go!({
                             screen.battle_state = BattleState::AnimateAttack {
                                 weapon_sprite: weapon_sprite,
                                 weapon_position: (
-                                    selected_upgrade.shape.offset.0 as f32 * 16.0 + TRUCK_BASE_OFFSET_X as f32,
-                                    selected_upgrade.shape.offset.1 as f32 * 16.0 + 32 as f32,
+                                    selected_upgrade.get_gun_barrel_position().0,
+                                    selected_upgrade.get_gun_barrel_position().1,
                                 ),
                                 target_position,
                                 target_enemies,
@@ -2479,12 +2485,7 @@ turbo::go!({
                 // Draw enemies
                 draw_enemies(&mut screen.enemies);
                 
-                // Determine the target enemies based on the selected weapon
-                // Would be good to get this out of being 'every frame' eventually
-                let selected_upgrade = &screen.upgrades[screen.selected_index];
-                let target_enemies = selected_upgrade.target_enemies_list(screen.enemies.clone());
-                let path = selected_upgrade.get_weapon_path(&screen.enemies);
-                selected_upgrade.draw_weapon_path(&path);
+
 
                 // // Highlight target enemies - this will change when we have a new highlight system
                 // for &enemy_index in &target_enemies {
@@ -2502,6 +2503,12 @@ turbo::go!({
 
                 // Highlight upgrades that have positive cooldown (e.g. turn red bc you can't use them)
                 if should_draw_ui(&screen.battle_state){
+                    // Determine the target enemies based on the selected weapon
+                    // Would be good to get this out of being 'every frame' eventually
+                    let selected_upgrade = &screen.upgrades[screen.selected_index];
+                    let target_enemies = selected_upgrade.target_enemies_list(screen.enemies.clone());
+                    let path = selected_upgrade.get_weapon_path(&screen.enemies);
+                    selected_upgrade.draw_weapon_path(&path);
                     for upgrade in &screen.upgrades {
                         if upgrade.cooldown_counter > 0 {
                             rect!(
