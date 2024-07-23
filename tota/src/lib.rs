@@ -337,7 +337,7 @@ turbo::cfg! {r#"
 
 const ROW_POSITIONS: [i32; 3] = [32, 104, 152];
 const COLUMN_POSITIONS: [i32; 2] = [176, 272];
-const BULLET_SPEED: f32 = 6.0;
+const BULLET_SPEED: f32 = 5.0;
 const TRUCK_BASE_OFFSET_X: i32 = 16;
 const TRUCK_BASE_OFFSET_Y: i32 = 112;
 //Enemy details
@@ -426,6 +426,7 @@ turbo::init! {
                     is_enemy: bool,
                     path: Vec<(f32, f32)>,
                     current_path_index: usize,
+                    sprite_name: String,
                 }>,
                 explosions: Vec<struct Explosion {
                     x: f32,
@@ -745,17 +746,14 @@ impl Default for GameState {
 
 impl BattleScreen {
     fn new(upgrades: Vec<Upgrade>) -> Self {
-        let tween_dur_min = 90;
-        let tween_rand_adj = 120;
-        let tween = Tween::new(ENEMY_OFFSET_START).duration(tween_dur_min).ease(Easing::EaseOutQuart);
         // Initialize the waves
         let waves = vec![
             Wave {
                 enemies: vec![
                     Enemy::new_car((0, 1), 1, 3),
-                    Enemy::new_car((0, 2), 2, 3),
-                    //Enemy::new_plane((0, 0), 3, 4),
-                    //Enemy::new_plane((1, 0), 3, 4),
+                    Enemy::new_car((1, 1), 2, 3),
+                    Enemy::new_plane((0, 0), 3, 4),
+                    Enemy::new_plane((1, 0), 3, 4),
                 ],
             },
             Wave {
@@ -1081,6 +1079,52 @@ impl Upgrade {
                     }
                 },
 
+                UpgradeKind::GoldfishGun => {
+                    let start_position = self.get_gun_barrel_position();
+                    let target_enemies = self.target_enemies_list(enemies.to_vec());
+        
+                    if target_enemies.is_empty() {
+                        let end_x = (COLUMN_POSITIONS[0] + COLUMN_POSITIONS[1]) as f32 / 2.0;
+                        let end_y = (ROW_POSITIONS[1] + ROW_POSITIONS[2]) as f32 / 2.0;
+                        let num_circles = 10;
+        
+                        for i in 0..num_circles {
+                            let t = i as f32 / (num_circles - 1) as f32;
+                            let x = start_position.0 + t * (end_x - start_position.0);
+                            let y = start_position.1 + t * (end_y - start_position.1) - (4.0 * t * (1.0 - t) * 50.0);
+                            path.push((x, y));
+                        }
+                    } else {
+                        let mut previous_position = start_position;
+        
+                        for &enemy_index in &target_enemies {
+                            let enemy_position = get_enemy_position(enemies[enemy_index].grid_position);
+                            let num_circles = 10;
+        
+                            for i in 0..num_circles {
+                                let t = i as f32 / (num_circles - 1) as f32;
+                                let x = previous_position.0 + t * (enemy_position.0 - previous_position.0);
+                                let y = previous_position.1 + t * (enemy_position.1 - previous_position.1) - (2.0 * t * (1.0 - t) * 50.0);
+                                path.push((x, y));
+                            }
+        
+                            previous_position = enemy_position;
+                        }
+        
+                        if target_enemies.len() == 1 {
+                            let end_x = previous_position.0 + 96.0;
+                            let end_y = (ROW_POSITIONS[1] + ROW_POSITIONS[2]) as f32 / 2.0;
+                            let num_circles = 10;
+        
+                            for i in 0..num_circles {
+                                let t = i as f32 / (num_circles - 1) as f32;
+                                let x = previous_position.0 + t * (end_x - previous_position.0);
+                                let y = previous_position.1 + t * (end_y - previous_position.1) - (4.0 * t * (1.0 - t) * 50.0);
+                                path.push((x, y));
+                            }
+                        }
+                    }
+                },
             _ => {
                 let target_enemies = self.target_enemies_list(enemies.to_vec());
                 if let Some(&first_enemy_index) = target_enemies.first() {
@@ -1123,30 +1167,39 @@ impl Upgrade {
                     }
                 }
             },
-            //Find the closest plane, then also target any cars directly below it
+            //Look for the closest plane, if you can't find it, then look for closest car
+            //if you hit one, then flop to the next one in the same row
+            //and keep flopping to the end
             UpgradeKind::GoldfishGun=> {
                 for (index, enemy) in enemies.iter().enumerate() {
                     if enemy.grid_position.0 == 0 && enemy.grid_position.1 == 0 {
                         target_enemies.push(index);
                         for (index, next_enemy) in enemies.iter().enumerate() {
-                            if next_enemy.grid_position.0 ==0{
-                                if next_enemy.grid_position.1 == 1 || next_enemy.grid_position.1 == 2{
+                            if next_enemy.grid_position.0 ==1 && next_enemy.grid_position.1 == 0{
                                     target_enemies.push(index);
                                     break;
                                 }
-                            }    
-                    }
-                    break;
-                }
-                else if enemy.grid_position.0 == 1 && enemy.grid_position.1 == 0{
-                    target_enemies.push(index);
+                            }
+                            break;    
+                        }
+                    else if enemy.grid_position.0 == 0 && enemy.grid_position.1 == 1{
+                        target_enemies.push(index);
                         for (index, next_enemy) in enemies.iter().enumerate() {
-                            if next_enemy.grid_position.0 == 1{
-                                if next_enemy.grid_position.1 == 1 || next_enemy.grid_position.1 == 2{
-                                    target_enemies.push(index)
-                                }
+                            if next_enemy.grid_position.0 ==1 && next_enemy.grid_position.1 == 1{
+                                target_enemies.push(index)
                             }    
                         }
+                        break;  
+                    }
+                    
+                    else if enemy.grid_position.0 == 0 && enemy.grid_position.1 == 2{
+                        target_enemies.push(index);
+                        for (index, next_enemy) in enemies.iter().enumerate() {
+                            if next_enemy.grid_position.0 ==1 && next_enemy.grid_position.1 == 2{
+                                target_enemies.push(index)
+                            }    
+                        }
+                        break;  
                     }
                 }
             },
@@ -1657,7 +1710,7 @@ fn create_enemy_bullet(bullets: &mut Vec<Bullet>, x: f32, y: f32, target_x: f32,
         path.push((x, y));
     }
 
-    bullets.push(Bullet::new(x, y, damage, true, path));
+    bullets.push(Bullet::new(x, y, damage, true, path, "bullet".to_string()));
 }
 
 //TODO: Figure out why this is never used
@@ -1687,7 +1740,7 @@ fn draw_enemy_ui(enemies: &mut [Enemy]) {
 }
 
 impl Bullet {
-    fn new(x: f32, y: f32, damage: i32, is_enemy: bool, path: Vec<(f32, f32)>) -> Self {
+    fn new(x: f32, y: f32, damage: i32, is_enemy: bool, path: Vec<(f32, f32)>, sprite_name: String) -> Self {
         Self {
             x,
             y,
@@ -1695,6 +1748,7 @@ impl Bullet {
             is_enemy,
             path,
             current_path_index: 0,
+            sprite_name,
         }
     }
     fn move_bullet(&mut self) {
@@ -1731,12 +1785,12 @@ impl Bullet {
         };
         let angle = (next_y - self.y).atan2(next_x - self.x);
         sprite!(
-            "bullet",
+            &self.sprite_name,
             x = self.x,
             y = self.y,
-            rotate = angle.to_degrees() + 90.0,
-            scale_x = 0.175,
-            scale_y = 0.175
+            rotate = angle.to_degrees(),
+            //scale_x = 0.175,
+            //scale_y = 0.175
         );
     }
 
@@ -1962,7 +2016,7 @@ fn car_presets() -> Vec<CarPreset> {
                 (Upgrade::new_knuckle_buster(), (0, 3)),
                 (Upgrade::new_slime_spitter(), (6, 5)),
                 (Upgrade::new_crooked_carburetor(), (4, 2)),
-                (Upgrade::new_boombox(), (4, 1)),
+                (Upgrade::new_goldfish_gun(), (4, 1)),
             ],
         },
         CarPreset {
@@ -2005,6 +2059,14 @@ fn centered_text_position(text: &str) -> u32{
 fn rand_out_of_100(odds: u32) -> bool {
     let chance: u32 = (rand() % 100) as u32; // Generate a random number between 0 and 99
     chance < odds // Return true if chance is less than speed, otherwise false
+}
+
+fn get_enemy_position(grid_position: (i32, i32)) -> (f32, f32) {
+    let column = grid_position.0;
+    let row = grid_position.1;
+    let x = COLUMN_POSITIONS[column as usize];
+    let y = ROW_POSITIONS[row as usize];
+    (x as f32, y as f32)
 }
 
 
@@ -2235,8 +2297,16 @@ turbo::go!({
                             let target_enemies = selected_upgrade.target_enemies_list(screen.enemies.clone());
                            
                            //TODO: set new sprites for each weapon to use as the bullet
-                            let weapon_sprite = "bullet".to_string();
-
+                            let mut weapon_sprite = "bullet".to_string();
+                            if selected_upgrade.kind == UpgradeKind::GoldfishGun{
+                                weapon_sprite = "goldfish_gun_ammo".to_string();
+                            }
+                            else if selected_upgrade.kind == UpgradeKind::BoomerBomb{
+                                weapon_sprite = "boomer_bomb_ammo".to_string();
+                            }
+                            else if selected_upgrade.kind == UpgradeKind::KnuckleBuster{
+                                weapon_sprite = "knuckle_buster_ammo".to_string();
+                            }
                             let target_position = if target_enemies.is_empty() {
                                 let [canvas_w, _canvas_h] = canvas_size!();
                                 (canvas_w as f32, selected_upgrade.shape.offset.1 as f32 * 16.0)
@@ -2273,8 +2343,8 @@ turbo::go!({
                 } => {
                     let mut new_battle_state: Option<BattleState> = None; // Temporary variable to hold the new battle state
                     //TODO: Change this so that it uses the regular bullet create function
+                    let selected_upgrade = &screen.upgrades[screen.selected_index];
                     if *active {
-                        let selected_upgrade = &screen.upgrades[screen.selected_index];
                         let bullet_path = selected_upgrade.get_weapon_path(&screen.enemies);
                         let bullet = Bullet::new(
                             weapon_position.0,
@@ -2282,6 +2352,7 @@ turbo::go!({
                             *damage,
                             false,
                             bullet_path,
+                            weapon_sprite.to_string(),
                         );
 
                         screen.bullets.push(bullet);
@@ -2296,7 +2367,7 @@ turbo::go!({
                         if !target_enemies.is_empty(){
                             let enemy_index = target_enemies[*num_enemies_hit];
                             let enemy = &mut screen.enemies[enemy_index];
-                            
+
                             if bullet.is_hitting_enemy(enemy.get_position()[0] as f32, enemy.get_position()[1] as f32) && !bullet.is_enemy {
                                 enemy.health -= bullet.damage; 
                                 {
@@ -2320,29 +2391,33 @@ turbo::go!({
                                 }
                             } 
                         }
+                        if selected_upgrade.kind == UpgradeKind::BoomerBomb{
+                            if bullet.has_reached_target(){
+                                //apply damage to all enemies and create explosion
+                                for i in &mut *target_enemies{
+                                    screen.enemies[*i].health -= bullet.damage;
+                                }
+                                create_explosion(&mut screen.explosions, bullet.x-16.0, bullet.y + 16.0);
+                            }
+                        }
                     }
                     //remove any bullets that have gone through their whole path
                     //TODO: Custom code for the boomer_bomb if it has target enemies but it gets removed without hitting them
                     screen.bullets.retain(|bullet| !bullet.clone().bullet_should_be_removed());
                     //now check if all the bullets are gone, if so we should transition
                     if screen.bullets.is_empty(){
-                        turbo::println!("Bullets Empty");
                         screen.enemies.retain(|e| e.health > 0);
-                        turbo::println!("Removing Enemies");
                         screen.battle_state = BattleState::EnemiesAttack { first_frame: true };
                         
                     }
                 },
                     
                 BattleState::EnemiesAttack { ref mut first_frame } => {
-                    turbo::println!("Enemies Attack");
                     //if all enemies are dead, transition to postcombat phase
                     if screen.enemies.is_empty() {
-                        turbo::println!("Enemy is empty");
                         screen.battle_state = BattleState::PostCombat { first_frame: tick() };
                     } 
                     else {
-                        turbo::println!("Enemy is not empty");
                         if *first_frame {
                             //Apply Speed Effect here - if it is accurate, this will skip the enemy shooting phase
                             if !rand_out_of_100(calculate_speed(&screen.upgrades) as u32){
@@ -2527,7 +2602,7 @@ turbo::go!({
                     // Determine the target enemies based on the selected weapon
                     // Would be good to get this out of being 'every frame' eventually
                     let selected_upgrade = &screen.upgrades[screen.selected_index];
-                    let target_enemies = selected_upgrade.target_enemies_list(screen.enemies.clone());
+                    //let target_enemies = selected_upgrade.target_enemies_list(screen.enemies.clone());
                     let path = selected_upgrade.get_weapon_path(&screen.enemies);
                     selected_upgrade.draw_weapon_path(&path);
                     for upgrade in &screen.upgrades {
