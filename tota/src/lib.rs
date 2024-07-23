@@ -752,8 +752,10 @@ impl BattleScreen {
         let waves = vec![
             Wave {
                 enemies: vec![
-                    Enemy::new_car((0, 1), 4, 2),
-                    Enemy::new_plane((1, 0), 2, 2),
+                    Enemy::new_car((0, 1), 1, 3),
+                    Enemy::new_car((0, 2), 2, 3),
+                    //Enemy::new_plane((0, 0), 3, 4),
+                    //Enemy::new_plane((1, 0), 3, 4),
                 ],
             },
             Wave {
@@ -1021,26 +1023,31 @@ impl Upgrade {
 
     fn get_weapon_path(&self, enemies: &[Enemy]) -> Vec<(f32, f32)> {
         let mut path = Vec::new();
+        if enemies.is_empty(){
+            return path;
+        }
+        else{
+            match self.kind {
+                UpgradeKind::BoomerBomb => {
+                    let start_x = self.get_gun_barrel_position().0;
+                    let start_y = self.get_gun_barrel_position().1;
+                    let end_x = (COLUMN_POSITIONS[0] + COLUMN_POSITIONS[1]) as f32 / 2.0;
+                    let end_y = (ROW_POSITIONS[1] + ROW_POSITIONS[2]) as f32 / 2.0;
 
-        match self.kind {
-            UpgradeKind::BoomerBomb => {
-                let start_x = self.get_gun_barrel_position().0;
-                let start_y = self.get_gun_barrel_position().1;
-                let end_x = (COLUMN_POSITIONS[0] + COLUMN_POSITIONS[1]) as f32 / 2.0;
-                let end_y = (ROW_POSITIONS[1] + ROW_POSITIONS[2]) as f32 / 2.0;
+                    let num_circles = 10; // Number of circles to draw
+                    for i in 0..num_circles {
+                        let t = i as f32 / (num_circles - 1) as f32;
+                        let x = start_x + t * (end_x - start_x);
+                        // Create a parabolic effect
+                        let y = start_y + t * (end_y - start_y) - (4.0 * t * (1.0 - t) * 50.0);
+                        path.push((x, y));
+                    }
+                },
 
-                let num_circles = 10; // Number of circles to draw
-                for i in 0..num_circles {
-                    let t = i as f32 / (num_circles - 1) as f32;
-                    let x = start_x + t * (end_x - start_x);
-                    // Create a parabolic effect
-                    let y = start_y + t * (end_y - start_y) - (4.0 * t * (1.0 - t) * 50.0);
-                    path.push((x, y));
-                }
-            },
-
-            UpgradeKind::KnuckleBuster => {
-                if let Some(first_enemy) = enemies.first() {
+                UpgradeKind::KnuckleBuster => {
+                    //target enemies will never be blank for this gun
+                    let target_enemies = self.target_enemies_list(enemies.to_vec());
+                    let first_enemy = &enemies[target_enemies[0]];
                     let start_position = (
                         self.get_gun_barrel_position().0,
                         self.get_gun_barrel_position().1,
@@ -1055,7 +1062,7 @@ impl Upgrade {
                     );
                     
                     let num_vertical_points = 3;
-                    let num_horizontal_points = 6;
+                    let num_horizontal_points = 7;
 
                     // Add vertical part of the path
                     for i in 0..=num_vertical_points {
@@ -1072,8 +1079,7 @@ impl Upgrade {
                         let y = mid_position.1;
                         path.push((x, y));
                     }
-                }
-            }
+                },
 
             _ => {
                 let target_enemies = self.target_enemies_list(enemies.to_vec());
@@ -1092,6 +1098,7 @@ impl Upgrade {
                 }
             },
         }
+    }
         path
     }
 
@@ -1106,7 +1113,7 @@ impl Upgrade {
     fn target_enemies_list(&self, enemies: Vec<Enemy>) -> Vec<usize>{
         let mut target_enemies = Vec::new();
         match self.kind{
-            //find the closest 
+            //Get all cars in the close column
             UpgradeKind::BoomerBomb => {
                 for (index, enemy) in enemies.iter().enumerate(){
                     if enemy.grid_position.0 == 0{
@@ -1235,11 +1242,9 @@ impl Upgrade {
     } 
     
     fn get_gun_barrel_position(&self) -> (f32, f32) {
-        // Calculate the rightmost position as before
+        
         let rightmost = self.shape.cells.keys().map(|&(x, _)| x).max().unwrap_or(0) + 1;
         let x = (self.shape.offset.0 + rightmost) as f32 * 16.0 + TRUCK_BASE_OFFSET_X as f32;
-    
-        // Calculate the y value based on the provided logic
         let y = self.shape.offset.1 as f32 * 16.0 + 36.0;
     
         (x, y)
@@ -2267,7 +2272,7 @@ turbo::go!({
                     ref damage, 
                 } => {
                     let mut new_battle_state: Option<BattleState> = None; // Temporary variable to hold the new battle state
-
+                    //TODO: Change this so that it uses the regular bullet create function
                     if *active {
                         let selected_upgrade = &screen.upgrades[screen.selected_index];
                         let bullet_path = selected_upgrade.get_weapon_path(&screen.enemies);
@@ -2280,8 +2285,6 @@ turbo::go!({
                         );
 
                         screen.bullets.push(bullet);
-
-
                         *active = false;
                     }
 
@@ -2289,6 +2292,7 @@ turbo::go!({
 
                     // Check if any bullet has reached its target
                     for bullet in screen.bullets.iter_mut() {
+
                         if !target_enemies.is_empty(){
                             let enemy_index = target_enemies[*num_enemies_hit];
                             let enemy = &mut screen.enemies[enemy_index];
@@ -2309,31 +2313,36 @@ turbo::go!({
                                         enemy.health = 0;
                                     }
                                 }
-                                create_explosion(&mut screen.explosions, bullet.x, bullet.y);
-                                //*num_enemies_hit += 1;
-                                //remove the enemy from target_enemies
-                                target_enemies.remove(target_enemies[0]);
+                                create_explosion(&mut screen.explosions, bullet.x, bullet.y);                                
+                                *num_enemies_hit+=1;
+                                if *num_enemies_hit >= target_enemies.len(){
+                                    target_enemies.clear();
+                                }
                             } 
                         }
                     }
+                    //remove any bullets that have gone through their whole path
+                    //TODO: Custom code for the boomer_bomb if it has target enemies but it gets removed without hitting them
                     screen.bullets.retain(|bullet| !bullet.clone().bullet_should_be_removed());
                     //now check if all the bullets are gone, if so we should transition
                     if screen.bullets.is_empty(){
-                        turbo::println!("Before Retain");
+                        turbo::println!("Bullets Empty");
                         screen.enemies.retain(|e| e.health > 0);
-                        turbo::println!("After Retain");
+                        turbo::println!("Removing Enemies");
                         screen.battle_state = BattleState::EnemiesAttack { first_frame: true };
-                        turbo::println!("After state change");
+                        
                     }
                 },
                     
-
                 BattleState::EnemiesAttack { ref mut first_frame } => {
+                    turbo::println!("Enemies Attack");
                     //if all enemies are dead, transition to postcombat phase
                     if screen.enemies.is_empty() {
+                        turbo::println!("Enemy is empty");
                         screen.battle_state = BattleState::PostCombat { first_frame: tick() };
                     } 
                     else {
+                        turbo::println!("Enemy is not empty");
                         if *first_frame {
                             //Apply Speed Effect here - if it is accurate, this will skip the enemy shooting phase
                             if !rand_out_of_100(calculate_speed(&screen.upgrades) as u32){
@@ -2498,8 +2507,6 @@ turbo::go!({
 
                 // Draw enemies
                 draw_enemies(&mut screen.enemies);
-                
-
 
                 // // Highlight target enemies - this will change when we have a new highlight system
                 // for &enemy_index in &target_enemies {
