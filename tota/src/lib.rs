@@ -1185,8 +1185,8 @@ impl Upgrade {
         //     circ!(x = x as i32, y = y as i32, d = circle_radius as u32, color = color as u32);
         // }
         //BORING SYSTEM
-        let circle_radius = 3.0;
-        let circle_color : u32 = 0xff0000ff;
+        let circle_radius = 6.0;
+        let circle_color : u32 = 0xdf3e23ff;//0xff0000ff;
         for &(x, y) in path {
             circ!(x = x as i32, y = y as i32, d = circle_radius as u32, color = circle_color);
         }
@@ -1818,6 +1818,14 @@ fn should_draw_ui(battle_state: &BattleState) -> bool {
     )
 }
 
+fn should_draw_weapon_path(battle_state: &BattleState) -> bool {
+    matches!(
+        battle_state,
+        BattleState::AnimateAttack { .. }
+        | BattleState::ChooseAttack { .. }
+    )
+}
+
 fn draw_enemies(enemies: &mut [Enemy]) {
     for enemy in enemies.iter_mut() {
         enemy.draw();
@@ -2003,7 +2011,8 @@ impl TextEffect{
             font = Font::L,
             color = self.text_color,
          );
-         // Draw the rounded border
+         
+        //Draw the rounded border
         rect!(w = rect_width + 2, h = rect_height, x = self.text_x-2, 
             y = self.text_y, color = 0, border_color = border_color, 
             border_width = 2, border_radius = 3);
@@ -2708,13 +2717,7 @@ turbo::go!({
                 // }
 
                 // Highlight upgrades that have positive cooldown (e.g. turn red bc you can't use them)
-                if should_draw_ui(&screen.battle_state){
-                    // Determine the target enemies based on the selected weapon
-                    // Would be good to get this out of being 'every frame' eventually
-                    let selected_upgrade = &screen.upgrades[screen.selected_index];
-                    //let target_enemies = selected_upgrade.target_enemies_list(screen.enemies.clone());
-                    let path = selected_upgrade.get_weapon_path(&screen.enemies);
-                    selected_upgrade.draw_weapon_path(&path);
+                if should_draw_ui(&screen.battle_state){                    
                     for upgrade in &screen.upgrades {
                         if upgrade.cooldown_counter > 0 {
                             rect!(
@@ -2727,6 +2730,14 @@ turbo::go!({
                         }
                     }
                 }
+
+                //Draw the weapon path only during choose attack and animate attack phase
+                if should_draw_weapon_path(&screen.battle_state){
+                    let selected_upgrade = &screen.upgrades[screen.selected_index];
+                    //let target_enemies = selected_upgrade.target_enemies_list(screen.enemies.clone());
+                    let path = selected_upgrade.get_weapon_path(&screen.enemies);
+                    selected_upgrade.draw_weapon_path(&path);
+                };
 
                 draw_bullets(&mut screen.bullets);
             
