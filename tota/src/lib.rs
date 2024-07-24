@@ -409,15 +409,14 @@ turbo::init! {
                 truck_tween: Tween<f32>,
                 upgrades: Vec<Upgrade>,
                 enemies: Vec<struct Enemy {
-                    kind: enum EnemyKind {
-                        Car,
-                        Plane,
-                    },
+                    kind: EnemyKind,
                     grid_position: (i32, i32),
                     max_health: i32,
                     health: i32,
-                    damage: i32, //this is how much damage this enemy does when it attacks
-                    position_offset: Tween<f32>, // This is the code to move the enemies into place
+                    damage: i32, 
+                    position_offset: Tween<f32>,
+                    car_type: Option<CarType>,
+                    rider_type: Option<RiderType>,
                 }>,
                 bullets: Vec<struct Bullet {
                     x: f32,
@@ -499,6 +498,29 @@ enum ScreenTransition {
     ToUpgradeSelection(Vec<Upgrade>),
     BackToBattle,
     None,
+}
+
+
+#[derive(Clone, Copy, BorshDeserialize, BorshSerialize, Debug, PartialEq)]
+enum EnemyKind {
+    Car,
+    Plane,
+}
+#[derive(Clone, Copy, BorshDeserialize, BorshSerialize, Debug, PartialEq)]
+enum RiderType {
+    Pistol,
+    Rifle,
+    Rocket,
+    Shotgun,
+    Boss,
+}
+
+#[derive(Clone, Copy, BorshDeserialize, BorshSerialize, Debug, PartialEq)]
+enum CarType {
+    Red,
+    Blue,
+    Green,
+    Boss,
 }
 
 impl GarageScreen {
@@ -750,45 +772,45 @@ impl BattleScreen {
         let waves = vec![
             Wave {
                 enemies: vec![
-                    Enemy::new_car((0, 1), 1, 3),
-                    Enemy::new_car((1, 1), 2, 3),
+                    Enemy::new_car((0, 1), CarType::Boss, RiderType::Boss),
+                    Enemy::new_car((1, 1), CarType::Green, RiderType::Rifle),
                     Enemy::new_plane((0, 0), 3, 4),
                     Enemy::new_plane((1, 0), 3, 4),
                 ],
             },
-            Wave {
-                enemies: vec![
-                    Enemy::new_car((0, 1), 6, 3),
-                    Enemy::new_car((0, 2), 4, 3),
-                    Enemy::new_plane((1, 0), 2, 3),
-                ],
-            },
-            Wave {
-                enemies: vec![
-                    Enemy::new_car((0, 1), 7, 3),
-                    Enemy::new_car((0, 2), 5, 3),
-                    Enemy::new_plane((0, 0), 3, 4),
-                    Enemy::new_plane((1, 0), 3, 4),
-                ],
-            },
-            Wave {
-                enemies: vec![
-                    Enemy::new_plane((0, 0), 3, 4),
-                    Enemy::new_plane((1, 0), 4, 4),
-                    Enemy::new_car((1, 1), 6, 3),
-                    Enemy::new_car((0, 2), 6, 3),
-                ],
-            },
-            Wave {
-                enemies: vec![
-                    Enemy::new_plane((0, 0), 3, 4),
-                    Enemy::new_plane((1, 0), 4, 4),
-                    Enemy::new_car((1, 1), 6, 3),
-                    Enemy::new_car((0, 2), 7, 3),
-                    Enemy::new_car((1, 2), 8, 3),
-                    Enemy::new_car((0, 1), 9, 3),
-                ],
-            },
+            // Wave {
+            //     enemies: vec![
+            //         Enemy::new_car((0, 1), 6, 3),
+            //         Enemy::new_car((0, 2), 4, 3),
+            //         Enemy::new_plane((1, 0), 2, 3),
+            //     ],
+            // },
+            // Wave {
+            //     enemies: vec![
+            //         Enemy::new_car((0, 1), 7, 3),
+            //         Enemy::new_car((0, 2), 5, 3),
+            //         Enemy::new_plane((0, 0), 3, 4),
+            //         Enemy::new_plane((1, 0), 3, 4),
+            //     ],
+            // },
+            // Wave {
+            //     enemies: vec![
+            //         Enemy::new_plane((0, 0), 3, 4),
+            //         Enemy::new_plane((1, 0), 4, 4),
+            //         Enemy::new_car((1, 1), 6, 3),
+            //         Enemy::new_car((0, 2), 6, 3),
+            //     ],
+            // },
+            // Wave {
+            //     enemies: vec![
+            //         Enemy::new_plane((0, 0), 3, 4),
+            //         Enemy::new_plane((1, 0), 4, 4),
+            //         Enemy::new_car((1, 1), 6, 3),
+            //         Enemy::new_car((0, 2), 7, 3),
+            //         Enemy::new_car((1, 2), 8, 3),
+            //         Enemy::new_car((0, 1), 9, 3),
+            //     ],
+            // },
         ];
 
         Self {
@@ -1495,27 +1517,48 @@ impl Shape {
 }
 
 impl Enemy {
-    fn new_car(grid_position: (i32, i32), max_health: i32, damage: i32) -> Self {
-        let tween = Tween::new(ENEMY_OFFSET_START).duration(TWEEN_DUR_MIN).ease(Easing::EaseOutQuart);
-        Self {
+    fn new_car(grid_position: (i32, i32), car_type: CarType, rider_type: RiderType) -> Self {
+        let health= match car_type {
+            CarType::Red => 3,
+            CarType::Blue => 5,
+            CarType::Green => 7,
+            CarType::Boss => 10,
+        };
+        
+        let damage = match rider_type{
+            RiderType::Pistol => 2,
+            RiderType::Shotgun => 4,
+            RiderType::Rifle => 5,
+            RiderType::Rocket => 6,
+            RiderType::Boss => 8,
+        };
+
+        let position_offset = Tween::new(ENEMY_OFFSET_START).duration(TWEEN_DUR_MIN).ease(Easing::EaseOutQuart);
+
+        Enemy {
             kind: EnemyKind::Car,
             grid_position,
-            max_health,
-            health: max_health,
+            max_health: health,
+            health,
             damage,
-            position_offset: tween.clone().duration(TWEEN_DUR_MIN + rand() as usize % TWEEN_RAND_ADJ),
+            position_offset,
+            car_type: Some(car_type),
+            rider_type: Some(rider_type),
         }
     }
 
-    fn new_plane(grid_position: (i32, i32), max_health: i32, damage: i32) -> Self {
-        let tween = Tween::new(ENEMY_OFFSET_START).duration(TWEEN_DUR_MIN).ease(Easing::EaseOutQuart);
-        Self {
+    fn new_plane(grid_position: (i32, i32), health: i32, damage: i32) -> Self {
+        let position_offset = Tween::new(ENEMY_OFFSET_START).duration(TWEEN_DUR_MIN).ease(Easing::EaseOutQuart);
+
+        Enemy {
             kind: EnemyKind::Plane,
             grid_position,
-            max_health,
-            health: max_health,
+            max_health: health,
+            health,
             damage,
-            position_offset: tween.clone().duration(TWEEN_DUR_MIN + rand() as usize % TWEEN_RAND_ADJ),
+            position_offset,
+            car_type: None,
+            rider_type: None,
         }
     }
     
@@ -1526,28 +1569,49 @@ impl Enemy {
         vec![x, y]
     }
 
+    fn get_hit_position(&mut self) -> Vec<i32>{
+        let (column, row) = self.grid_position;
+        let x = COLUMN_POSITIONS[column as usize] + self.position_offset.get() as i32 + 48;
+        let y = ROW_POSITIONS[row as usize] + 16;
+        vec![x, y]
+    }
+
     fn draw(&mut self) {
         let x = self.get_position()[0];
         let y = self.get_position()[1];
+        let mut boss_gun_adj_x = 0;
+        let mut boss_base_adj_y = 0;
+        
+        if self.car_type == Some(CarType::Boss){
+            boss_gun_adj_x = -22;
+            boss_base_adj_y = -16;
+        }
+        let base_sprite = match self.car_type{
+            Some(CarType::Red) => "enemy_red_car",
+            Some(CarType::Blue) => "enemy_blue_car",
+            Some(CarType::Green) => "enemy_green_truck",
+            _=> "enemy_boss_car"
+        };
+        //TODO: Was having some trouble with the sprite sheet so we are just using one set of tires for now, it looks OK to me
+        //let tire_sprite = format!("{}_tires", base_sprite);
+        let rider_sprite = match self.rider_type{
+            Some(RiderType::Pistol) => "enemy_gun_pistol",
+            Some(RiderType::Shotgun) => "enemy_gun_shotgun",
+            Some(RiderType::Rifle) => "enemy_gun_rifle",
+            Some(RiderType::Rocket) => "enemy_gun_rocket",
+            _=> "enemy_gun_boss"
+        };   
 
         match self.kind {
+            
+
             EnemyKind::Car => {
-                // Draw enemy base
-                // sprite!(
-                //     "enemy_01_base",
-                //     x = x,
-                //     y = y,
-                //     sw = 96,
-                //     flip_x = true
-                //  );
                 sprite!(
-                    "enemy_blue_car",
+                    base_sprite,
                     x = x,
-                    y = y,
-                    sw = 96,
-                    //flip_x = true
+                    y = y+boss_base_adj_y,
                 );
-                // Draw enemy tires
+                
                 sprite!(
                     "enemy_blue_car_tires",
                     x = x,
@@ -1556,16 +1620,16 @@ impl Enemy {
                     fps = fps::FAST,
                 );
                 
-                // Draw enemy shooter
+                
                 sprite!(
-                    "enemy_gun_01",
-                    x = x + 22,
+                    rider_sprite,
+                    x = x + 22 + boss_gun_adj_x,
                     y = y - 12,
                 );
             },
             EnemyKind::Plane => {
                 sprite!(
-                    "enemy_03_base",
+                    "enemy_plane_base",
                     x = x,
                     y = y,
                     sw = 105,
@@ -2371,7 +2435,7 @@ turbo::go!({
                             if bullet.is_hitting_enemy(enemy.get_position()[0] as f32, enemy.get_position()[1] as f32) && !bullet.is_enemy {
                                 enemy.health -= bullet.damage; 
                                 {
-                                    if rand_out_of_100(calculate_brutality(&screen.upgrades) as u32) {
+                                    if rand_out_of_100(100) {
                                         let text = "Brutality: Critical Hit";
                                         let new_effect = TextEffect::new(
                                             text,
@@ -2381,7 +2445,7 @@ turbo::go!({
                                             10,
                                         );
                                         screen.text_effects.push(new_effect);
-                                        enemy.health = 0;
+                                        enemy.health -= bullet.damage;
                                     }
                                 }
                                 create_explosion(&mut screen.explosions, bullet.x, bullet.y);                                
@@ -2396,6 +2460,19 @@ turbo::go!({
                                 //apply damage to all enemies and create explosion
                                 for i in &mut *target_enemies{
                                     screen.enemies[*i].health -= bullet.damage;
+                                    //check for critical hit
+                                    if rand_out_of_100(calculate_brutality(&screen.upgrades) as u32) {
+                                        let text = "Brutality: Critical Hit";
+                                        let new_effect = TextEffect::new(
+                                            text,
+                                            0x564f5bff,
+                                            0xcbc6c1FF,
+                                            centered_text_position(text) as i32,
+                                            10,
+                                        );
+                                        screen.text_effects.push(new_effect);
+                                        screen.enemies[*i].health -= bullet.damage;
+                                    }
                                 }
                                 create_explosion(&mut screen.explosions, bullet.x-16.0, bullet.y + 16.0);
                             }
