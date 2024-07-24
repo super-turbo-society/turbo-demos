@@ -1185,7 +1185,7 @@ impl Upgrade {
         //     circ!(x = x as i32, y = y as i32, d = circle_radius as u32, color = color as u32);
         // }
         //BORING SYSTEM
-        let circle_radius = 4.0;
+        let circle_radius = 3.0;
         let circle_color : u32 = 0xff0000ff;
         for &(x, y) in path {
             circ!(x = x as i32, y = y as i32, d = circle_radius as u32, color = circle_color);
@@ -1700,6 +1700,8 @@ fn show_health(player_health: i32) {
     let rect_height = 8;
     let x = 70;
     let y = 160;
+    let flash_time_on = 45;
+    let flash_time_off = 8;
 
     // Draw the full health bar background (black)
     rect!(
@@ -1710,16 +1712,25 @@ fn show_health(player_health: i32) {
         color = 0x000000ff // Black color
     );
 
-    // Draw the current health bar (red)
-    let health_width = (player_health.max(0) as f32 / 100.0 * full_rect_width as f32) as i32;
-    rect!(
-        w = health_width,
-        h = rect_height,
-        x = x,
-        y = y,
-        color = 0xff0000ff // Red color
-    );
+    //Flash player health on and off if it is below 20
+    let show_red_bar = if player_health <= 20 {
+        let total_flash_time = flash_time_on + flash_time_off;
+        tick() % total_flash_time < flash_time_on
+    } else {
+        true
+    };
 
+    // Draw the current health bar (red)
+    if show_red_bar {
+        let health_width = (player_health.max(0) as f32 / 100.0 * full_rect_width as f32) as i32;
+        rect!(
+            w = health_width,
+            h = rect_height,
+            x = x,
+            y = y,
+            color = 0xff0000ff // Red color
+        );
+    }
     //border
     let border_color: u32 =  0xa69e9aff;
     rect!(w = full_rect_width + 2, h = rect_height, x = x-1, 
