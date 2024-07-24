@@ -1067,14 +1067,15 @@ impl Upgrade {
                 UpgradeKind::KnuckleBuster => {
                     //target enemies will never be blank for this gun
                     let target_enemies = self.target_enemies_list(enemies.to_vec());
-                    let first_enemy = &enemies[target_enemies[0]];
+                    let mut first_enemy = enemies[target_enemies[0]].clone();
                     let start_position = (
                         self.get_gun_barrel_position().0,
                         self.get_gun_barrel_position().1,
                     );
                     let mid_position = (
                         start_position.0,
-                        ROW_POSITIONS[first_enemy.grid_position.1 as usize] as f32,
+                        //ROW_POSITIONS[first_enemy.grid_position.1 as usize] as f32,
+                        first_enemy.get_centered_position()[1] as f32
                     );
                     let end_position = (
                         canvas_size()[0] as f32,
@@ -1120,7 +1121,7 @@ impl Upgrade {
                         let mut previous_position = start_position;
         
                         for &enemy_index in &target_enemies {
-                            let enemy_position = get_enemy_position(enemies[enemy_index].grid_position);
+                            let enemy_position = get_enemy_center_position(enemies[enemy_index].grid_position);
                             let num_circles = 10;
         
                             for i in 0..num_circles {
@@ -1152,9 +1153,9 @@ impl Upgrade {
                 if let Some(&first_enemy_index) = target_enemies.first() {
                     let start_x = self.get_gun_barrel_position().0;
                     let start_y = self.get_gun_barrel_position().1;
-                    let (end_x, end_y) = calculate_target_position(enemies[first_enemy_index].grid_position);
+                    let (end_x, end_y) = get_enemy_center_position(enemies[first_enemy_index].grid_position);
 
-                    let num_circles = 10; // Number of circles to draw
+                    let num_circles = 5; // Number of circles to draw
                     for i in 0..num_circles {
                         let t = i as f32 / (num_circles - 1) as f32;
                         let x = start_x + t * (end_x - start_x);
@@ -1169,6 +1170,21 @@ impl Upgrade {
     }
 
     fn draw_weapon_path(&self, path: &[(f32, f32)]) {
+        //FLASHY SYSTEM
+        // let circle_radius = 3.0;
+        // let cycle_duration = 120; // Adjust this value to change the speed of the animation
+        // for (i, &(x, y)) in path.iter().enumerate() {
+        //     // Calculate the opacity value based on the tick and index
+        //     let opacity = ((tick() as usize + path.len() - i) % cycle_duration) as f32 / cycle_duration as f32;
+        //     // Determine the color based on the opacity
+        //     let color: u32 = if opacity >= 0.5 {
+        //         0xFF0000FF // Fully opaque red
+        //     } else {
+        //         0x80FF0000 // Half-transparent red
+        //     };
+        //     circ!(x = x as i32, y = y as i32, d = circle_radius as u32, color = color as u32);
+        // }
+        //BORING SYSTEM
         let circle_radius = 4.0;
         let circle_color : u32 = 0xff0000ff;
         for &(x, y) in path {
@@ -1569,10 +1585,10 @@ impl Enemy {
         vec![x, y]
     }
 
-    fn get_hit_position(&mut self) -> Vec<i32>{
+    fn get_centered_position(&mut self) -> Vec<i32>{
         let (column, row) = self.grid_position;
         let x = COLUMN_POSITIONS[column as usize] + self.position_offset.get() as i32 + 48;
-        let y = ROW_POSITIONS[row as usize] + 16;
+        let y = ROW_POSITIONS[row as usize];
         vec![x, y]
     }
 
@@ -1841,6 +1857,7 @@ impl Bullet {
     fn bullet_should_be_removed(self) -> bool{
         return self.current_path_index >= self.path.len();
     }
+    
     fn draw_bullet(&self) {
         let (next_x, next_y) = if self.current_path_index < self.path.len() {
             self.path[self.current_path_index]
@@ -1853,15 +1870,12 @@ impl Bullet {
             x = self.x,
             y = self.y,
             rotate = angle.to_degrees(),
-            //scale_x = 0.175,
-            //scale_y = 0.175
         );
     }
 
     fn has_reached_target(&self) -> bool {
         self.current_path_index >= self.path.len()
     }
-
 
     fn set_target(&mut self, t_x: f32, t_y: f32) {
         if self.current_path_index < self.path.len() {
@@ -2129,6 +2143,14 @@ fn get_enemy_position(grid_position: (i32, i32)) -> (f32, f32) {
     let column = grid_position.0;
     let row = grid_position.1;
     let x = COLUMN_POSITIONS[column as usize];
+    let y = ROW_POSITIONS[row as usize];
+    (x as f32, y as f32)
+}
+
+fn get_enemy_center_position(grid_position: (i32, i32)) -> (f32, f32) {
+    let column = grid_position.0;
+    let row = grid_position.1;
+    let x = COLUMN_POSITIONS[column as usize] + 48;
     let y = ROW_POSITIONS[row as usize];
     (x as f32, y as f32)
 }
@@ -2432,7 +2454,7 @@ turbo::go!({
                             let enemy_index = target_enemies[*num_enemies_hit];
                             let enemy = &mut screen.enemies[enemy_index];
 
-                            if bullet.is_hitting_enemy(enemy.get_position()[0] as f32, enemy.get_position()[1] as f32) && !bullet.is_enemy {
+                            if bullet.is_hitting_enemy(enemy.get_centered_position()[0] as f32, enemy.get_centered_position()[1] as f32) && !bullet.is_enemy {
                                 enemy.health -= bullet.damage; 
                                 {
                                     if rand_out_of_100(100) {
@@ -2448,7 +2470,7 @@ turbo::go!({
                                         enemy.health -= bullet.damage;
                                     }
                                 }
-                                create_explosion(&mut screen.explosions, bullet.x, bullet.y);                                
+                                create_explosion(&mut screen.explosions, bullet.x-16.0, bullet.y);                                
                                 *num_enemies_hit+=1;
                                 if *num_enemies_hit >= target_enemies.len(){
                                     target_enemies.clear();
