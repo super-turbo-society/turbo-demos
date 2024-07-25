@@ -443,7 +443,6 @@ turbo::init! {
                     AnimateAttack {
                         weapon_sprite: String,
                         weapon_position: (f32, f32),
-                        target_position: (f32, f32),
                         target_enemies: Vec<usize>,
                         num_enemies_hit: usize,
                         active: bool,
@@ -656,48 +655,55 @@ impl UpgradeSelectionScreen {
     }
 
     fn handle_input(&mut self) -> ScreenTransition {
+        let gp = gamepad(0);
+        let btns = [gp.a, gp.b, gp.start];
         if self.placing_upgrade {
             // Move the upgrade
             if let Some(last_upgrade) = self.upgrades.last_mut() {
-                if gamepad(0).up.just_pressed() {
+                if gp.up.just_pressed() {
                     last_upgrade.shape.move_up();
                 }
-                if gamepad(0).down.just_pressed() {
+                if gp.down.just_pressed() {
                     last_upgrade.shape.move_down();
                 }
-                if gamepad(0).left.just_pressed() {
+                if gp.left.just_pressed() {
                     last_upgrade.shape.move_left();
                 }
-                if gamepad(0).right.just_pressed() {
+                if gp.right.just_pressed() {
                     last_upgrade.shape.move_right();
                 }
             }
 
             // Check if the upgrade can be placed
-            if gamepad(0).a.just_pressed() {
-                if let Some(last_upgrade) = self.upgrades.last() {
-                    if self.can_place_upgrade(last_upgrade) {
-                        return ScreenTransition::BackToBattle;
+            //TODO: Refactor this so we have a consistent way to transition back to battle
+            for btn in btns {
+                if btn.just_pressed() {
+                    if let Some(last_upgrade) = self.upgrades.last() {
+                        if self.can_place_upgrade(last_upgrade) {
+                            return ScreenTransition::BackToBattle;
+                        }
                     }
                 }
             }
         } else {
-            if gamepad(0).right.just_pressed() {
+            if gp.right.just_pressed() {
                 if self.selected_index == 0 {
                     self.selected_index = self.options.len() - 1;
                 } else {
                     self.selected_index -= 1;
                 }
             }
-            if gamepad(0).left.just_pressed() {
+            if gp.left.just_pressed() {
                 self.selected_index = (self.selected_index + 1) % self.options.len();
             }
-            if gamepad(0).a.just_pressed() {
-                if let Some(selected_upgrade) = self.options.get(self.selected_index) {
-                    let mut new_upgrade = selected_upgrade.clone();
-                    new_upgrade.shape.offset = (0, 0); // Set the position to (0, 0)
-                    self.upgrades.push(new_upgrade);
-                    self.placing_upgrade = true;
+            for btn in btns {
+                if btn.just_pressed() {
+                    if let Some(selected_upgrade) = self.options.get(self.selected_index) {
+                        let mut new_upgrade = selected_upgrade.clone();
+                        new_upgrade.shape.offset = (0, 0);
+                        self.upgrades.push(new_upgrade);
+                        self.placing_upgrade = true;
+                    }
                 }
             }
         }
@@ -707,8 +713,8 @@ impl UpgradeSelectionScreen {
     fn draw(&self, driver_name: &str) {
         clear!(0xeae0ddff);
         let [canvas_w, canvas_h] = canvas_size!();
-        let grid_offset_x = ((canvas_w - 128) / 2) as usize; // Adjust 128 based on grid width
-        let grid_offset_y = ((canvas_h - 128) / 2) as usize; // Adjust 128 based on grid height
+        let grid_offset_x = ((canvas_w - 128) / 2) as usize;
+        let grid_offset_y = ((canvas_h - 128) / 2) as usize;
 
         // Draw the grid
         sprite!("main_grid_16x16", x = grid_offset_x, y = grid_offset_y);
@@ -772,45 +778,43 @@ impl BattleScreen {
         let waves = vec![
             Wave {
                 enemies: vec![
-                    Enemy::new_car((0, 1), CarType::Boss, RiderType::Boss),
-                    Enemy::new_car((1, 1), CarType::Green, RiderType::Rifle),
-                    Enemy::new_plane((0, 0), 3, 4),
-                    Enemy::new_plane((1, 0), 3, 4),
+                    Enemy::new_car((1, 1), CarType::Red, RiderType::Rifle),
+                    Enemy::new_plane((0, 0), 2, 3),
                 ],
             },
-            // Wave {
-            //     enemies: vec![
-            //         Enemy::new_car((0, 1), 6, 3),
-            //         Enemy::new_car((0, 2), 4, 3),
-            //         Enemy::new_plane((1, 0), 2, 3),
-            //     ],
-            // },
-            // Wave {
-            //     enemies: vec![
-            //         Enemy::new_car((0, 1), 7, 3),
-            //         Enemy::new_car((0, 2), 5, 3),
-            //         Enemy::new_plane((0, 0), 3, 4),
-            //         Enemy::new_plane((1, 0), 3, 4),
-            //     ],
-            // },
-            // Wave {
-            //     enemies: vec![
-            //         Enemy::new_plane((0, 0), 3, 4),
-            //         Enemy::new_plane((1, 0), 4, 4),
-            //         Enemy::new_car((1, 1), 6, 3),
-            //         Enemy::new_car((0, 2), 6, 3),
-            //     ],
-            // },
-            // Wave {
-            //     enemies: vec![
-            //         Enemy::new_plane((0, 0), 3, 4),
-            //         Enemy::new_plane((1, 0), 4, 4),
-            //         Enemy::new_car((1, 1), 6, 3),
-            //         Enemy::new_car((0, 2), 7, 3),
-            //         Enemy::new_car((1, 2), 8, 3),
-            //         Enemy::new_car((0, 1), 9, 3),
-            //     ],
-            // },
+            Wave {
+                enemies: vec![
+                    Enemy::new_car((0, 1), CarType::Blue, RiderType::Pistol),
+                    Enemy::new_car((0, 2), CarType::Red, RiderType::Rifle),
+                    Enemy::new_plane((1, 0), 3, 3),
+                ],
+            },
+            Wave {
+                enemies: vec![
+                    Enemy::new_car((0, 1),CarType::Green, RiderType::Rocket),
+                    Enemy::new_car((0, 2), CarType::Red, RiderType::Rifle),
+                    Enemy::new_car((1, 1), CarType::Blue, RiderType::Rifle),
+                    Enemy::new_plane((0, 0), 4, 3),
+                    //Enemy::new_plane((1, 0), 4, 3),
+                ],
+            },
+            Wave {
+                enemies: vec![
+                    Enemy::new_plane((0, 0), 3, 4),
+                    Enemy::new_plane((1, 0), 4, 4),
+                    Enemy::new_car((0, 1), CarType::Green, RiderType::Rocket),
+                    Enemy::new_car((0, 2), CarType::Blue, RiderType::Shotgun),
+                    Enemy::new_car((1, 1), CarType::Green, RiderType::Pistol),
+                ],
+            },
+            Wave {
+                enemies: vec![
+                    Enemy::new_plane((0, 0), 3, 4),
+                    Enemy::new_plane((1, 0), 4, 4),
+                    Enemy::new_car((0, 2), CarType::Blue, RiderType::Rifle),
+                    Enemy::new_car((0, 1), CarType::Boss, RiderType::Boss),
+                ],
+            },
         ];
 
         Self {
@@ -892,7 +896,7 @@ impl Upgrade {
             cells.insert((7, 2), Cell { edges: [false, false, false, false] });
     
             Shape::new(cells)
-        }, 5, 10, 0, 0, 0, 0, "truck".to_string(), false)
+        }, 5, 2, 0, 0, 0, 0, "truck".to_string(), false)
     }
     #[rustfmt::skip]
     fn new_meat_grinder() -> Self {
@@ -933,7 +937,7 @@ impl Upgrade {
             cells.insert((0, 0), Cell { edges: [false, true, false, false] });
             cells.insert((1, 0), Cell { edges: [false, false, false, false] });
             Shape::new(cells)
-        }, 3, 0, 0, 0, 3, 0, "boomer_bomb".to_string(), true)
+        }, 4, 0, 5, 3, 4, 5, "boomer_bomb".to_string(), true)
     }
 
     #[rustfmt::skip]
@@ -944,7 +948,7 @@ impl Upgrade {
             cells.insert((1, 0), Cell { edges: [false, false, false, false] });
             cells.insert((2, 0), Cell { edges: [false, false, false, false] });
             Shape::new(cells)
-        }, 2, 0, 0, 0, 1, 0, "the_ripper".to_string(), true)
+        }, 2, 5, 0, 0, 1, 0, "the_ripper".to_string(), true)
     }
     fn new_slime_spitter() -> Self {
         Self::new(UpgradeKind::SlimeSpitter, {
@@ -952,7 +956,7 @@ impl Upgrade {
             cells.insert((0, 0), Cell { edges: [false, true, false, false] });
             cells.insert((1, 0), Cell { edges: [false, false, false, false] });
             Shape::new(cells)
-        }, 3, 0, 0, 0, 3, 0, "slime_spitter".to_string(), true)
+        }, 1, 2, 2, 2, 2, 2, "slime_spitter".to_string(), true)
     }
     fn new_goldfish_gun() -> Self {
         Self::new(UpgradeKind::GoldfishGun, {
@@ -962,7 +966,7 @@ impl Upgrade {
             cells.insert((2, 0), Cell { edges: [false, false, false, false] });
             cells.insert((0, 1), Cell { edges: [false, false, false, false] });
             Shape::new(cells)
-        }, 3, 0, 0, 0, 2, 0, "goldfish_gun".to_string(), true)   
+        }, 3, 3, 0, 3, 2, 3, "goldfish_gun".to_string(), true)   
     }
     fn new_crap_stack() -> Self {
         Self::new(UpgradeKind::CrapStack, {
@@ -979,7 +983,7 @@ impl Upgrade {
             cells.insert((2, 0), Cell { edges: [false, true, false, false] });
             cells.insert((3, 0), Cell { edges: [false, true, false, false] });
             Shape::new(cells)
-        }, 3, 0, 0, 0, 2, 0, "knuckle_buster".to_string(), true)
+        }, 3, 0, 6, 0, 3, 2, "knuckle_buster".to_string(), true)
     }
     fn new_the_persuader() -> Self {
         Self::new(UpgradeKind::ThePersuader, {
@@ -990,7 +994,7 @@ impl Upgrade {
             cells.insert((0, 1), Cell { edges: [false, true, false, false] });
             cells.insert((1, 1), Cell { edges: [false, true, false, false] });
             Shape::new(cells)
-        }, 2, 0, 0, 0, 2, 0, "the_persuader".to_string(), true)
+        }, 2, 5, 2, 0, 2, 2, "the_persuader".to_string(), true)
     }
     fn new_jailed_ducks() -> Self {
         Self::new(UpgradeKind::JailedDucks, {
@@ -1041,6 +1045,147 @@ impl Upgrade {
         }, 1, 0, 0, 2, 2, 1, "engine_shield".to_string(), false)
     }
 
+    fn target_enemies_list(&self, enemies: Vec<Enemy>) -> Vec<usize>{
+        let mut target_enemies = Vec::new();
+        match self.kind{
+            //Get all cars in the close column
+            UpgradeKind::BoomerBomb => {
+                for (index, enemy) in enemies.iter().enumerate(){
+                    if enemy.grid_position.0 == 0{
+                        if enemy.grid_position.1 == 1 || enemy.grid_position.1 == 2{
+                            target_enemies.push(index);
+                        }
+                    }
+                }
+            },
+            //Look for the closest plane, if you can't find it, then look for closest car
+            //if you hit one, then flop to the next one in the same row
+            //and keep flopping to the end
+            UpgradeKind::GoldfishGun=> {
+                for (index, enemy) in enemies.iter().enumerate() {
+                    if enemy.grid_position.0 == 0 && enemy.grid_position.1 == 0 {
+                        target_enemies.push(index);
+                        for (index, next_enemy) in enemies.iter().enumerate() {
+                            if next_enemy.grid_position.0 ==1 && next_enemy.grid_position.1 == 0{
+                                    target_enemies.push(index);
+                                    break;
+                                }
+                            }
+                            break;    
+                        }
+                    else if enemy.grid_position.0 == 0 && enemy.grid_position.1 == 1{
+                        target_enemies.push(index);
+                        for (index, next_enemy) in enemies.iter().enumerate() {
+                            if next_enemy.grid_position.0 ==1 && next_enemy.grid_position.1 == 1{
+                                target_enemies.push(index)
+                            }    
+                        }
+                        break;  
+                    }
+                    
+                    else if enemy.grid_position.0 == 0 && enemy.grid_position.1 == 2{
+                        target_enemies.push(index);
+                        for (index, next_enemy) in enemies.iter().enumerate() {
+                            if next_enemy.grid_position.0 ==1 && next_enemy.grid_position.1 == 2{
+                                target_enemies.push(index)
+                            }    
+                        }
+                        break;  
+                    }
+                }
+            },
+            //find the row with the most enemies, prioritizing the lowest, and add all in that row
+            UpgradeKind::KnuckleBuster => {
+
+                let mut a = 0;
+                let mut b = 0;
+                let mut c = 0;
+                for enemy in enemies.clone() {
+                    if enemy.grid_position.1 == 0 {
+                        a+=1;
+                    }
+                    else if enemy.grid_position.1 == 1 {
+                        b +=1;
+                    }
+                    else if enemy.grid_position.1 == 2{
+                        c +=1;
+                    }
+                }
+                for (index, enemy) in enemies.iter().enumerate() {
+                    if c >= b && c >= a {
+                        if enemy.grid_position.1 == 2{
+                            target_enemies.push(index);
+                        }
+                    }
+                    else if b >= a{
+                        if enemy.grid_position.1 == 1 {
+                            target_enemies.push(index);
+                        }
+                    }
+                    else{
+                        if enemy.grid_position.1 == 0{
+                            target_enemies.push(index);
+                        }
+                    }
+                
+                }
+            },
+            
+            //target 1 enemy, starting with the closest, starting from the bottom
+            UpgradeKind::SlimeSpitter => {
+                for (index, enemy) in enemies.iter().enumerate(){
+                    if enemy.grid_position.0 == 0{
+                        if enemy.grid_position.1 == 0{
+                            target_enemies.push(index);
+                            break;
+                        }
+                        else if enemy.grid_position.1 == 1{
+                            target_enemies.push(index);
+                            break;
+                        }
+                        else{
+                            target_enemies.push(index);
+                            break;
+                        }
+                    }
+                    else if enemy.grid_position.0 == 1{
+                        if enemy.grid_position.1 == 0{
+                            target_enemies.push(index);
+                            break;
+                        }
+                        else if enemy.grid_position.1 == 1{
+                            target_enemies.push(index);
+                            break;
+                        }
+                        else{
+                            target_enemies.push(index);
+                            break;
+                        }
+
+                    }
+                }
+            },
+
+            //targets all air enemies
+            UpgradeKind::ThePersuader => {
+                for (index, enemy) in enemies.iter().enumerate(){
+                if enemy.grid_position.1 == 0{
+                    target_enemies.push(index);
+                }
+                }
+            },
+
+            //target all enemies
+            UpgradeKind::TheRipper => {
+                for (index, enemy) in enemies.iter().enumerate(){
+                    target_enemies.push(index);
+                }
+            },
+            _ => {}
+        }
+        return target_enemies;
+    } 
+    
     fn get_weapon_path(&self, enemies: &[Enemy]) -> Vec<(f32, f32)> {
         let mut path = Vec::new();
         if enemies.is_empty(){
@@ -1135,37 +1280,103 @@ impl Upgrade {
                         }
         
                         if target_enemies.len() == 1 {
-                            let end_x = previous_position.0 + 96.0;
-                            let end_y = (ROW_POSITIONS[1] + ROW_POSITIONS[2]) as f32 / 2.0;
+                            let end_x = previous_position.0 + 120.0;
+                            let end_y = previous_position.1;
                             let num_circles = 10;
         
                             for i in 0..num_circles {
                                 let t = i as f32 / (num_circles - 1) as f32;
                                 let x = previous_position.0 + t * (end_x - previous_position.0);
-                                let y = previous_position.1 + t * (end_y - previous_position.1) - (4.0 * t * (1.0 - t) * 50.0);
+                                let y = previous_position.1 + t * (end_y - previous_position.1) - (2.0 * t * (1.0 - t) * 50.0);
                                 path.push((x, y));
                             }
                         }
                     }
                 },
-            _ => {
-                let target_enemies = self.target_enemies_list(enemies.to_vec());
-                if let Some(&first_enemy_index) = target_enemies.first() {
-                    let start_x = self.get_gun_barrel_position().0;
-                    let start_y = self.get_gun_barrel_position().1;
-                    let (end_x, end_y) = get_enemy_center_position(enemies[first_enemy_index].grid_position);
-
-                    let num_circles = 5; // Number of circles to draw
-                    for i in 0..num_circles {
-                        let t = i as f32 / (num_circles - 1) as f32;
-                        let x = start_x + t * (end_x - start_x);
-                        let y = start_y + t * (end_y - start_y);
-                        path.push((x, y));
+                UpgradeKind::ThePersuader => {
+                    let start_position = self.get_gun_barrel_position();
+                    let target_enemies = self.target_enemies_list(enemies.to_vec());
+    
+                    if target_enemies.is_empty() {
+                        let end_x = canvas_size()[0] as f32; // Top right corner x
+                        let end_y = 0.0; // Top right corner y
+                        let num_circles = 10; // Number of circles to draw
+    
+                        for i in 0..num_circles {
+                            let t = i as f32 / (num_circles - 1) as f32;
+                            let x = start_position.0 + t * (end_x - start_position.0);
+                            let y = start_position.1 + t * (end_y - start_position.1);
+                            path.push((x, y));
+                        }
+                    } else {
+                        let mut previous_position = start_position;
+    
+                        for &enemy_index in &target_enemies {
+                            let enemy_position = get_enemy_center_position(enemies[enemy_index].grid_position);
+                            let num_circles = 5;
+    
+                            for i in 0..num_circles {
+                                let t = i as f32 / (num_circles - 1) as f32;
+                                let x = previous_position.0 + t * (enemy_position.0 - previous_position.0);
+                                let y = previous_position.1 + t * (enemy_position.1 - previous_position.1);
+                                path.push((x, y));
+                            }
+    
+                            previous_position = enemy_position;
+                        }
                     }
-                }
-            },
+                },
+                UpgradeKind::TheRipper => {
+                    let start_position = self.get_gun_barrel_position();
+                    let target_enemies = self.target_enemies_list(enemies.to_vec());
+    
+                    if target_enemies.is_empty() {
+                        let end_x = canvas_size()[0] as f32; // Right side of the screen x
+                        let end_y = start_position.1; // Same y position
+                        let num_circles = 10; // Number of circles to draw
+    
+                        for i in 0..num_circles {
+                            let t = i as f32 / (num_circles - 1) as f32;
+                            let x = start_position.0 + t * (end_x - start_position.0);
+                            let y = start_position.1;
+                            path.push((x, y));
+                        }
+                    } else {
+                        let mut previous_position = start_position;
+    
+                        for &enemy_index in &target_enemies {
+                            let enemy_position = get_enemy_center_position(enemies[enemy_index].grid_position);
+                            let num_circles = 5;
+    
+                            for i in 0..num_circles {
+                                let t = i as f32 / (num_circles - 1) as f32;
+                                let x = previous_position.0 + t * (enemy_position.0 - previous_position.0);
+                                let y = previous_position.1 + t * (enemy_position.1 - previous_position.1);
+                                path.push((x, y));
+                            }
+    
+                            previous_position = enemy_position;
+                        }
+                    }
+                },
+                _ => {
+                    let target_enemies = self.target_enemies_list(enemies.to_vec());
+                    if let Some(&first_enemy_index) = target_enemies.first() {
+                        let start_x = self.get_gun_barrel_position().0;
+                        let start_y = self.get_gun_barrel_position().1;
+                        let (end_x, end_y) = get_enemy_center_position(enemies[first_enemy_index].grid_position);
+
+                        let num_circles = 6; // Number of circles to draw
+                        for i in 0..num_circles {
+                            let t = i as f32 / (num_circles - 1) as f32;
+                            let x = start_x + t * (end_x - start_x);
+                            let y = start_y + t * (end_y - start_y);
+                            path.push((x, y));
+                        }
+                    }
+                },
+            }
         }
-    }
         path
     }
 
@@ -1192,146 +1403,7 @@ impl Upgrade {
         }
     }
 
-    fn target_enemies_list(&self, enemies: Vec<Enemy>) -> Vec<usize>{
-        let mut target_enemies = Vec::new();
-        match self.kind{
-            //Get all cars in the close column
-            UpgradeKind::BoomerBomb => {
-                for (index, enemy) in enemies.iter().enumerate(){
-                    if enemy.grid_position.0 == 0{
-                        if enemy.grid_position.1 == 1 || enemy.grid_position.1 == 2{
-                            target_enemies.push(index);
-                        }
-                    }
-                }
-            },
-            //Look for the closest plane, if you can't find it, then look for closest car
-            //if you hit one, then flop to the next one in the same row
-            //and keep flopping to the end
-            UpgradeKind::GoldfishGun=> {
-                for (index, enemy) in enemies.iter().enumerate() {
-                    if enemy.grid_position.0 == 0 && enemy.grid_position.1 == 0 {
-                        target_enemies.push(index);
-                        for (index, next_enemy) in enemies.iter().enumerate() {
-                            if next_enemy.grid_position.0 ==1 && next_enemy.grid_position.1 == 0{
-                                    target_enemies.push(index);
-                                    break;
-                                }
-                            }
-                            break;    
-                        }
-                    else if enemy.grid_position.0 == 0 && enemy.grid_position.1 == 1{
-                        target_enemies.push(index);
-                        for (index, next_enemy) in enemies.iter().enumerate() {
-                            if next_enemy.grid_position.0 ==1 && next_enemy.grid_position.1 == 1{
-                                target_enemies.push(index)
-                            }    
-                        }
-                        break;  
-                    }
-                    
-                    else if enemy.grid_position.0 == 0 && enemy.grid_position.1 == 2{
-                        target_enemies.push(index);
-                        for (index, next_enemy) in enemies.iter().enumerate() {
-                            if next_enemy.grid_position.0 ==1 && next_enemy.grid_position.1 == 2{
-                                target_enemies.push(index)
-                            }    
-                        }
-                        break;  
-                    }
-                }
-            },
-            //find the row with the most enemies, prioritizing the lowest, and add all in that row
-            UpgradeKind::KnuckleBuster => {
-
-                let mut a = 0;
-                let mut b = 0;
-                let mut c = 0;
-                for enemy in enemies.clone() {
-                    if enemy.grid_position.1 == 0 {
-                        a+=1;
-                    }
-                    else if enemy.grid_position.1 == 1 {
-                        b +=1;
-                    }
-                    else if enemy.grid_position.1 == 2{
-                        c +=1;
-                    }
-                }
-                for (index, enemy) in enemies.iter().enumerate() {
-                    if c >= b && c >= a {
-                        if enemy.grid_position.1 == 2{
-                            target_enemies.push(index);
-                        }
-                    }
-                    else if b >= a{
-                        if enemy.grid_position.1 == 1 {
-                            target_enemies.push(index);
-                        }
-                    }
-                    else{
-                        if enemy.grid_position.1 == 0{
-                            target_enemies.push(index);
-                        }
-                    }
-                
-                }
-            },
-            //target 1 enemy, starting with the closest, starting from the bottom
-            UpgradeKind::SlimeSpitter => {
-                for (index, enemy) in enemies.iter().enumerate(){
-                    if enemy.grid_position.0 == 0{
-                        if enemy.grid_position.1 == 0{
-                            target_enemies.push(index);
-                            break;
-                        }
-                        else if enemy.grid_position.1 == 1{
-                            target_enemies.push(index);
-                            break;
-                        }
-                        else{
-                            target_enemies.push(index);
-                            break;
-                        }
-                    }
-                    else if enemy.grid_position.0 == 1{
-                        if enemy.grid_position.1 == 0{
-                            target_enemies.push(index);
-                            break;
-                        }
-                        else if enemy.grid_position.1 == 1{
-                            target_enemies.push(index);
-                            break;
-                        }
-                        else{
-                            target_enemies.push(index);
-                            break;
-                        }
-
-                    }
-                }
-            },
-
-            //targets all air enemies
-            UpgradeKind::ThePersuader => {
-                for (index, enemy) in enemies.iter().enumerate(){
-                if enemy.grid_position.1 == 0{
-                    target_enemies.push(index);
-                }
-                }
-            },
-
-            //target all enemies
-            UpgradeKind::TheRipper => {
-                for (index, enemy) in enemies.iter().enumerate(){
-                    target_enemies.push(index);
-                }
-            },
-            _ => {}
-        }
-        return target_enemies;
-    } 
-    
+    //rightmost point of the rightmost square in the upgrade
     fn get_gun_barrel_position(&self) -> (f32, f32) {
         
         let rightmost = self.shape.cells.keys().map(|&(x, _)| x).max().unwrap_or(0) + 1;
@@ -1984,7 +2056,7 @@ impl TextEffect{
             background_color,
             text_x,
             text_y,
-            text_duration: 180,
+            text_duration: 120,
         }
     }
     fn set_duration(&self, new_value: i32) -> Self {
@@ -2062,16 +2134,20 @@ impl StatBar{
         let b_w = 2;
         let b_r = 3;
         let spacing = 10;
+        let mut adj_stat_value = stat_value * 2;
+        adj_stat_value = adj_stat_value.min(full_rect_width);
+        let mut adj_improved_stat_value = improved_stat_value*2;
+        adj_improved_stat_value = adj_improved_stat_value.min(full_rect_width);
         
         // Print stat name text at position x/y
         text!(&stat_name, x = x, y = y, font = Font::L, color = text_color);
         
         // Draw the unfilled rectangle
         rect!(w = full_rect_width, h = rect_height, x = x+1, y = y + spacing, color = empty_color);
-
-        rect!(w = improved_stat_value*2, h = rect_height, x = x+1, y = y + spacing, color = improved_color);
- 
-        rect!(w = stat_value*2, h = rect_height, x = x+1, y = y + spacing, color = filled_color);
+        // Draw the improved stat value (if there is one). Multiply by 2 so it looks more full
+        rect!(w = adj_improved_stat_value, h = rect_height, x = x+1, y = y + spacing, color = improved_color);
+        // Draw the regular stat value
+        rect!(w = adj_stat_value, h = rect_height, x = x+1, y = y + spacing, color = filled_color);
         // Draw the rounded border
         rect!(w = full_rect_width + b_w, h = rect_height, x = x, y = y + spacing, color = 0, border_color = border_color, border_width = b_w, border_radius = b_r);
     }
@@ -2095,8 +2171,10 @@ fn calculate_brutality(upgrades: &Vec<Upgrade>) -> i32 {
     upgrades.iter().map(|u| u.brutality).sum()
 }
 
+
 fn calculate_firepower(upgrades: &Vec<Upgrade>) -> i32 {
-    upgrades.iter().map(|u| u.firepower).sum()
+    //triple this so it looks better in the chart
+    upgrades.iter().map(|u| u.firepower).sum::<i32>() * 3
 }
 
 fn calculate_hype(upgrades: &Vec<Upgrade>) -> i32 {
@@ -2110,11 +2188,14 @@ fn car_presets() -> Vec<CarPreset> {
             upgrades: vec![
                 (Upgrade::new_truck(), (0, 5)),
                 (Upgrade::new_meat_grinder(), (2, 4)),
-                (Upgrade::new_boomer_bomb(), (0, 5)),
-                (Upgrade::new_knuckle_buster(), (0, 3)),
+                (Upgrade::new_boombox(), (0, 5)),
+                (Upgrade::new_jailed_ducks(), (0, 3)),
                 (Upgrade::new_slime_spitter(), (6, 5)),
                 (Upgrade::new_crooked_carburetor(), (4, 2)),
                 (Upgrade::new_goldfish_gun(), (4, 1)),
+                (Upgrade::new_psyko_juice(), (0, 2)),
+                (Upgrade::new_skull_of_death(), (0, 1)),
+                (Upgrade::new_psyko_juice(), (0, 0)),
             ],
         },
         CarPreset {
@@ -2123,11 +2204,14 @@ fn car_presets() -> Vec<CarPreset> {
                 (Upgrade::new_truck(), (0, 5)),
                 (Upgrade::new_meat_grinder(), (0, 4)),
                 (Upgrade::new_skull_of_death(), (4, 4)),
-                (Upgrade::new_psyko_juice(), (5, 4)),
-                (Upgrade::new_jailed_ducks(), (5, 3)),
-                (Upgrade::new_goldfish_gun(), (0, 2)),
-                (Upgrade::new_the_persuader(), (2, 3)),
-                (Upgrade::new_the_ripper(), (2, 1)),
+                (Upgrade::new_can_of_worms(), (5, 4)),
+                (Upgrade::new_slime_spitter(), (3, 3)),
+                (Upgrade::new_the_ripper(), (3, 2)),
+                (Upgrade::new_can_of_worms(), (0, 3)),
+                (Upgrade::new_teepee(), (2, 5)),
+                (Upgrade::new_teepee(), (3, 5)),
+                (Upgrade::new_teepee(), (6, 5)),
+                (Upgrade::new_meat_grinder(), (0, 2)),
             ],
         },
         CarPreset {
@@ -2135,11 +2219,16 @@ fn car_presets() -> Vec<CarPreset> {
             upgrades: vec![
                 (Upgrade::new_truck(), (0, 5)),
                 (Upgrade::new_crap_stack(), (0, 5)),
+                (Upgrade::new_crap_stack(), (1, 5)),
                 (Upgrade::new_slime_spitter(), (1, 3)),
                 (Upgrade::new_boomer_bomb(), (0, 2)),
+                (Upgrade::new_boombox(), (1, 1)),
                 (Upgrade::new_meat_grinder(), (2, 4)),
-                (Upgrade::new_the_ripper(), (4, 4)),
+                (Upgrade::new_goldfish_gun(), (4, 3)),
                 (Upgrade::new_can_of_worms(), (6, 5)),
+                (Upgrade::new_can_of_worms(), (7, 5)),
+                (Upgrade::new_skull_of_death(), (5, 2)),
+                (Upgrade::new_skull_of_death(), (5, 4)),
             ],
         },
     ]
@@ -2154,9 +2243,9 @@ fn centered_text_position(text: &str) -> u32{
     return  canvas_size()[0]/2 - text_pixel_width(text)/2;
 }
 
-fn rand_out_of_100(odds: u32) -> bool {
-    let chance: u32 = (rand() % 100) as u32; // Generate a random number between 0 and 99
-    chance < odds // Return true if chance is less than speed, otherwise false
+fn rand_out_of_200(odds: u32) -> bool {
+    let chance: u32 = (rand() % 200) as u32;
+    chance < odds
 }
 
 fn get_enemy_position(grid_position: (i32, i32)) -> (f32, f32) {
@@ -2221,11 +2310,11 @@ turbo::go!({
             let grid_offset_x = ((canvas_w - 128) / 2 ) as usize; //Adjust 128 based on grid width to cetner it
             let grid_offset_y = ((canvas_h - 128) / 2 ) as usize; //Adjust 128 based on grid height
             
-            if state.dialog_box.is_none() {
-                screen.handle_input(&mut state.driver_name); 
-            }
+            // if state.dialog_box.is_none() {
+            //     screen.handle_input(&mut state.driver_name); 
+            // }
 
-            if state.dialog_box.is_none() && gamepad(0).start.just_pressed() {
+            if state.dialog_box.is_none() && (gamepad(0).start.just_pressed() || gamepad(0).a.just_pressed()) {
                 next_screen = Some(Screen::Battle(BattleScreen::new(screen.upgrades.clone())));
                 // Add Battle screen dialog
                 state.dialog_box = Some(PortraitDialogBox::new(
@@ -2292,11 +2381,11 @@ turbo::go!({
                                     "Ever wonder how we always wind up strategically positioned behind our victims? Yeah me neither. I don't make the rules. Let's ride!"
                                 ));
                             }
-                            else if current_wave == 3 {
+                            else if current_wave == 4 {
                                 // Add Battle screen dialog
                                 state.dialog_box = Some(PortraitDialogBox::new(
                                     Portrait::Meatbag,
-                                    "Ever wonder how we always wind up strategically positioned behind our victims? Yeah me neither. I don't make the rules. Let's ride!"
+                                    "Who does this guy in the purple truck think he is, some kind of FINAL BOSS???"
                                 ));
                             }
                         }
@@ -2316,7 +2405,8 @@ turbo::go!({
                BattleState::PreCombat {first_frame } => {
                 //reset the truck position
                 screen.truck_tween = Tween::new(0.0);
-                //sit and wait for 5 secoinds
+                
+                //sit and wait for 5 seconds, then move in the enemies
                 if tick() - *first_frame > 20{
                     for enemy in &mut screen.enemies{
                         if enemy.position_offset.elapsed > 0 && enemy.position_offset.elapsed < 45{
@@ -2396,13 +2486,13 @@ turbo::go!({
                     }
 
                     // Handle attack selection
-                    if state.dialog_box.is_none() && gamepad(0).a.just_pressed() {
+                    if state.dialog_box.is_none() && (gamepad(0).a.just_pressed() || gamepad(0).start.just_pressed()) {
                         let selected_upgrade = &mut screen.upgrades[screen.selected_index];
                         //check if the weapon isn't on cooldown (theoretically should never happen bc of selection system)
                         if selected_upgrade.cooldown_counter == 0 {
                             let target_enemies = selected_upgrade.target_enemies_list(screen.enemies.clone());
                            
-                           //TODO: set new sprites for each weapon to use as the bullet
+                           //TODO: make this part of the upgrades
                             let mut weapon_sprite = "bullet".to_string();
                             if selected_upgrade.kind == UpgradeKind::GoldfishGun{
                                 weapon_sprite = "goldfish_gun_ammo".to_string();
@@ -2413,12 +2503,6 @@ turbo::go!({
                             else if selected_upgrade.kind == UpgradeKind::KnuckleBuster{
                                 weapon_sprite = "knuckle_buster_ammo".to_string();
                             }
-                            let target_position = if target_enemies.is_empty() {
-                                let [canvas_w, _canvas_h] = canvas_size!();
-                                (canvas_w as f32, selected_upgrade.shape.offset.1 as f32 * 16.0)
-                            } else {
-                                calculate_target_position(screen.enemies[target_enemies[0]].grid_position)
-                            };
 
                             selected_upgrade.cooldown_counter = selected_upgrade.cooldown_max;
                             
@@ -2428,7 +2512,6 @@ turbo::go!({
                                     selected_upgrade.get_gun_barrel_position().0,
                                     selected_upgrade.get_gun_barrel_position().1,
                                 ),
-                                target_position,
                                 target_enemies,
                                 num_enemies_hit: 0,
                                 active: true,
@@ -2441,13 +2524,11 @@ turbo::go!({
                 BattleState::AnimateAttack { 
                     ref mut weapon_sprite, 
                     ref mut weapon_position,
-                    ref mut target_position, 
                     ref mut target_enemies,
                     ref mut num_enemies_hit, 
                     ref mut active,
                     ref damage, 
                 } => {
-                    let mut new_battle_state: Option<BattleState> = None; // Temporary variable to hold the new battle state
                     //TODO: Change this so that it uses the regular bullet create function
                     let selected_upgrade = &screen.upgrades[screen.selected_index];
                     if *active {
@@ -2477,12 +2558,12 @@ turbo::go!({
                             if bullet.is_hitting_enemy(enemy.get_centered_position()[0] as f32, enemy.get_centered_position()[1] as f32) && !bullet.is_enemy {
                                 enemy.health -= bullet.damage; 
                                 {
-                                    if rand_out_of_100(100) {
+                                    if rand_out_of_200(calculate_brutality(&screen.upgrades) as u32) {
                                         let text = "Brutality: Critical Hit";
                                         let new_effect = TextEffect::new(
                                             text,
                                             0x564f5bff,
-                                            0xcbc6c1FF,
+                                            0xdf3e23ff,
                                             centered_text_position(text) as i32,
                                             10,
                                         );
@@ -2503,12 +2584,12 @@ turbo::go!({
                                 for i in &mut *target_enemies{
                                     screen.enemies[*i].health -= bullet.damage;
                                     //check for critical hit
-                                    if rand_out_of_100(calculate_brutality(&screen.upgrades) as u32) {
+                                    if rand_out_of_200(calculate_brutality(&screen.upgrades) as u32) {
                                         let text = "Brutality: Critical Hit";
                                         let new_effect = TextEffect::new(
                                             text,
                                             0x564f5bff,
-                                            0xcbc6c1FF,
+                                            0xdf3e23ff,
                                             centered_text_position(text) as i32,
                                             10,
                                         );
@@ -2539,7 +2620,7 @@ turbo::go!({
                     else {
                         if *first_frame {
                             //Apply Speed Effect here - if it is accurate, this will skip the enemy shooting phase
-                            if !rand_out_of_100(calculate_speed(&screen.upgrades) as u32){
+                            if !rand_out_of_200(calculate_speed(&screen.upgrades) as u32){
                                 // Set the truck position for enemies to shoot at
                                 let (truck_x, truck_y) = (50.0+TRUCK_BASE_OFFSET_X as f32, TRUCK_BASE_OFFSET_Y as f32);
                                 
@@ -2549,7 +2630,7 @@ turbo::go!({
                                     //TODO: Add a delay to the bullets function, so we can create them all at once, but slowly 'release' them based on the delay
                                     //Roll endurance here and if it is 0, then we can apply endurance effects without passing screen values across everything
                                     let mut dmg = enemy.damage;
-                                    if (rand_out_of_100(calculate_endurance(&screen.upgrades) as u32)){
+                                    if (rand_out_of_200(calculate_endurance(&screen.upgrades) as u32)){
                                         turbo::println!("ENDURANCE ACTIVE!");
                                         
                                         //create an endurance pop up - 
@@ -2558,7 +2639,7 @@ turbo::go!({
                                         let new_effect = TextEffect::new(
                                             text,
                                             0x564f5bff,
-                                            0xcbc6c1FF,
+                                            0xb0e0e6ff,
                                             centered_text_position(text) as i32,
                                             10,
                                         );
@@ -2571,11 +2652,12 @@ turbo::go!({
                             }
                             else{
                                 //apply speed effect here
+                                let text = "Speed Bonus: Shoot Again";
                                 let new_effect = TextEffect::new(
-                                    "Speed Bonus: Shoot Again",
+                                    text,
                                     0x564f5bff,
                                     0xcbc6c1FF,
-                                    160,
+                                    centered_text_position(text) as i32,
                                     10,
 
                                 );
@@ -3093,8 +3175,6 @@ impl PortraitDialogBox {
         let x = 0;
         let y = (ch - h) as i32 + self.vertical_offset.get();
 
-        // Draw portrait
-        // TODO: potrait alignment
         let name = self.portrait.name();
         let name_len = name.len();
         let name_bg_w = 68 + (name_len * 8) + 4;
