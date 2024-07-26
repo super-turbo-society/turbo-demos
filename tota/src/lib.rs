@@ -735,7 +735,6 @@ impl UpgradeSelectionScreen {
         if self.placing_upgrade {
             if let Some(last_upgrade) = self.upgrades.last() {
                 let can_place = self.can_place_upgrade_at_position(last_upgrade, last_upgrade.shape.offset);
-                let color = if can_place { 0x00ff0044u32 } else { 0xff000044u32 };
                 last_upgrade.shape.draw(true, can_place, grid_offset_x as i32, grid_offset_y as i32);
             }
         }
@@ -746,13 +745,22 @@ impl UpgradeSelectionScreen {
             upgrades_with_selected.push(selected_upgrade.clone());
         }
         draw_stats_panel(&self.upgrades, &upgrades_with_selected.to_vec());
-
+        
         text!("CHOOSE AN UPGRADE", x = canvas_w / 2 - 69, y = 20, font = Font::L, color = 0x564f5bff);
+        
         //draw arrows
         sprite!("arrow", x = 7, y = 105, rotate = 270);
         sprite!("arrow", x = 99, y = 105, rotate = 90);
         //draw upgrade
-        sprite!(&self.options[self.selected_index].sprite_name, x = 30, y = 79);
+        let size_x = &self.options[self.selected_index].get_size()[0];
+        let size_y = &self.options[self.selected_index].get_size()[1];
+        let center_x = 64;
+        let center_y = 113;
+        let text = &self.options[self.selected_index].get_name();
+        let text_width = text_pixel_width(text);
+        text!(&text, x= center_x - (text_width/2), y=66, font = Font::L, color = 0x564f5bff);
+       
+        sprite!(&self.options[self.selected_index].sprite_name, x = center_x- (*size_x as u32), y = center_y - (size_y));
         //draw frame
         sprite!("driver_frame", x = 30, y = 79);
         // Draw the new upgrade options on the left side of the screen
@@ -1411,6 +1419,45 @@ impl Upgrade {
         let y = self.shape.offset.1 as f32 * 16.0 + 36.0;
     
         (x, y)
+    }
+
+    fn get_size(&self) -> Vec<i32> {
+        let mut max_x = 0;
+        let mut max_y = 0;
+
+        for &(x, y) in self.shape.cells.keys() {
+            if x > max_x {
+                max_x = x;
+            }
+            if y > max_y {
+                max_y = y;
+            }
+        }
+
+        vec![(max_x + 1) as i32 * 8, (max_y + 1) as i32 * 8]
+    }
+
+    fn get_name(&self) -> &str {
+        match self.kind {
+            UpgradeKind::Truck => "Truck",
+            UpgradeKind::MeatGrinder => "Meat Grinder",
+            UpgradeKind::CrookedCarburetor => "Crooked Carburetor",
+            UpgradeKind::PsykoJuice => "Psyko Juice",
+            UpgradeKind::BoomerBomb => "Boomer Bomb",
+            UpgradeKind::TheRipper => "The Ripper",
+            UpgradeKind::SlimeSpitter => "Slime Spitter",
+            UpgradeKind::GoldfishGun => "Goldfish Gun",
+            UpgradeKind::CrapStack => "Crap Stack",
+            UpgradeKind::KnuckleBuster => "Knuckle Buster",
+            UpgradeKind::ThePersuader => "The Persuader",
+            UpgradeKind::JailedDucks => "Jailed Ducks",
+            UpgradeKind::Boombox => "Boombox",
+            UpgradeKind::CanOfWorms => "Can Of Worms",
+            UpgradeKind::SkullOfDeath => "Skull Of Death",
+            UpgradeKind::Teepee => "Teepee",
+            UpgradeKind::EngineShield => "Engine Shield",
+            _ => "Upgrade",
+        }
     }
 }
 
@@ -2310,9 +2357,9 @@ turbo::go!({
             let grid_offset_x = ((canvas_w - 128) / 2 ) as usize; //Adjust 128 based on grid width to cetner it
             let grid_offset_y = ((canvas_h - 128) / 2 ) as usize; //Adjust 128 based on grid height
             
-            // if state.dialog_box.is_none() {
-            //     screen.handle_input(&mut state.driver_name); 
-            // }
+            if state.dialog_box.is_none() {
+                screen.handle_input(&mut state.driver_name); 
+            }
 
             if state.dialog_box.is_none() && (gamepad(0).start.just_pressed() || gamepad(0).a.just_pressed()) {
                 next_screen = Some(Screen::Battle(BattleScreen::new(screen.upgrades.clone())));
