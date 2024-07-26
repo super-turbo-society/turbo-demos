@@ -1655,16 +1655,16 @@ impl Enemy {
     fn new_car(grid_position: (i32, i32), car_type: CarType, rider_type: RiderType) -> Self {
         let health= match car_type {
             CarType::Red => 3,
-            CarType::Blue => 5,
-            CarType::Green => 7,
+            CarType::Blue => 4,
+            CarType::Green => 6,
             CarType::Boss => 10,
         };
         
         let damage = match rider_type{
             RiderType::Pistol => 2,
-            RiderType::Shotgun => 4,
-            RiderType::Rifle => 5,
-            RiderType::Rocket => 6,
+            RiderType::Shotgun => 3,
+            RiderType::Rifle => 4,
+            RiderType::Rocket => 5,
             RiderType::Boss => 8,
         };
 
@@ -2761,8 +2761,8 @@ turbo::go!({
                         if screen.current_wave + 1 < screen.waves.len() {
                             screen.current_wave += 1;
                             screen.enemies = screen.waves[screen.current_wave].enemies.clone();
-                            //give back 20 health (cap at 100)
-                            screen.player_health = (screen.player_health + 20).min(100);
+                            //give back 25 health (cap at 100)
+                            screen.player_health = (screen.player_health + 25).min(100);
                             state.saved_battle_screen = Some(screen.clone()); // Save current Battle screen state
                             //this will also set us up to add some wiggle around the truck later on
                             next_screen = Some(Screen::UpgradeSelection(UpgradeSelectionScreen::new(screen.upgrades.clone())));
