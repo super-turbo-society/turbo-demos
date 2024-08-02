@@ -10,13 +10,37 @@ turbo::cfg! {r#"
     resolution = [384, 216]
 "#}
 
-// Define the constants for player movement
-const PLAYER_MOVE_SPEED_MAX: f32 = 5.0;
+//TODO: separate horizontal move speed and vertical move speed max
+const PLAYER_MOVE_SPEED_MAX: f32 = 4.0;
 const PLAYER_ACCELERATION: f32 = 2.0;
 const PLAYER_DECELERATION: f32 = 1.0;
 const PLAYER_JUMP_FORCE: f32 = 100.0;
 const GRAVITY: f32 = 1.0;
 const TILE_SIZE: i32 = 16;
+
+turbo::init! {
+    struct GameState {
+        player: Player,
+        tiles: Vec<Tile>,
+    } = {
+        let mut tiles = Vec::new();
+        // Initialize tiles along the ground for 3 units and some other tiles to jump on
+        for i in 0..(384 / TILE_SIZE) {
+            for j in 0..3 {
+                tiles.push(Tile::new(i as usize, ((216 / TILE_SIZE) - 1 - j) as usize));
+            }
+        }
+        tiles.push(Tile::new(10,7));
+        tiles.push(Tile::new(11,7));
+        tiles.push(Tile::new(15,7));
+        tiles.push(Tile::new(15,8));
+        tiles.push(Tile::new(15,9));
+        GameState {
+            player: Player::new(0.,0.),
+            tiles,
+        }
+    }
+}
 
 #[derive(BorshDeserialize, BorshSerialize, Debug, Clone, PartialEq)]
 struct Player {
@@ -40,10 +64,8 @@ impl Player {
     }
 
 
-    // Handle player input
     fn handle_input(&mut self) {
         let gp = gamepad(0);
-        // Accelerate the player based on input
         if gp.up.just_pressed() {
             self.speed_y -= PLAYER_JUMP_FORCE;
         }
@@ -62,7 +84,6 @@ impl Player {
             }
         }
 
-        // Clamp the player's speed to the maximum speed
         self.speed_x = self.speed_x.clamp(-PLAYER_MOVE_SPEED_MAX, PLAYER_MOVE_SPEED_MAX);
         self.speed_y = self.speed_y.clamp(-PLAYER_JUMP_FORCE, PLAYER_MOVE_SPEED_MAX);
         
@@ -73,7 +94,7 @@ impl Player {
    
 
     fn check_collision_tilemap(&mut self, tiles: &[Tile]) {
-        // Check collision in the downward direction if speed_y is positive
+        // Check collision down
         if self.speed_y > 0.0 {
             if let Some(collision) = check_collision(self.x, self.y, Direction::Down, tiles) {
                 self.speed_y = 0.0;
@@ -82,7 +103,7 @@ impl Player {
             }
         }
         
-        // Check collision in the upward direction if speed_y is negative
+        // Check collision up
         if self.speed_y < 0.0 {
             if let Some(collision) = check_collision(self.x, self.y, Direction::Up, tiles) {
                 self.speed_y = 0.0;
@@ -91,7 +112,7 @@ impl Player {
             }
         }
 
-        // Check collision in the right direction if speed_x is positive
+        // Check collision right
         if self.speed_x > 0.0 {
             if let Some(collision) = check_collision(self.x, self.y, Direction::Right, tiles) {
                 self.speed_x = 0.0;
@@ -100,7 +121,7 @@ impl Player {
             }
         }
 
-        // Check collision in the left direction if speed_x is negative
+        // Check collision left
         if self.speed_x < 0.0 {
             if let Some(collision) = check_collision(self.x, self.y, Direction::Left, tiles) {
                 self.speed_x = 0.0;
@@ -111,21 +132,18 @@ impl Player {
     }
 
     fn update_position(&mut self){
-        // Update the player's position
         self.x += self.speed_x;
         self.y += self.speed_y;
     }
 
-    // Draw the player character
     fn draw(&self) {
         let flipx = self.speed_x<0.;
+        //This seems to be bugged at the moment
         //let t = format!("Speed x: {}", self.speed_x);
         //log!("{}", t);
         sprite!("kiwi_idle", x = self.x as i32, y = self.y as i32, sw = 16, flip_x = flipx);
     }
 }
-
-
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 struct Tile {
@@ -152,13 +170,11 @@ impl Tile {
     }
 }
 
-// Define the collision struct
 struct Collision {
     x: f32,
     y: f32,
 }
 
-// Define the directions
 enum Direction {
     Up,
     Down,
@@ -183,56 +199,27 @@ fn check_collision(player_x: f32, player_y: f32, direction: Direction, tiles: &[
 
     None
 }
-// Define the game state initialization using the turbo::init! macro
-turbo::init! {
-    struct GameState {
-        player: Player,
-        tiles: Vec<Tile>,
-    } = {
-        let mut tiles = Vec::new();
-        // Initialize tiles along the ground for 3 units
-        for i in 0..(384 / TILE_SIZE) {
-            for j in 0..3 {
-                tiles.push(Tile::new(i as usize, ((216 / TILE_SIZE) - 1 - j) as usize));
-            }
-        }
-        tiles.push(Tile::new(10,7));
-        tiles.push(Tile::new(11,7));
-        tiles.push(Tile::new(15,7));
-        tiles.push(Tile::new(15,8));
-        tiles.push(Tile::new(15,9));
-        GameState {
-            player: Player::new(0.,0.),
-            tiles,
-        }
-    }
-}
 
-
-// Implement the game loop using the turbo::go! macro
 turbo::go! {
-    // Load the game state
     let mut state = GameState::load();
 
-    // Handle player input
+    
     state.player.handle_input();
 
     state.player.check_collision_tilemap(&state.tiles);
 
-    // Update position
+    
     state.player.update_position();
 
-
-    // Set the background color
     clear(0x000000ff);
 
-    // Draw the player character
+    
     state.player.draw();
     
     for tile in &state.tiles {
         tile.draw();
     }
 
-    // Save game state for the next frame
+    
     state.save();
 }
