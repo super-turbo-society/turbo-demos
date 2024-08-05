@@ -1,5 +1,3 @@
-
-
 // Define the game configuration using the turbo::cfg! macro
 turbo::cfg! {r#"
     name = "Kiwi's Fruit Tree"
@@ -22,6 +20,7 @@ turbo::init! {
     struct GameState {
         player: Player,
         tiles: Vec<Tile>,
+        fruits: Vec<Fruit>,
     } = {
         let mut tiles = Vec::new();
         // Initialize tiles along the ground for 3 units and some other tiles to jump on
@@ -35,9 +34,14 @@ turbo::init! {
         tiles.push(Tile::new(15,7));
         tiles.push(Tile::new(15,8));
         tiles.push(Tile::new(15,9));
+        let mut fruits = Vec::new();
+        fruits.push(Fruit::new(10,5));
+        fruits.push(Fruit::new(15,5));
+        fruits.push(Fruit::new(17,8));
         GameState {
             player: Player::new(0.,0.),
             tiles,
+            fruits,
         }
     }
 }
@@ -151,6 +155,16 @@ impl Player {
         self.y += self.speed_y;
     }
 
+    fn check_collision_fruits(&self, fruits: &mut[Fruit]){
+        for fruit in fruits{
+            if fruit.contains(self.x, self.y) || fruit.contains(self.x + 16., self.y) 
+            || fruit.contains(self.x, self.y+16.) || fruit.contains(self.x+16., self.y+16.){
+                fruit.get_collected();
+            } 
+        }
+
+    }
+
     fn draw(&self) {
         sprite!("kiwi_idle", x = self.x as i32, y = self.y as i32, flip_x = self.is_facing_left, fps=fps::MEDIUM);
     }
@@ -178,6 +192,52 @@ impl Tile {
         let tile_y = self.grid_y as f32 * TILE_SIZE as f32;
         point_x >= tile_x && point_x < tile_x + TILE_SIZE as f32 &&
         point_y >= tile_y && point_y < tile_y + TILE_SIZE as f32
+    }
+}
+
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
+struct Fruit{
+    grid_x: usize,
+    grid_y: usize,
+    y_offset: f32,
+    timer: f32,
+    is_collected: bool
+}
+
+impl Fruit{
+    fn new(grid_x: usize, grid_y: usize) -> Self {
+        Self { grid_x, grid_y, y_offset: 0., timer: 0., is_collected: false }
+    }
+
+    fn update(&mut self) {
+        self.timer += 1.;
+
+        let period = 90.0;
+
+        self.y_offset = 3.0 * (2.0 * std::f32::consts::PI * self.timer / period).sin();
+
+        if self.timer >= period {
+            self.timer -= period;
+        }
+    }
+
+    fn contains(&self, point_x: f32, point_y: f32) -> bool {
+        let tile_x = self.grid_x as f32 * TILE_SIZE as f32;
+        let tile_y = self.grid_y as f32 * TILE_SIZE as f32;
+        point_x >= tile_x && point_x < tile_x + TILE_SIZE as f32 &&
+        point_y >= tile_y && point_y < tile_y + TILE_SIZE as f32
+    }
+
+    fn get_collected(&mut self){
+        self.is_collected = true;
+    }
+
+    fn draw(&self) {
+        if !self.is_collected{
+            let x = self.grid_x as i32 * TILE_SIZE;
+            let y = self.grid_y as i32 * TILE_SIZE;
+            sprite!("fruit", x = x, y = y + (self.y_offset as i32));
+        }
     }
 }
 
@@ -239,6 +299,8 @@ turbo::go! {
 
     state.player.update_position();
 
+    state.player.check_collision_fruits(&mut state.fruits);
+
     update_camera(state.player.x, state.player.y);
 
     clear(0xadd8e6ff);
@@ -247,6 +309,11 @@ turbo::go! {
     
     for tile in &state.tiles {
         tile.draw();
+    }
+
+    for fruit in &mut state.fruits {
+        fruit.update();
+        fruit.draw();
     }
 
     state.save();
