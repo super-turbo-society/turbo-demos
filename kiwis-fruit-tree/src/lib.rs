@@ -21,9 +21,9 @@ turbo::init! {
         player: Player,
         tiles: Vec<Tile>,
         fruits: Vec<Fruit>,
+        num_fruits_collected: usize,
     } = {
         let mut tiles = Vec::new();
-        // Initialize tiles along the ground for 3 units and some other tiles to jump on
         for i in 0..(384 / TILE_SIZE) {
             for j in 0..3 {
                 tiles.push(Tile::new(i as usize, ((216 / TILE_SIZE) - 1 - j) as usize));
@@ -37,11 +37,12 @@ turbo::init! {
         let mut fruits = Vec::new();
         fruits.push(Fruit::new(10,5));
         fruits.push(Fruit::new(15,5));
-        fruits.push(Fruit::new(17,8));
+        fruits.push(Fruit::new(17,2));
         GameState {
             player: Player::new(0.,0.),
             tiles,
             fruits,
+            num_fruits_collected: 0,
         }
     }
 }
@@ -155,14 +156,19 @@ impl Player {
         self.y += self.speed_y;
     }
 
-    fn check_collision_fruits(&self, fruits: &mut[Fruit]){
-        for fruit in fruits{
-            if fruit.contains(self.x, self.y) || fruit.contains(self.x + 16., self.y) 
-            || fruit.contains(self.x, self.y+16.) || fruit.contains(self.x+16., self.y+16.){
-                fruit.get_collected();
-            } 
-        }
 
+    //TODO: make a global contains that can be used for everything. Set x, y, w, h for each element.
+    fn check_collision_fruits(&self, fruits: &mut[Fruit]) -> bool{
+        for fruit in fruits{
+            if !fruit.is_collected{
+                if fruit.contains(self.x, self.y) || fruit.contains(self.x + 16., self.y) 
+                || fruit.contains(self.x, self.y+16.) || fruit.contains(self.x+16., self.y+16.){
+                    fruit.get_collected();
+                    return true
+                } 
+            }
+        }
+        return false
     }
 
     fn draw(&self) {
@@ -299,7 +305,9 @@ turbo::go! {
 
     state.player.update_position();
 
-    state.player.check_collision_fruits(&mut state.fruits);
+    if (state.player.check_collision_fruits(&mut state.fruits)){
+        state.num_fruits_collected += 1;
+    };
 
     update_camera(state.player.x, state.player.y);
 
@@ -316,5 +324,10 @@ turbo::go! {
         fruit.draw();
     }
 
+    let text = format!("Fruits: {}", state.num_fruits_collected);
+
+    // Render the text at the top left corner (x: 10, y: 10) in white color
+    text!(&text, x = 10+(cam!().0-192), y = 10+(cam!().1-108), font = Font::L, color = 0xffffffff);
+    
     state.save();
 }
