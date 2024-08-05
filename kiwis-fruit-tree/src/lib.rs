@@ -12,8 +12,8 @@ turbo::cfg! {r#"
 
 //TODO: separate horizontal move speed and vertical move speed max
 const PLAYER_MOVE_SPEED_MAX: f32 = 4.0;
-const PLAYER_ACCELERATION: f32 = 2.0;
-const PLAYER_DECELERATION: f32 = 1.0;
+const PLAYER_ACCELERATION: f32 = 1.0;
+const PLAYER_DECELERATION: f32 = 0.5;
 const PLAYER_JUMP_FORCE: f32 = 100.0;
 const GRAVITY: f32 = 1.0;
 const TILE_SIZE: i32 = 16;
@@ -49,7 +49,9 @@ struct Player {
     speed_x: f32,
     speed_y: f32,
     max_gravity: f32,
-
+    is_falling: bool,
+    is_facing_left: bool,
+    is_landed: bool,
 }
 
 impl Player {
@@ -60,18 +62,24 @@ impl Player {
             speed_x: 0.0,
             speed_y: 0.0,
             max_gravity: 10.0,
+            is_falling: false,
+            is_facing_left: false,
+            is_landed: false,
         }
     }
     fn handle_input(&mut self) {
         let gp = gamepad(0);
-        if gp.up.just_pressed() {
+        if gp.up.just_pressed() && self.is_landed {
             self.speed_y -= PLAYER_JUMP_FORCE;
+            self.is_landed = false;
         }
         if gp.left.pressed() {
             self.speed_x -= PLAYER_ACCELERATION;
+            self.is_facing_left = true;
         }
         else if gp.right.pressed() {
             self.speed_x += PLAYER_ACCELERATION;
+            self.is_facing_left = false;
         }
         else{
             if self.speed_x> 0.{
@@ -96,7 +104,11 @@ impl Player {
         if self.speed_y > 0.0 {
             if let Some(collision) = check_collision(self.x, self.y, Direction::Down, tiles) {
                 self.speed_y = 0.0;
-                self.y = collision.y-16.
+                self.y = collision.y-16.;
+                self.is_landed = true;
+            }
+            else{
+                self.is_landed = false;
             }
         }
         
@@ -140,8 +152,7 @@ impl Player {
     }
 
     fn draw(&self) {
-        let flipx = self.speed_x<0.;
-        sprite!("kiwi_idle", x = self.x as i32, y = self.y as i32, flip_x = flipx, fps=fps::MEDIUM);
+        sprite!("kiwi_idle", x = self.x as i32, y = self.y as i32, flip_x = self.is_facing_left, fps=fps::MEDIUM);
     }
 }
 
@@ -198,6 +209,27 @@ fn check_collision(player_x: f32, player_y: f32, direction: Direction, tiles: &[
     None
 }
 
+fn update_camera(p_x: f32, p_y: f32){
+    let x_move_point: f32 = 32.;
+    let y_move_point: f32 = 32.;
+    let mut cam_x = cam!().0 as f32;
+    let mut cam_y = cam!().1 as f32;
+    let cam_speed = PLAYER_MOVE_SPEED_MAX;
+    if p_x - cam_x > x_move_point{
+        cam_x+=cam_speed;
+    }
+    else if p_x - cam_x < - x_move_point{
+        cam_x -=cam_speed;
+    }
+    if p_y - cam_y > y_move_point{
+        cam_y+=cam_speed;
+    }
+    else if p_y - cam_y < - y_move_point{
+        cam_y -=cam_speed;
+    }
+    set_cam!(x = cam_x as i32, y = cam_y as i32);
+}
+
 turbo::go! {
     let mut state = GameState::load();
 
@@ -207,7 +239,9 @@ turbo::go! {
 
     state.player.update_position();
 
-    clear(0x000000ff);
+    update_camera(state.player.x, state.player.y);
+
+    clear(0xadd8e6ff);
     
     state.player.draw();
     
