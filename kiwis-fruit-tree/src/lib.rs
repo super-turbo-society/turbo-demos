@@ -42,7 +42,7 @@ turbo::init! {
     }
 }
 
-#[derive(BorshDeserialize, BorshSerialize, Debug, Clone, PartialEq)]
+ #[derive(BorshDeserialize, BorshSerialize, Debug, Clone, PartialEq)]
 struct Player {
     x: f32,
     y: f32,
@@ -62,8 +62,6 @@ impl Player {
             max_gravity: 10.0,
         }
     }
-
-
     fn handle_input(&mut self) {
         let gp = gamepad(0);
         if gp.up.just_pressed() {
@@ -98,8 +96,7 @@ impl Player {
         if self.speed_y > 0.0 {
             if let Some(collision) = check_collision(self.x, self.y, Direction::Down, tiles) {
                 self.speed_y = 0.0;
-                self.y = collision.y - TILE_SIZE as f32;
-                return;
+                self.y = collision.y-16.
             }
         }
         
@@ -107,26 +104,32 @@ impl Player {
         if self.speed_y < 0.0 {
             if let Some(collision) = check_collision(self.x, self.y, Direction::Up, tiles) {
                 self.speed_y = 0.0;
-                self.y = collision.y + TILE_SIZE as f32;
-                return;
             }
         }
 
         // Check collision right
         if self.speed_x > 0.0 {
-            if let Some(collision) = check_collision(self.x, self.y, Direction::Right, tiles) {
+            if let Some(collision) = check_collision(self.x+1., self.y, Direction::Right, tiles) {
                 self.speed_x = 0.0;
-                self.x = collision.x - TILE_SIZE as f32;
-                return;
+                let mut check_x = collision.x - (TILE_SIZE + 1) as f32;
+                while check_collision(check_x, self.y, Direction::Right, tiles).is_some() {
+                    check_x -= 1.0;
+                }
+                self.x = check_x;
+                //return;
             }
         }
 
         // Check collision left
         if self.speed_x < 0.0 {
-            if let Some(collision) = check_collision(self.x, self.y, Direction::Left, tiles) {
+            if let Some(collision) = check_collision(self.x-1., self.y, Direction::Left, tiles) {
                 self.speed_x = 0.0;
-                self.x = collision.x + TILE_SIZE as f32;
-                return;
+                let mut check_x = collision.x + 1.0;
+                while check_collision(check_x, self.y, Direction::Left, tiles).is_some() {
+                    check_x += 1.0;
+                }
+                self.x = check_x;
+                //return;
             }
         }
     }
@@ -138,10 +141,7 @@ impl Player {
 
     fn draw(&self) {
         let flipx = self.speed_x<0.;
-        //This seems to be bugged at the moment
-        //let t = format!("Speed x: {}", self.speed_x);
-        //log!("{}", t);
-        sprite!("kiwi_idle", x = self.x as i32, y = self.y as i32, sw = 16, flip_x = flipx);
+        sprite!("kiwi_idle", x = self.x as i32, y = self.y as i32, flip_x = flipx, fps=fps::MEDIUM);
     }
 }
 
@@ -182,37 +182,32 @@ enum Direction {
     Right,
 }
 
-//TODO: We need to check all 4 corners of the player, not just the one point
 fn check_collision(player_x: f32, player_y: f32, direction: Direction, tiles: &[Tile]) -> Option<Collision> {
-    let (check_x, check_y) = match direction {
-        Direction::Up => (player_x, player_y - 1.0),
-        Direction::Down => (player_x, player_y + 17.0),
-        Direction::Left => (player_x - 1.0, player_y),
-        Direction::Right => (player_x + 1.0, player_y),
+    let (check_x1, check_y1, check_x2, check_y2) = match direction {
+        Direction::Up => (player_x+1., player_y, player_x + 15.0, player_y),
+        Direction::Down => (player_x+1., player_y + 16.0, player_x + 15.0, player_y + 16.0),
+        Direction::Left => (player_x-1., player_y+1.0, player_x-1., player_y + 15.0),
+        Direction::Right => (player_x + 17.0, player_y+1., player_x + 17.0, player_y + 15.0),
     };
 
     for tile in tiles {
-        if tile.contains(check_x, check_y) {
-            return Some(Collision { x: check_x, y: tile.grid_y as f32 * (TILE_SIZE as f32) });
+        if tile.contains(check_x1, check_y1) || tile.contains(check_x2, check_y2) {
+            return Some(Collision { x: check_x1, y: tile.grid_y as f32 * (TILE_SIZE as f32) });
         }
     }
-
     None
 }
 
 turbo::go! {
     let mut state = GameState::load();
 
-    
     state.player.handle_input();
 
     state.player.check_collision_tilemap(&state.tiles);
 
-    
     state.player.update_position();
 
     clear(0x000000ff);
-
     
     state.player.draw();
     
@@ -220,6 +215,5 @@ turbo::go! {
         tile.draw();
     }
 
-    
     state.save();
 }
