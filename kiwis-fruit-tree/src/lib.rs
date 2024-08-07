@@ -20,22 +20,23 @@ turbo::init! {
         player: Player,
         tiles: Vec<Tile>,
         fruits: Vec<Fruit>,
+        clouds: Vec<Cloud>,
         num_fruits_collected: usize,
         fruit_bowl: FruitBowl,
     } = {
         //TILES
         let mut tiles = Vec::new();
-        for i in 0..(384 / TILE_SIZE) {
+        for i in 0..(800 / TILE_SIZE) {
             for j in -1..2 {
                 tiles.push(Tile::new(i as usize, ((216 / TILE_SIZE) - 1 - j) as usize,"dirt".to_string()));
             }
             tiles.push(Tile::new(i as usize, 10 as usize,"dirt_grass".to_string()));
         }
-        tiles.push(Tile::new(10,7, "stone_grass_001".to_string()));
-        tiles.push(Tile::new(11,7, "stone_grass_001".to_string()));
-        tiles.push(Tile::new(15,7, "stone_pillar_top_001".to_string()));
-        tiles.push(Tile::new(15,8, "stone_pillar_center_001".to_string()));
-        tiles.push(Tile::new(15,9, "stone_pillar_bottom_001".to_string()));
+        tiles.push(Tile::new(17,7, "stone_grass_001".to_string()));
+        tiles.push(Tile::new(18,7, "stone_grass_001".to_string()));
+        tiles.push(Tile::new(22,7, "stone_pillar_top_001".to_string()));
+        tiles.push(Tile::new(22,8, "stone_pillar_center_001".to_string()));
+        tiles.push(Tile::new(22,9, "stone_pillar_bottom_001".to_string()));
         //FRUITS
         let mut fruits = Vec::new();
         fruits.push(Fruit::new(10,5));
@@ -44,14 +45,24 @@ turbo::init! {
         fruits.push(Fruit::new(11,5));
         fruits.push(Fruit::new(16,5));
         fruits.push(Fruit::new(18,9));
-        fruits.push(Fruit::new(10,9));
-        fruits.push(Fruit::new(11,9));
-        fruits.push(Fruit::new(12,9));
-        fruits.push(Fruit::new(13,9));
-        fruits.push(Fruit::new(14,9));
-        fruits.push(Fruit::new(9,9));
-
+        // fruits.push(Fruit::new(10,9));
+        // fruits.push(Fruit::new(11,9));
+        // fruits.push(Fruit::new(12,9));
+        // fruits.push(Fruit::new(13,9));
+        // fruits.push(Fruit::new(14,9));
+        // fruits.push(Fruit::new(9,9));
+        
         let fruit_bowl = FruitBowl::new(0, 8);
+        //TODO: Make this creation randomized
+        let num_clouds = 10;
+        let clouds: Vec<Cloud> = std::iter::repeat_with(Cloud::new).take(num_clouds).collect();
+
+        // clouds.push(Cloud::new(400,2, "cloud_small".to_string(), 1));
+        // clouds.push(Cloud::new(440,8, "cloud_medium".to_string(), 2));
+        // clouds.push(Cloud::new(480,4, "cloud_small".to_string(), 1));
+        // clouds.push(Cloud::new(500,20, "cloud_big".to_string(), 2));
+        // clouds.push(Cloud::new(560,16, "cloud_medium".to_string(), 1));
+        // clouds.push(Cloud::new(600,6, "cloud_small".to_string(), 3));
 
         GameState {
             player: Player::new(160.,144.),
@@ -59,6 +70,7 @@ turbo::init! {
             fruits,
             num_fruits_collected: 0,
             fruit_bowl,
+            clouds
         }
     }
 }
@@ -173,7 +185,6 @@ impl Player {
     }
 
     //TODO: make a global contains that can be used for everything. Set x, y, w, h for each element.
-    //TODO: Add num fruits into here, then pass that into the collected fruit, and you can find the position to tween to from there
     fn check_collision_fruits(&self, fruits: &mut [Fruit]) -> Option<usize> {
         for (index, fruit) in fruits.iter_mut().enumerate() {
             if !fruit.is_collected {
@@ -206,8 +217,7 @@ impl Tile {
     fn draw(&self) {
         let x = self.grid_x as i32 * TILE_SIZE;
         let y = self.grid_y as i32 * TILE_SIZE;
-        //change this to draw with sprite name
-        rect!(x = x, y = y, w = TILE_SIZE, h = TILE_SIZE, color = 0x0000ffff);
+
         sprite!(&self.spr_name as &str, x = x, y = y);
     }
 
@@ -269,7 +279,6 @@ impl Fruit{
         self.is_collected = true;
         let x = (self.grid_x as i32 * TILE_SIZE) as f32;
         let y = (self.grid_y as i32 * TILE_SIZE) as f32;
-        //TODO: make duration based on distance
         let distance = ((target_position.0 - x).powi(2) + (target_position.1 - y).powi(2)).sqrt();
         let base_duration = 6.0;
         let duration = base_duration * distance / TILE_SIZE as f32;
@@ -331,20 +340,36 @@ impl FruitBowl{
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 struct Cloud {
-    x: usize,
-    y: usize,
-    sprite: String,
-    scroll_speed: i32,
+    x: f32,
+    y: f32,
+    scroll_speed: f32,
+    spr_name: String,
 }
 
 impl Cloud{
-    fn new(x: usize, y: usize, sprite: String, scroll_speed: i32) -> Self {
+    fn new() -> Self {
+        let spr_name = match (rand() % 3) {
+            0 => "cloud_big",
+            1 => "cloud_medium",
+            _ => "cloud_small",
+        };
         Self { 
-            x,
-            y,
-            sprite,
-            scroll_speed
+            x: random_range(50., 1500.),
+            y: random_range(0., 100.),
+            scroll_speed: random_range(0.25, 1.25), 
+            spr_name: spr_name.to_string(),
         }
+    }
+
+    fn update(&mut self){
+        self.x -= self.scroll_speed;
+        if self.x < -300.{
+            self.x = 900.;
+        }
+    }
+
+    fn draw(&self){
+        sprite!(&self.spr_name as &str, x = self.x, y = self.y);
     }
 }
 
@@ -397,6 +422,12 @@ fn update_camera(p_x: f32, p_y: f32){
     set_cam!(x = cam_x as i32, y = cam_y as i32);
 }
 
+fn random_range(min: f32, max: f32) -> f32 {
+    let random_int = rand();
+    let random_float = random_int as f32 / u32::MAX as f32; // Normalize to a float between 0 and 1
+    min + (max - min) * random_float // Scale and shift to the desired range
+}
+
 turbo::go! {
     let mut state = GameState::load();
 
@@ -419,6 +450,10 @@ turbo::go! {
     
     for tile in &state.tiles {
         tile.draw();
+    }
+    for cloud in &mut state.clouds{
+        cloud.update();
+        cloud.draw();
     }
 
     state.fruit_bowl.draw();
