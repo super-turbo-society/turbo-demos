@@ -57,13 +57,6 @@ turbo::init! {
         let num_clouds = 10;
         let clouds: Vec<Cloud> = std::iter::repeat_with(Cloud::new).take(num_clouds).collect();
 
-        // clouds.push(Cloud::new(400,2, "cloud_small".to_string(), 1));
-        // clouds.push(Cloud::new(440,8, "cloud_medium".to_string(), 2));
-        // clouds.push(Cloud::new(480,4, "cloud_small".to_string(), 1));
-        // clouds.push(Cloud::new(500,20, "cloud_big".to_string(), 2));
-        // clouds.push(Cloud::new(560,16, "cloud_medium".to_string(), 1));
-        // clouds.push(Cloud::new(600,6, "cloud_small".to_string(), 3));
-
         GameState {
             player: Player::new(160.,144.),
             tiles,
