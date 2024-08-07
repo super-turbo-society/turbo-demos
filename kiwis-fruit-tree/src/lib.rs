@@ -8,11 +8,10 @@ turbo::cfg! {r#"
     resolution = [384, 216]
 "#}
 
-//TODO: separate horizontal move speed and vertical move speed max
-const PLAYER_MOVE_SPEED_MAX: f32 = 4.0;
+const PLAYER_MOVE_SPEED_MAX: f32 = 3.0;
 const PLAYER_ACCELERATION: f32 = 1.0;
 const PLAYER_DECELERATION: f32 = 0.5;
-const PLAYER_JUMP_FORCE: f32 = 100.0;
+const PLAYER_JUMP_FORCE: f32 = 12.0;
 const GRAVITY: f32 = 1.0;
 const TILE_SIZE: i32 = 16;
 
@@ -22,29 +21,44 @@ turbo::init! {
         tiles: Vec<Tile>,
         fruits: Vec<Fruit>,
         num_fruits_collected: usize,
+        fruit_bowl: FruitBowl,
     } = {
         //TILES
         let mut tiles = Vec::new();
         for i in 0..(384 / TILE_SIZE) {
-            for j in 0..3 {
-                tiles.push(Tile::new(i as usize, ((216 / TILE_SIZE) - 1 - j) as usize));
+            for j in -1..2 {
+                tiles.push(Tile::new(i as usize, ((216 / TILE_SIZE) - 1 - j) as usize,"dirt".to_string()));
             }
+            tiles.push(Tile::new(i as usize, 10 as usize,"dirt_grass".to_string()));
         }
-        tiles.push(Tile::new(10,7));
-        tiles.push(Tile::new(11,7));
-        tiles.push(Tile::new(15,7));
-        tiles.push(Tile::new(15,8));
-        tiles.push(Tile::new(15,9));
+        tiles.push(Tile::new(10,7, "stone_grass_001".to_string()));
+        tiles.push(Tile::new(11,7, "stone_grass_001".to_string()));
+        tiles.push(Tile::new(15,7, "stone_pillar_top_001".to_string()));
+        tiles.push(Tile::new(15,8, "stone_pillar_center_001".to_string()));
+        tiles.push(Tile::new(15,9, "stone_pillar_bottom_001".to_string()));
         //FRUITS
         let mut fruits = Vec::new();
         fruits.push(Fruit::new(10,5));
         fruits.push(Fruit::new(15,5));
         fruits.push(Fruit::new(17,2));
+        fruits.push(Fruit::new(11,5));
+        fruits.push(Fruit::new(16,5));
+        fruits.push(Fruit::new(18,9));
+        fruits.push(Fruit::new(10,9));
+        fruits.push(Fruit::new(11,9));
+        fruits.push(Fruit::new(12,9));
+        fruits.push(Fruit::new(13,9));
+        fruits.push(Fruit::new(14,9));
+        fruits.push(Fruit::new(9,9));
+
+        let fruit_bowl = FruitBowl::new(0, 8);
+
         GameState {
-            player: Player::new(0.,0.),
+            player: Player::new(160.,144.),
             tiles,
             fruits,
             num_fruits_collected: 0,
+            fruit_bowl,
         }
     }
 }
@@ -68,7 +82,7 @@ impl Player {
             y,
             speed_x: 0.0,
             speed_y: 0.0,
-            max_gravity: 10.0,
+            max_gravity: 15.0,
             is_falling: false,
             is_facing_left: false,
             is_landed: false,
@@ -98,7 +112,7 @@ impl Player {
         }
 
         self.speed_x = self.speed_x.clamp(-PLAYER_MOVE_SPEED_MAX, PLAYER_MOVE_SPEED_MAX);
-        self.speed_y = self.speed_y.clamp(-PLAYER_JUMP_FORCE, PLAYER_MOVE_SPEED_MAX);
+        self.speed_y = self.speed_y.clamp(-PLAYER_JUMP_FORCE, self.max_gravity);
         
         self.speed_y += GRAVITY;
         self.speed_y = self.speed_y.clamp(-self.max_gravity, self.max_gravity);
@@ -158,19 +172,18 @@ impl Player {
         self.y += self.speed_y;
     }
 
-
     //TODO: make a global contains that can be used for everything. Set x, y, w, h for each element.
-    fn check_collision_fruits(&self, fruits: &mut[Fruit]) -> bool{
-        for fruit in fruits{
-            if !fruit.is_collected{
+    //TODO: Add num fruits into here, then pass that into the collected fruit, and you can find the position to tween to from there
+    fn check_collision_fruits(&self, fruits: &mut [Fruit]) -> Option<usize> {
+        for (index, fruit) in fruits.iter_mut().enumerate() {
+            if !fruit.is_collected {
                 if fruit.contains(self.x, self.y) || fruit.contains(self.x + 16., self.y) 
-                || fruit.contains(self.x, self.y+16.) || fruit.contains(self.x+16., self.y+16.){
-                    fruit.get_collected();
-                    return true
-                } 
+                || fruit.contains(self.x, self.y + 16.) || fruit.contains(self.x + 16., self.y + 16.) {
+                    return Some(index);
+                }
             }
         }
-        return false
+        None
     }
 
     fn draw(&self) {
@@ -182,17 +195,20 @@ impl Player {
 struct Tile {
     grid_x: usize,
     grid_y: usize,
+    spr_name: String,
 }
 
 impl Tile {
-    fn new(grid_x: usize, grid_y: usize) -> Self {
-        Self { grid_x, grid_y }
+    fn new(grid_x: usize, grid_y: usize, spr_name: String) -> Self {
+        Self { grid_x, grid_y, spr_name }
     }
 
     fn draw(&self) {
         let x = self.grid_x as i32 * TILE_SIZE;
         let y = self.grid_y as i32 * TILE_SIZE;
+        //change this to draw with sprite name
         rect!(x = x, y = y, w = TILE_SIZE, h = TILE_SIZE, color = 0x0000ffff);
+        sprite!(&self.spr_name as &str, x = x, y = y);
     }
 
     fn contains(&self, point_x: f32, point_y: f32) -> bool {
@@ -212,8 +228,10 @@ struct Fruit{
     is_collected: bool,
     float_dist: f32,
     float_tween: Tween<f32>,
+    bowl_tween_x: Tween<f32>,
+    bowl_tween_y: Tween<f32>,
 }
-//.duration(60).set(400.0).ease(Easing::EaseInBack)
+
 impl Fruit{
     fn new(grid_x: usize, grid_y: usize) -> Self {
         Self { grid_x, 
@@ -222,20 +240,13 @@ impl Fruit{
             timer: 0., 
             is_collected: false,
             float_dist: 2., 
-            float_tween:Tween::new(0.0).duration(60).ease(Easing::EaseInSine), 
+            float_tween:Tween::new(0.).duration(60).ease(Easing::EaseInSine),
+            bowl_tween_x:Tween::new(0.).duration(30),
+            bowl_tween_y: Tween::new(0.).duration(30),
         }
     }
 
     fn update(&mut self) {
-        // self.timer += 1.;
-
-        // let period = 90.0;
-
-        // self.y_offset = 3.0 * (2.0 * std::f32::consts::PI * self.timer / period).sin();
-
-        // if self.timer >= period {
-        //     self.timer -= period;
-        // }
         if self.float_tween.done(){
             if self.y_offset > 0.{
                 self.float_tween.set(-self.float_dist);
@@ -245,7 +256,6 @@ impl Fruit{
             }
         }
         self.y_offset = self.float_tween.get();
-        
     }
 
     fn contains(&self, point_x: f32, point_y: f32) -> bool {
@@ -255,15 +265,85 @@ impl Fruit{
         point_y >= tile_y && point_y < tile_y + TILE_SIZE as f32
     }
 
-    fn get_collected(&mut self){
+    fn get_collected(&mut self, target_position: (f32,f32)){
         self.is_collected = true;
+        let x = (self.grid_x as i32 * TILE_SIZE) as f32;
+        let y = (self.grid_y as i32 * TILE_SIZE) as f32;
+        //TODO: make duration based on distance
+        let distance = ((target_position.0 - x).powi(2) + (target_position.1 - y).powi(2)).sqrt();
+        let base_duration = 6.0;
+        let duration = base_duration * distance / TILE_SIZE as f32;
+        //turbo::println!("Tween duration: {}", duration);
+        self.bowl_tween_x = Tween::new(x).duration(duration as usize).set(target_position.0).ease(Easing::EaseOutCubic);
+        self.bowl_tween_y = Tween::new(y).duration(duration as usize).set(target_position.1).ease(Easing::EaseInOutSine);
+        
+    }
+
+    fn draw(&mut self) {
+        if !self.is_collected{
+            let x = self.grid_x as i32 * TILE_SIZE;
+            let y = (self.grid_y as i32 * TILE_SIZE) + self.y_offset as i32;
+            sprite!("fruit", x = x, y = y);
+        }
+        else{
+            let x = self.bowl_tween_x.get();
+            let y = self.bowl_tween_y.get();
+            sprite!("fruit", x = x, y = y);
+        }
+    }
+}
+
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
+struct FruitBowl {
+    grid_x: usize,
+    grid_y: usize,
+}
+impl FruitBowl{
+    fn new(grid_x: usize, grid_y: usize) -> Self {
+        Self { 
+            grid_x,
+            grid_y,
+        }
+    }
+    
+    fn fruit_position(&self, num_fruits: usize) -> (f32, f32){
+        let max_width = 8;
+        let x_variation = 6.0;
+        let y_variation = -4.0;
+        let row = num_fruits / max_width;
+        let col = num_fruits % max_width;
+        let mut x_adj: f32 = x_variation * col as f32;
+        if col % 2 == 1 {
+            x_adj += 3.0;
+        }
+        let y_adj: f32 = y_variation * row as f32;
+        let x = (self.grid_x as i32 * TILE_SIZE) as f32;
+        let y = (self.grid_y as i32 * TILE_SIZE) as f32;
+        (x + x_adj, y + y_adj)
     }
 
     fn draw(&self) {
-        if !self.is_collected{
-            let x = self.grid_x as i32 * TILE_SIZE;
-            let y = self.grid_y as i32 * TILE_SIZE;
-            sprite!("fruit", x = x, y = y + (self.y_offset as i32));
+        let x = self.grid_x as i32 * TILE_SIZE;
+        let y = self.grid_y as i32 * TILE_SIZE;
+        sprite!("fruit_bowl_empty", x = x, y = y+7);
+    }
+}
+
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
+struct Cloud {
+    x: usize,
+    y: usize,
+    sprite: String,
+    scroll_speed: i32,
+}
+
+impl Cloud{
+    fn new(x: usize, y: usize, sprite: String, scroll_speed: i32) -> Self {
+        Self { 
+            x,
+            y,
+            sprite,
+            scroll_speed
         }
     }
 }
@@ -326,24 +406,29 @@ turbo::go! {
 
     state.player.update_position();
 
-    if (state.player.check_collision_fruits(&mut state.fruits)){
+     if let Some(index) = state.player.check_collision_fruits(&mut state.fruits) {
         state.num_fruits_collected += 1;
-    };
+        
+        let fruit = &mut state.fruits[index];
+        fruit.get_collected(state.fruit_bowl.fruit_position(state.num_fruits_collected));
+     }
 
     update_camera(state.player.x, state.player.y);
 
     clear(0xadd8e6ff);
     
-    state.player.draw();
-    
     for tile in &state.tiles {
         tile.draw();
     }
+
+    state.fruit_bowl.draw();
 
     for fruit in &mut state.fruits {
         fruit.update();
         fruit.draw();
     }
+
+    state.player.draw();
 
     let text = format!("Fruits: {}", state.num_fruits_collected);
 
@@ -354,6 +439,7 @@ turbo::go! {
 
 
 
+use core::num;
 //Tweening Code
 use std::collections::BTreeMap;
 
