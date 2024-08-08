@@ -16,8 +16,8 @@ use std::io::{self, Read};
 const PLAYER_MOVE_SPEED_MAX: f32 = 3.0;
 const PLAYER_ACCELERATION: f32 = 2.0;
 const PLAYER_DECELERATION: f32 = 0.5;
-const PLAYER_JUMP_FORCE: f32 = 12.0;
-const GRAVITY: f32 = 1.0;
+const PLAYER_JUMP_FORCE: f32 = 10.0;
+const GRAVITY: f32 = 0.8;
 const TILE_SIZE: i32 = 16;
 
 const FRUIT_TREE_POSITIONS: [(i32, i32); 4] = [
@@ -29,7 +29,7 @@ const FRUIT_TREE_POSITIONS: [(i32, i32); 4] = [
 
 const TREE_POS: (i32, i32) = (60, 216);
 
-const PLAYER_START_POS: (f32, f32) = (180.,240.);
+const PLAYER_START_POS: (f32, f32) = (196.,240.);
 
 turbo::init! {
     struct GameState {
@@ -144,7 +144,7 @@ impl Player {
     }
     fn handle_input(&mut self) {
         let gp = gamepad(0);
-        if gp.up.just_pressed() && self.is_landed {
+        if (gp.up.just_pressed() || gp.start.just_pressed()) && self.is_landed {
             self.speed_y -= PLAYER_JUMP_FORCE;
             self.is_landed = false;
         }
@@ -173,7 +173,7 @@ impl Player {
 
     }
    
-
+    //TODO: Figure out how to push into the collision edge without bugging the game
     fn check_collision_tilemap(&mut self, tiles: &[Tile]) {
         // Check collision down
         if self.speed_y > 0.0 {
@@ -371,9 +371,13 @@ impl Fruit{
             }
         }
         else{
-            let x = self.start_pos.0;
-            let y = self.start_pos.1;
+            let x = self.bowl_tween_x.get();
+            let y = self.bowl_tween_y.get();
             sprite!("fruit", x = x, y = y);
+            //TODO: Need a way to only check this after the game starts
+            if self.bowl_tween_x.done(){
+                self.is_off_tree = true;
+            }
         }
     }
 }
@@ -461,6 +465,7 @@ enum Direction {
     Right,
 }
 
+//TODO: remove these magic numbers
 fn check_collision(player_x: f32, player_y: f32, direction: Direction, tiles: &[Tile]) -> Option<Collision> {
     let (check_x1, check_y1, check_x2, check_y2) = match direction {
         Direction::Up => (player_x+2., player_y, player_x + 14.0, player_y),
@@ -517,7 +522,6 @@ fn random_range(min: f32, max: f32) -> f32 {
 }
 
 fn read_tile_map_from_csv(csv_content: &str) -> Result<Vec<Tile>, Box<dyn Error>> {
-    turbo::println!("Starting to parse CSV content");
     let mut rdr = ReaderBuilder::new().has_headers(false).from_reader(csv_content.as_bytes());
     let mut tile_map = Vec::new();
 
@@ -529,7 +533,7 @@ fn read_tile_map_from_csv(csv_content: &str) -> Result<Vec<Tile>, Box<dyn Error>
                     match field.parse::<i32>() {
                         Ok(number) => {
                             if number == -1 {
-                                continue; // Skip -1s
+                                continue;
                             }
                             let tile_type = TileType::from_number(number);
                             tile_map.push(Tile {
@@ -550,7 +554,6 @@ fn read_tile_map_from_csv(csv_content: &str) -> Result<Vec<Tile>, Box<dyn Error>
         }
     }
 
-    turbo::println!("Finished parsing CSV content");
     Ok(tile_map)
 }
 
