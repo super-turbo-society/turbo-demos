@@ -15,6 +15,14 @@ const PLAYER_JUMP_FORCE: f32 = 12.0;
 const GRAVITY: f32 = 1.0;
 const TILE_SIZE: i32 = 16;
 
+const FRUIT_TREE_POSITIONS: [(i32, i32); 3] = [
+    (100, 120),
+    (125, 100),
+    (150, 120),
+];
+
+const TREE_POS: (i32, i32) = (80, 88);
+
 turbo::init! {
     struct GameState {
         player: Player,
@@ -39,21 +47,14 @@ turbo::init! {
         tiles.push(Tile::new(22,9, "stone_pillar_bottom_001".to_string()));
         //FRUITS
         let mut fruits = Vec::new();
-        fruits.push(Fruit::new(10,5));
-        fruits.push(Fruit::new(15,5));
-        fruits.push(Fruit::new(17,2));
-        fruits.push(Fruit::new(11,5));
-        fruits.push(Fruit::new(16,5));
-        fruits.push(Fruit::new(18,9));
-        // fruits.push(Fruit::new(10,9));
-        // fruits.push(Fruit::new(11,9));
-        // fruits.push(Fruit::new(12,9));
-        // fruits.push(Fruit::new(13,9));
-        // fruits.push(Fruit::new(14,9));
-        // fruits.push(Fruit::new(9,9));
+        fruits.push(Fruit::new(10,5, FRUIT_TREE_POSITIONS[fruits.len() % FRUIT_TREE_POSITIONS.len()]));
+        fruits.push(Fruit::new(15,5, FRUIT_TREE_POSITIONS[fruits.len() % FRUIT_TREE_POSITIONS.len()]));
+        fruits.push(Fruit::new(17,2, FRUIT_TREE_POSITIONS[fruits.len() % FRUIT_TREE_POSITIONS.len()]));
+        fruits.push(Fruit::new(11,5, FRUIT_TREE_POSITIONS[fruits.len() % FRUIT_TREE_POSITIONS.len()]));
+        fruits.push(Fruit::new(16,5, FRUIT_TREE_POSITIONS[fruits.len() % FRUIT_TREE_POSITIONS.len()]));
+        fruits.push(Fruit::new(18,9, FRUIT_TREE_POSITIONS[fruits.len() % FRUIT_TREE_POSITIONS.len()]));
         
         let fruit_bowl = FruitBowl::new(0, 8);
-        //TODO: Make this creation randomized
         let num_clouds = 10;
         let clouds: Vec<Cloud> = std::iter::repeat_with(Cloud::new).take(num_clouds).collect();
 
@@ -63,7 +64,7 @@ turbo::init! {
             fruits,
             num_fruits_collected: 0,
             fruit_bowl,
-            clouds
+            clouds,
         }
     }
 }
@@ -233,10 +234,12 @@ struct Fruit{
     float_tween: Tween<f32>,
     bowl_tween_x: Tween<f32>,
     bowl_tween_y: Tween<f32>,
+    start_pos: (i32, i32),
+    is_off_tree: bool,
 }
 
 impl Fruit{
-    fn new(grid_x: usize, grid_y: usize) -> Self {
+    fn new(grid_x: usize, grid_y: usize, start_pos: (i32, i32)) -> Self {
         Self { grid_x, 
             grid_y, 
             y_offset: 0., 
@@ -246,6 +249,8 @@ impl Fruit{
             float_tween:Tween::new(0.).duration(60).ease(Easing::EaseInSine),
             bowl_tween_x:Tween::new(0.).duration(30),
             bowl_tween_y: Tween::new(0.).duration(30),
+            start_pos,
+            is_off_tree: false
         }
     }
 
@@ -282,14 +287,21 @@ impl Fruit{
     }
 
     fn draw(&mut self) {
-        if !self.is_collected{
-            let x = self.grid_x as i32 * TILE_SIZE;
-            let y = (self.grid_y as i32 * TILE_SIZE) + self.y_offset as i32;
-            sprite!("fruit", x = x, y = y);
+        if self.is_off_tree{
+            if !self.is_collected{
+                let x = self.grid_x as i32 * TILE_SIZE;
+                let y = (self.grid_y as i32 * TILE_SIZE) + self.y_offset as i32;
+                sprite!("fruit", x = x, y = y);
+            }
+            else{
+                let x = self.bowl_tween_x.get();
+                let y = self.bowl_tween_y.get();
+                sprite!("fruit", x = x, y = y);
+            }
         }
         else{
-            let x = self.bowl_tween_x.get();
-            let y = self.bowl_tween_y.get();
+            let x = self.start_pos.0;
+            let y = self.start_pos.1;
             sprite!("fruit", x = x, y = y);
         }
     }
@@ -421,8 +433,14 @@ fn random_range(min: f32, max: f32) -> f32 {
     min + (max - min) * random_float // Scale and shift to the desired range
 }
 
+fn draw_tree(pos:(i32, i32)){
+    sprite!("fruit_tree", x=pos.0, y=pos.1);
+}
+
 turbo::go! {
     let mut state = GameState::load();
+
+    //INPUT CODE
 
     state.player.handle_input();
 
@@ -439,6 +457,7 @@ turbo::go! {
 
     update_camera(state.player.x, state.player.y);
 
+    //DRAWING CODE
     clear(0xadd8e6ff);
     
     for tile in &state.tiles {
@@ -449,7 +468,9 @@ turbo::go! {
         cloud.draw();
     }
 
+
     state.fruit_bowl.draw();
+    draw_tree(TREE_POS);
 
     for fruit in &mut state.fruits {
         fruit.update();
