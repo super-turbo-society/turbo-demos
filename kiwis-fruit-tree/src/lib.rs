@@ -20,13 +20,16 @@ const PLAYER_JUMP_FORCE: f32 = 12.0;
 const GRAVITY: f32 = 1.0;
 const TILE_SIZE: i32 = 16;
 
-const FRUIT_TREE_POSITIONS: [(i32, i32); 3] = [
-    (100, 120),
-    (125, 100),
-    (150, 120),
+const FRUIT_TREE_POSITIONS: [(i32, i32); 4] = [
+    (72, 240),
+    (90, 220),
+    (114, 220),
+    (132, 240),
 ];
 
-const TREE_POS: (i32, i32) = (80, 88);
+const TREE_POS: (i32, i32) = (60, 216);
+
+const PLAYER_START_POS: (f32, f32) = (180.,240.);
 
 turbo::init! {
     struct GameState {
@@ -100,9 +103,10 @@ turbo::init! {
         let fruit_bowl = FruitBowl::new(0, 8);
         let num_clouds = 10;
         let clouds: Vec<Cloud> = std::iter::repeat_with(Cloud::new).take(num_clouds).collect();
+        center_camera(PLAYER_START_POS.0, PLAYER_START_POS.1);
 
         GameState {
-            player: Player::new(160.,144.),
+            player: Player::new(PLAYER_START_POS.0, PLAYER_START_POS.1),
             tiles,
             fruits,
             num_fruits_collected: 0,
@@ -492,6 +496,10 @@ fn update_camera(p_x: f32, p_y: f32){
         cam_y -=cam_speed;
     }
     set_cam!(x = cam_x as i32, y = cam_y as i32);
+}
+
+fn center_camera(p_x: f32, p_y: f32){
+    set_cam!(x = p_x, y = p_y);
 }
 
 fn screenshake(){
