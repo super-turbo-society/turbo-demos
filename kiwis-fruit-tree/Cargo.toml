@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 turbo = { version = "1.6.0-alpha.2", package = "turbo-genesis-sdk" }
+csv = "1.1"  # or the latest version
 
 [lib]
 crate-type = ["cdylib"]
