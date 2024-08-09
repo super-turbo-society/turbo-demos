@@ -102,7 +102,11 @@ turbo::init! {
         
         let fruit_bowl = FruitBowl::new(0, 8);
         let num_clouds = 50;
-        let clouds: Vec<Cloud> = std::iter::repeat_with(Cloud::new).take(num_clouds).collect();
+        let mut clouds = Vec::new();
+        for i in 0 .. num_clouds{
+            let c = Cloud::new();
+            clouds.push(c);
+        }
         center_camera(PLAYER_START_POS.0, PLAYER_START_POS.1);
 
         GameState {
@@ -190,23 +194,34 @@ impl Player {
         
         // Check collision up
         if self.speed_y < 0.0 {
-            if let Some(collision) = check_collision(self.x, self.y+self.speed_y, Direction::Up, tiles) {
-                self.speed_y = 0.0;
-
+            while self.speed_y < 0.0 {
+                if let Some(collision) = check_collision(self.x, self.y + self.speed_y, Direction::Up, tiles) {
+                    self.speed_y += 1.0;
+                } else {
+                    break;
+                }
             }
         }
 
         // Check collision right
         if self.speed_x > 0.0 {
-            if let Some(collision) = check_collision(self.x+self.speed_x, self.y, Direction::Right, tiles) {
-                self.speed_x = 0.0;
+            while self.speed_x > 0.0 {
+                if let Some(collision) = check_collision(self.x + self.speed_x, self.y, Direction::Right, tiles) {
+                    self.speed_x -= 1.0;
+                } else {
+                    break;
+                }
             }
         }
 
         // Check collision left
         if self.speed_x < 0.0 {
-            if let Some(collision) = check_collision(self.x+self.speed_x, self.y, Direction::Left, tiles) {
-                self.speed_x = 0.0;
+            while self.speed_x < 0.0 {
+                if let Some(collision) = check_collision(self.x + self.speed_x, self.y, Direction::Left, tiles) {
+                    self.speed_x += 1.0;
+                } else {
+                    break;
+                }
             }
         }
     }
@@ -355,8 +370,8 @@ impl Fruit{
 
     fn fly_off_tree(&mut self){
         let target_position: (i32, i32) = (self.grid_x as i32 * TILE_SIZE, self.grid_y as i32 * TILE_SIZE);
-        let distance = (((target_position.0 - self.start_pos.0) as f32)).powi(2) + ((target_position.1 - self.start_pos.1) as f32).powi(2).sqrt();
-        let base_duration = 0.02;
+        // let distance = (((target_position.0 - self.start_pos.0) as f32)).powi(2) + ((target_position.1 - self.start_pos.1) as f32).powi(2).sqrt();
+        // let base_duration = 0.02;
         let duration = 30;
         //set tweens
         self.bowl_tween_x = Tween::new(self.start_pos.0 as f32).duration(duration as usize).set(target_position.0 as f32).ease(Easing::EaseInSine);
@@ -511,10 +526,15 @@ fn update_camera(p_x: f32, p_y: f32, should_shake: bool){
     let y_move_point: f32 = 32.;
     let mut cam_x = cam!().0 as f32;
     let mut cam_y = cam!().1 as f32;
+    let mut shake_adj_x = 0.;
+    let mut shake_adj_y = 0.;
     let cam_speed = PLAYER_MOVE_SPEED_MAX;
     if should_shake{
-        cam_x+= -3.+(rand()%6) as f32;
-        cam_y+= -2.+(rand()%6) as f32;
+        center_camera(p_x, p_y);
+        shake_adj_x = -3.+(rand()%6) as f32;
+        shake_adj_y = -2.+(rand()%6) as f32;
+        turbo::println!("ShakeAdj X: {}", shake_adj_x);
+        turbo::println!("ShakeAdj Y: {}", shake_adj_y);
     }
     else{
         if p_x - cam_x > x_move_point{
@@ -530,7 +550,7 @@ fn update_camera(p_x: f32, p_y: f32, should_shake: bool){
             cam_y -=cam_speed;
         }
     }
-    set_cam!(x = cam_x as i32, y = cam_y as i32);
+    set_cam!(x = (cam_x+shake_adj_x) as i32, y = (cam_y+shake_adj_y) as i32);
 }
 
 fn center_camera(p_x: f32, p_y: f32){
