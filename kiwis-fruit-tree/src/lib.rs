@@ -132,6 +132,8 @@ struct Player {
     is_falling: bool,
     is_facing_left: bool,
     is_landed: bool,
+    coyote_timer: i32,
+    coyote_timer_max: i32,
 }
 
 impl Player {
@@ -145,12 +147,17 @@ impl Player {
             is_falling: false,
             is_facing_left: false,
             is_landed: false,
+            coyote_timer: 0,
+            coyote_timer_max: 3,
         }
     }
     fn handle_input(&mut self) {
         let gp = gamepad(0);
-        if (gp.up.just_pressed() || gp.start.just_pressed()) && self.is_landed {
-            self.speed_y -= PLAYER_JUMP_FORCE;
+        if (gp.up.just_pressed() || gp.start.just_pressed()) && (self.is_landed || self.coyote_timer > 0) && self.speed_y >= 0. {
+            if self.coyote_timer > 0{
+                turbo::println!("COYOTE JUMP");
+            }
+            self.speed_y = -PLAYER_JUMP_FORCE;
             self.is_landed = false;
         }
         if gp.left.pressed() {
@@ -176,6 +183,10 @@ impl Player {
         self.speed_y += GRAVITY;
         self.speed_y = self.speed_y.clamp(-self.max_gravity, self.max_gravity);
 
+        if self.coyote_timer > 0{
+            self.coyote_timer -= 1;
+        }
+
     }
    
     //TODO: Figure out how to push into the collision edge without bugging the game
@@ -188,7 +199,10 @@ impl Player {
                 self.is_landed = true;
             }
             else{
-                self.is_landed = false;
+                if self.is_landed{
+                    self.is_landed = false;
+                    self.coyote_timer = self.coyote_timer_max;
+                }
             }
         }
         
