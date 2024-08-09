@@ -101,7 +101,7 @@ turbo::init! {
         fruits.push(Fruit::new(38,9, FRUIT_TREE_POSITIONS[fruits.len() % FRUIT_TREE_POSITIONS.len()]));
         
         let fruit_bowl = FruitBowl::new(0, 8);
-        let num_clouds = 10;
+        let num_clouds = 50;
         let clouds: Vec<Cloud> = std::iter::repeat_with(Cloud::new).take(num_clouds).collect();
         center_camera(PLAYER_START_POS.0, PLAYER_START_POS.1);
 
@@ -458,7 +458,7 @@ impl Cloud{
         };
         Self { 
             x: random_range(50., 2500.),
-            y: random_range(0., 100.),
+            y: random_range(0., 800.),
             scroll_speed: random_range(0.25, 1.25), 
             spr_name: spr_name.to_string(),
         }
@@ -468,6 +468,7 @@ impl Cloud{
         self.x -= self.scroll_speed;
         if self.x < -300.{
             self.x = 2500.;
+            self.y = random_range(0., 800.);
         }
     }
 
@@ -626,16 +627,16 @@ turbo::go! {
     //DRAWING CODE
     //clear(0xadd8e6ff);
     //Draw bg
-    sprite!("sky",w=16,h=16,repeat=true);
+    sprite!("sky",x=-500, y=-500,w=3000,h=3000,repeat=true);
     
-    for tile in &state.tiles {
-        tile.draw();
-    }
     for cloud in &mut state.clouds{
         cloud.update();
         cloud.draw();
     }
 
+    for tile in &state.tiles {
+        tile.draw();
+    }
 
     state.fruit_bowl.draw();
     draw_tree(TREE_POS);
