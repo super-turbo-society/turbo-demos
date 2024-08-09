@@ -1,0 +1,10 @@
+[package]
+name = "dungeon-crawler"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+turbo = { version = "1.6.0-alpha.2", package = "turbo-genesis-sdk", path = "/Users/jozanza/github/turbo-genesis-sdk" }
+
+[lib]
+crate-type = ["cdylib"]
