@@ -38,6 +38,11 @@ use std::{env, fs, io::Write, path::PathBuf};
 
        // Write the generated code to a file in the output directory
        let dest_path = out_dir.join("src/file_list.rs");
+       if let Ok(file) = fs::read(dest_path.clone()){
+            if file == array_code.as_bytes(){
+                return
+            }
+       }
        let mut f = fs::File::create(&dest_path).unwrap();
        f.write_all(array_code.as_bytes()).unwrap();
    }

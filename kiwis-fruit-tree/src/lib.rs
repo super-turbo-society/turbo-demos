@@ -1,5 +1,6 @@
 // Define the game configuration using the turbo::cfg! macro
-include!("file_list.rs");
+mod file_list;
+use file_list::*;
 
 turbo::cfg! {r#"
     name = "Kiwi's Fruit Tree"
@@ -10,16 +11,15 @@ turbo::cfg! {r#"
     resolution = [384, 216]
 "#}
 
-use std::fs::File;
 use std::error::Error;
 use csv::ReaderBuilder;
-use std::io::{self, Read};
 
-const PLAYER_MOVE_SPEED_MAX: f32 = 3.0;
-const PLAYER_ACCELERATION: f32 = 2.0;
+
+const PLAYER_MOVE_SPEED_MAX: f32 = 2.0;
+const PLAYER_ACCELERATION: f32 = 1.0;
 const PLAYER_DECELERATION: f32 = 0.5;
-const PLAYER_MIN_JUMP_FORCE: f32 = 4.0;
-const PLAYER_MAX_JUMP_FORCE: f32 = 9.0;
+const PLAYER_MIN_JUMP_FORCE: f32 = 3.0;
+const PLAYER_MAX_JUMP_FORCE: f32 = 6.0;
 const GRAVITY: f32 = 0.6;
 const TILE_SIZE: i32 = 16;
 const SHAKE_TIMER: i32 = 30;
@@ -33,7 +33,7 @@ const FRUIT_TREE_POSITIONS: [(i32, i32); 4] = [
 
 const TREE_POS: (i32, i32) = (360, 264);
 
-const PLAYER_START_POS: (f32, f32) = (320.,352.);
+const PLAYER_START_POS: (f32, f32) = (352.,352.);
 
 turbo::init! {
     struct GameState {
@@ -46,69 +46,15 @@ turbo::init! {
         game_started: bool,
         shake_timer: i32,
     } = {
-        //let csv_content = include_str("../resources/tile_map.csv");
-        let csv_content = r#"
-0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-0,5,6,6,6,6,6,6,6,6,7,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,96,98,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-6,18,18,18,18,18,18,18,18,18,33,7,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,96,98,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-90,90,90,90,90,90,90,90,90,90,90,33,7,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,5,6,6,6,6,6,7,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-90,90,90,81,102,102,102,102,102,102,83,90,33,7,0,0,0,0,0,0,0,0,0,0,77,78,79,0,0,0,0,0,0,0,77,78,79,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,5,35,18,18,18,18,18,33,7,0,0,0,0,0,0,0,0,96,78,98,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-90,81,102,103,0,0,0,0,0,0,101,83,90,33,7,0,0,0,0,0,0,0,0,0,0,50,0,0,3,0,0,0,3,0,0,50,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,5,35,18,18,18,18,18,18,18,33,7,0,0,0,0,0,0,0,0,50,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-81,103,0,0,0,0,0,0,0,0,0,101,83,90,33,6,6,6,6,6,6,7,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,5,35,18,18,18,18,18,18,18,18,18,33,7,0,0,0,0,0,0,0,0,0,0,96,98,0,0,0,0,0,0,0,0,0,0,0,0,77,78,78,78,78,79,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,77,78,78,78,78,78,78,78,78,78,78,78,78
-91,0,0,0,0,0,0,0,0,0,0,0,89,90,90,90,90,90,90,90,90,91,0,0,0,0,0,0,0,0,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,5,6,35,18,18,18,18,18,18,18,18,18,18,18,33,7,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,101,102,102,102,102,103,0,0,0,0,0,0,0,0,3,0,0,3,0,0,3,0,96,11,18,18,18,18,18,18,18,18,18,18,18,18
-91,0,0,0,0,0,0,0,0,0,0,0,101,102,102,102,102,102,102,102,102,103,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,5,6,6,35,18,18,18,18,90,90,90,90,90,90,90,18,18,18,33,7,0,0,0,0,0,0,0,0,0,0,0,96,97,98,0,0,26,0,0,0,26,0,0,0,0,0,0,0,0,96,97,98,0,0,26,0,0,0,0,0,0,0,0,0,0,29,11,18,18,18,18,18,18,18,18,18,18,18
-91,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,96,97,98,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,5,6,6,35,18,18,18,18,18,90,90,90,90,90,90,90,90,90,90,90,90,18,33,7,0,0,0,0,0,0,0,0,0,0,0,50,0,0,0,50,0,0,0,50,0,0,0,0,0,0,0,0,0,0,0,0,0,50,0,0,0,3,0,0,3,0,0,0,0,29,10,10,18,18,18,18,18,18,18,18,18
-91,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,96,78,98,0,0,0,0,0,96,78,79,0,0,3,0,0,0,0,0,0,0,5,35,18,18,18,18,18,18,90,90,90,90,90,90,90,90,90,90,90,90,90,90,90,18,33,7,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,26,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,29,10,11,18,18,18,18,18,18
-91,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,63,0,0,96,78,98,0,0,50,0,0,0,0,0,0,0,50,0,0,0,0,0,0,0,0,0,0,5,35,18,18,18,18,18,18,90,90,90,90,81,82,82,82,82,82,82,82,82,82,82,83,90,18,33,7,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,50,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,23,18,18,18,18,18,18
-105,79,0,0,0,0,0,0,0,0,0,0,77,78,79,0,0,77,78,79,0,0,50,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,5,6,6,6,6,35,18,18,18,18,90,90,90,90,90,90,90,91,0,0,0,0,0,0,0,0,0,0,101,83,90,18,33,7,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,29,11,18,18,18,18,18
-90,105,79,0,0,0,0,0,0,0,0,77,107,90,91,0,0,89,90,91,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,96,90,90,90,90,90,90,90,90,90,90,90,90,90,90,90,90,90,90,90,91,0,0,0,0,0,0,0,0,0,0,0,101,83,90,18,33,7,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,29,11,18,18,18,18
-90,90,105,78,78,78,78,78,78,78,78,107,90,90,91,0,96,102,102,103,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,101,82,82,82,82,82,82,82,82,82,82,82,82,82,82,82,82,83,81,103,0,0,0,0,0,0,0,0,0,0,0,0,95,90,90,18,33,7,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,23,18,18,18,18
-90,90,90,90,90,90,90,90,90,90,90,90,90,90,91,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,101,103,0,0,0,0,0,0,0,0,0,0,0,0,0,101,82,82,30,30,31,0,0,24,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,77,79,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,23,18,18,18,18
-90,90,90,90,90,90,90,90,90,90,90,90,90,90,91,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,17,7,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,89,91,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,23,18,18,18,18
-90,90,90,81,102,102,102,102,102,102,102,102,102,102,102,97,79,0,0,0,0,0,0,0,77,78,98,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,77,106,106,106,106,106,106,106,78,98,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,5,35,33,7,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,77,79,0,0,0,77,107,105,79,0,0,0,0,0,0,0,0,0,0,0,0,0,0,23,18,18,18,18
-90,90,90,91,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,0,0,0,0,0,0,50,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,77,107,90,90,90,90,90,90,81,102,103,0,0,0,0,0,0,77,79,0,0,0,0,0,0,0,0,0,0,0,17,18,18,33,7,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,89,91,0,0,0,101,83,81,103,0,0,0,0,0,0,0,0,0,0,0,0,0,5,35,18,18,18,18
-90,90,81,103,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,77,78,98,0,0,0,0,0,77,78,98,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,77,107,18,18,18,18,90,90,90,91,0,0,0,0,77,79,0,0,89,91,0,0,0,0,0,0,0,0,0,0,5,35,18,18,18,33,7,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,77,107,105,79,0,0,0,89,91,0,0,0,0,77,78,78,79,0,0,0,0,0,5,35,18,18,18,18,18
-90,81,103,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,50,0,0,0,0,0,0,0,50,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,77,107,18,18,18,18,18,18,90,90,91,0,0,0,0,89,91,0,0,89,91,0,0,0,0,0,0,0,0,77,6,35,18,18,18,18,18,33,7,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,101,83,81,103,0,0,0,89,91,0,0,0,0,101,83,90,91,0,0,0,0,0,17,18,18,18,18,18,18
-90,91,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,77,78,98,0,0,0,0,0,0,0,0,77,107,18,18,18,18,18,18,18,18,90,105,106,106,106,106,107,90,106,106,107,105,106,106,106,106,106,106,106,106,107,18,18,18,18,18,18,18,18,33,7,0,0,0,0,0,0,0,0,0,0,77,79,0,0,0,89,91,0,0,0,77,107,105,78,79,0,0,0,89,90,105,79,0,0,0,5,35,18,18,18,18,18,18
-90,91,0,0,0,0,0,0,0,0,0,0,0,77,78,78,78,79,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,50,0,0,3,0,0,0,0,0,77,107,18,18,18,18,18,18,18,18,18,18,90,90,90,90,90,90,90,90,90,90,90,90,90,90,90,90,90,90,90,90,18,18,18,18,18,18,18,18,18,33,7,0,0,0,0,0,0,0,0,0,89,91,0,0,0,89,91,0,0,0,101,83,81,102,103,0,0,0,89,90,90,105,79,0,77,35,18,18,18,18,18,18,54
-90,91,0,0,0,0,0,0,0,0,0,0,77,107,18,18,18,33,7,0,0,0,0,0,0,0,0,0,0,0,77,79,0,0,0,0,0,0,0,0,0,0,77,107,18,18,18,18,18,18,18,18,18,18,18,18,90,90,90,90,90,90,90,90,90,90,90,90,90,90,90,90,90,90,18,18,18,18,18,18,18,18,18,18,18,33,7,0,0,0,0,0,0,0,0,89,91,0,0,77,107,105,78,79,0,0,89,91,0,0,0,0,0,89,90,90,90,105,90,107,18,18,18,18,54,54,54,54
-90,105,79,0,0,0,0,0,0,0,77,78,107,18,18,18,18,18,33,7,0,0,0,26,0,0,26,0,0,77,107,105,79,0,0,0,0,0,0,0,0,77,107,18,18,18,18,18,18,18,18,18,18,18,18,18,18,90,90,90,90,90,90,90,90,90,90,90,90,90,90,90,90,18,18,18,18,18,18,18,18,18,18,18,18,18,33,42,42,42,42,42,42,42,42,107,105,42,42,107,90,90,90,105,42,42,107,105,42,42,42,42,42,71,54,54,54,54,54,54,54,54,54,54,54,54,54,54
-90,90,105,78,78,78,78,78,78,78,107,90,54,54,54,54,54,54,54,33,7,0,0,38,0,0,38,0,77,107,90,90,105,79,0,0,0,0,77,78,78,107,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,90,90,54,54,54,54,54,54,54,54,90,90,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54
-54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,33,6,6,102,6,6,102,6,35,54,54,54,54,105,78,78,78,78,107,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,90,90,54,54,54,54,54,54,54,54,90,90,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54
-54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,90,90,90,90,54,54,54,54,54,54,90,90,90,90,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54,54
-
-"#;
-        let tiles = read_tile_map_from_csv(csv_content).expect("Failed to read tile map from CSV");
+        let csv_content = include_str!("../resources/tile_map.csv");
+        //TODO: Clean this up
+        let tiles = read_tile_map_from_csv(csv_content).expect("Failed to read tile map from CSV").0;
+        let fruits = read_tile_map_from_csv(csv_content).expect("Failed to read tile map from CSV").1;
         
-        //FRUITS
-        let mut fruits = Vec::new();
-        fruits.push(Fruit::new(10,25, FRUIT_TREE_POSITIONS[fruits.len() % FRUIT_TREE_POSITIONS.len()]));
-        fruits.push(Fruit::new(15,25, FRUIT_TREE_POSITIONS[fruits.len() % FRUIT_TREE_POSITIONS.len()]));
-        fruits.push(Fruit::new(17,22, FRUIT_TREE_POSITIONS[fruits.len() % FRUIT_TREE_POSITIONS.len()]));
-        fruits.push(Fruit::new(11,25, FRUIT_TREE_POSITIONS[fruits.len() % FRUIT_TREE_POSITIONS.len()]));
-        fruits.push(Fruit::new(16,25, FRUIT_TREE_POSITIONS[fruits.len() % FRUIT_TREE_POSITIONS.len()]));
-        fruits.push(Fruit::new(18,9, FRUIT_TREE_POSITIONS[fruits.len() % FRUIT_TREE_POSITIONS.len()]));
-        fruits.push(Fruit::new(20,15, FRUIT_TREE_POSITIONS[fruits.len() % FRUIT_TREE_POSITIONS.len()]));
-        fruits.push(Fruit::new(25,9, FRUIT_TREE_POSITIONS[fruits.len() % FRUIT_TREE_POSITIONS.len()]));
-        fruits.push(Fruit::new(27,4, FRUIT_TREE_POSITIONS[fruits.len() % FRUIT_TREE_POSITIONS.len()]));
-        fruits.push(Fruit::new(21,8, FRUIT_TREE_POSITIONS[fruits.len() % FRUIT_TREE_POSITIONS.len()]));
-        fruits.push(Fruit::new(26,2, FRUIT_TREE_POSITIONS[fruits.len() % FRUIT_TREE_POSITIONS.len()]));
-        fruits.push(Fruit::new(28,9, FRUIT_TREE_POSITIONS[fruits.len() % FRUIT_TREE_POSITIONS.len()]));
-        fruits.push(Fruit::new(30,5, FRUIT_TREE_POSITIONS[fruits.len() % FRUIT_TREE_POSITIONS.len()]));
-        fruits.push(Fruit::new(35,5, FRUIT_TREE_POSITIONS[fruits.len() % FRUIT_TREE_POSITIONS.len()]));
-        fruits.push(Fruit::new(37,2, FRUIT_TREE_POSITIONS[fruits.len() % FRUIT_TREE_POSITIONS.len()]));
-        fruits.push(Fruit::new(31,5, FRUIT_TREE_POSITIONS[fruits.len() % FRUIT_TREE_POSITIONS.len()]));
-        fruits.push(Fruit::new(36,5, FRUIT_TREE_POSITIONS[fruits.len() % FRUIT_TREE_POSITIONS.len()]));
-        fruits.push(Fruit::new(38,9, FRUIT_TREE_POSITIONS[fruits.len() % FRUIT_TREE_POSITIONS.len()]));
-        
-        let fruit_bowl = FruitBowl::new(0, 8);
+        let fruit_bowl = FruitBowl::new(4, 27);
         let num_clouds = 50;
         let mut clouds = Vec::new();
-        for i in 0 .. num_clouds{
+        for _i in 0 .. num_clouds{
             let c = Cloud::new();
             clouds.push(c);
         }
@@ -141,6 +87,7 @@ struct Player {
     coyote_timer_max: i32,
     jump_power_counter: i32,
     jump_power_counter_max: i32,
+    is_powering_jump: bool,
 }
 
 impl Player {
@@ -158,17 +105,29 @@ impl Player {
             coyote_timer_max: 3,
             jump_power_counter: 0,
             jump_power_counter_max: 8,
+            is_powering_jump: false
         }
     }
     fn handle_input(&mut self) {
         let gp = gamepad(0);
         if (gp.up.just_pressed() || gp.start.just_pressed()) && (self.is_landed || self.coyote_timer > 0) && self.speed_y >= 0. {
-            if self.coyote_timer > 0{
-                turbo::println!("COYOTE JUMP");
+            if !self.is_powering_jump{
+                self.speed_y = -PLAYER_MIN_JUMP_FORCE;
+                self.is_powering_jump = true;
             }
-            self.speed_y = -PLAYER_MAX_JUMP_FORCE;
-            self.is_landed = false;
         }
+        if self.is_powering_jump && (gp.up.pressed() || gp.start.pressed()){
+            log("HOLDING JUMP");
+            self.speed_y -=0.5;
+            if self.speed_y <= -PLAYER_MAX_JUMP_FORCE{
+                self.is_powering_jump = false;
+            }
+        }
+        else{
+            self.is_powering_jump = false;
+            self.jump_power_counter = 0;
+        }
+
         if gp.left.pressed() {
             self.speed_x -= PLAYER_ACCELERATION;
             self.is_facing_left = true;
@@ -187,15 +146,17 @@ impl Player {
         }
 
         self.speed_x = self.speed_x.clamp(-PLAYER_MOVE_SPEED_MAX, PLAYER_MOVE_SPEED_MAX);
-        self.speed_y = self.speed_y.clamp(-PLAYER_JUMP_FORCE, self.max_gravity);
-        
-        self.speed_y += GRAVITY;
+        self.speed_y = self.speed_y.clamp(-PLAYER_MAX_JUMP_FORCE, self.max_gravity);
+        if !self.is_powering_jump{
+            self.speed_y += GRAVITY;
+        }
         self.speed_y = self.speed_y.clamp(-self.max_gravity, self.max_gravity);
 
         if self.coyote_timer > 0{
             self.coyote_timer -= 1;
         }
-
+        //let speed_y_text = format!("Speed Y: {}", self.speed_y);
+        //text!(&speed_y_text, x = 50+(cam!().0-192), y = 10+(cam!().1-108), font = Font::L, color = 0xffffffff);
     }
    
     //TODO: Figure out how to push into the collision edge without bugging the game
@@ -218,7 +179,7 @@ impl Player {
         // Check collision up
         if self.speed_y < 0.0 {
             while self.speed_y < 0.0 {
-                if let Some(collision) = check_collision(self.x, self.y + self.speed_y, Direction::Up, tiles) {
+                if let Some(_collision) = check_collision(self.x, self.y + self.speed_y, Direction::Up, tiles) {
                     self.speed_y += 1.0;
                 } else {
                     break;
@@ -229,7 +190,7 @@ impl Player {
         // Check collision right
         if self.speed_x > 0.0 {
             while self.speed_x > 0.0 {
-                if let Some(collision) = check_collision(self.x + self.speed_x, self.y, Direction::Right, tiles) {
+                if let Some(_collision) = check_collision(self.x + self.speed_x, self.y, Direction::Right, tiles) {
                     self.speed_x -= 1.0;
                 } else {
                     break;
@@ -240,7 +201,7 @@ impl Player {
         // Check collision left
         if self.speed_x < 0.0 {
             while self.speed_x < 0.0 {
-                if let Some(collision) = check_collision(self.x + self.speed_x, self.y, Direction::Left, tiles) {
+                if let Some(_collision) = check_collision(self.x + self.speed_x, self.y, Direction::Left, tiles) {
                     self.speed_x += 1.0;
                 } else {
                     break;
@@ -279,88 +240,8 @@ struct Tile {
     tile_type: i32,
 }
 
-#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
-enum TileType {
-    Grass,
-    Dirt,
-    Sand,
-}
-
-impl TileType {
-    fn from_number(num: i32) -> &'static str {
-        match num {
-            1 => "01_grass.png",
-            2 => "02_dirt.png",
-            3 => "03_stone.png",
-            4 => "04_grass.png",
-            5 => "05_dirt.png",
-            6 => "06_stone.png",
-            7 => "07_grass.png",
-            8 => "08_dirt.png",
-            9 => "09_stone_icon.png",
-            10 => "10_grass.png",
-            11 => "11_dirt.png",
-            12 => "12_stone.png",
-            13 => "13_grass.png",
-            14 => "14_grass.png",
-            15 => "15_grass.png",
-            16 => "16_dirt.png",
-            17 => "17_dirt.png",
-            18 => "18_dirt.png",
-            19 => "19_stone.png",
-            20 => "20_stone_icon.png",
-            21 => "21_stone.png",
-            22 => "22_grass.png",
-            23 => "23_grass.png",
-            24 => "24_grass.png",
-            25 => "25_grass.png",
-            26 => "26_grass.png",
-            27 => "27_grass.png",
-            28 => "28_grass.png",
-            29 => "29_grass.png",
-            30 => "30_grass.png",
-            31 => "31_dirt.png",
-            32 => "32_dirt.png",
-            33 => "33_dirt.png",
-            34 => "34_dirt.png",
-            35 => "35_dirt.png",
-            36 => "36_dirt.png",
-            37 => "37_dirt.png",
-            38 => "38_dirt.png",
-            39 => "39_dirt.png",
-            40 => "40_stone.png",
-            41 => "41_stone.png",
-            42 => "42_stone.png",
-            43 => "43_stone.png",
-            44 => "44_stone.png",
-            45 => "45_stone.png",
-            46 => "46_stone.png",
-            47 => "47_stone.png",
-            48 => "48_stone.png",
-            49 => "49_grass.png",
-            50 => "50_grass.png",
-            51 => "51_grass.png",
-            52 => "52_grass.png",
-            53 => "53_grass.png",
-            54 => "54_grass.png",
-            55 => "55_grass.png",
-            56 => "56_grass.png",
-            57 => "57_dirt.png",
-            58 => "58_dirt.png",
-            59 => "59_dirt.png",
-            60 => "60_dirt.png",
-            61 => "61_dirt.png",
-            62 => "62_dirt.png",
-            63 => "63_stone.png",
-            64 => "64_stone.png",
-            65 => "65_stone.png",
-            66 => "66_stone.png",
-            _ => "unknown.png",
-        }
-    }
-}
-
 impl Tile {
+    #[allow(unused)]
     fn new(grid_x: usize, grid_y: usize, tile_type: i32) -> Self {
         Self { grid_x, grid_y, tile_type }
     }
@@ -546,7 +427,7 @@ struct Cloud {
 
 impl Cloud{
     fn new() -> Self {
-        let spr_name = match (rand() % 3) {
+        let spr_name = match rand() % 3 {
             0 => "cloud_big",
             1 => "cloud_medium",
             _ => "cloud_small",
@@ -572,6 +453,7 @@ impl Cloud{
     }
 }
 
+#[allow(unused)]
 struct Collision {
     x: f32,
     y: f32,
@@ -645,9 +527,10 @@ fn random_range(min: f32, max: f32) -> f32 {
     min + (max - min) * random_float
 }
 
-fn read_tile_map_from_csv(csv_content: &str) -> Result<Vec<Tile>, Box<dyn Error>> {
+fn read_tile_map_from_csv(csv_content: &str) -> Result<(Vec<Tile>, Vec<Fruit>), Box<dyn Error>> {
     let mut rdr = ReaderBuilder::new().has_headers(false).from_reader(csv_content.as_bytes());
     let mut tile_map = Vec::new();
+    let mut fruits = Vec::new();
 
     for (y, result) in rdr.records().enumerate() {
         match result {
@@ -659,8 +542,12 @@ fn read_tile_map_from_csv(csv_content: &str) -> Result<Vec<Tile>, Box<dyn Error>
                             if number == 0 {
                                 continue;
                             }
+                            else if number == 69 {
+                                fruits.push(Fruit::new(x, y, FRUIT_TREE_POSITIONS[fruits.len() % FRUIT_TREE_POSITIONS.len()]));
+                                continue;
+                            }
                             tile_map.push(Tile {
-                                tile_type: 1,
+                                tile_type: number,
                                 grid_x: x,
                                 grid_y: y,
                             });
@@ -677,7 +564,7 @@ fn read_tile_map_from_csv(csv_content: &str) -> Result<Vec<Tile>, Box<dyn Error>
         }
     }
 
-    Ok(tile_map)
+    Ok((tile_map,fruits))
 }
 
 turbo::go! {
