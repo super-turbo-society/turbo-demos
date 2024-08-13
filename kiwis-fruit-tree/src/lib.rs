@@ -10,8 +10,8 @@ turbo::cfg! {r#"
     resolution = [384, 216]
 "#}
 
-use std::error::Error;
 use csv::ReaderBuilder;
+use std::error::Error;
 
 const PLAYER_MOVE_SPEED_MAX: f32 = 2.0;
 const PLAYER_ACCELERATION: f32 = 1.0;
@@ -21,18 +21,13 @@ const PLAYER_MAX_JUMP_FORCE: f32 = 6.0;
 const GRAVITY: f32 = 0.6;
 const TILE_SIZE: i32 = 16;
 const SHAKE_TIMER: i32 = 30;
-const MAP_BOUNDS: (f32, f32) = (0.,2032.);
+const MAP_BOUNDS: (f32, f32) = (0., 2032.);
 
-const FRUIT_TREE_POSITIONS: [(i32, i32); 4] = [
-    (372, 288),
-    (390, 268),
-    (414, 268),
-    (432, 288),
-];
+const FRUIT_TREE_POSITIONS: [(i32, i32); 4] = [(372, 288), (390, 268), (414, 268), (432, 288)];
 
 const TREE_POS: (i32, i32) = (360, 264);
 
-const PLAYER_START_POS: (f32, f32) = (352.,352.);
+const PLAYER_START_POS: (f32, f32) = (352., 352.);
 
 turbo::init! {
     struct GameState {
@@ -49,7 +44,7 @@ turbo::init! {
         //TODO: Clean this up
         let tiles = read_tile_map_from_csv(csv_content).expect("Failed to read tile map from CSV").0;
         let fruits = read_tile_map_from_csv(csv_content).expect("Failed to read tile map from CSV").1;
-        
+
         let fruit_bowl = FruitBowl::new(4, 27);
         let num_clouds = 50;
         let mut clouds = Vec::new();
@@ -72,7 +67,7 @@ turbo::init! {
     }
 }
 
- #[derive(BorshDeserialize, BorshSerialize, Debug, Clone, PartialEq)]
+#[derive(BorshDeserialize, BorshSerialize, Debug, Clone, PartialEq)]
 struct Player {
     x: f32,
     y: f32,
@@ -104,24 +99,26 @@ impl Player {
             coyote_timer_max: 3,
             jump_power_counter: 0,
             jump_power_counter_max: 8,
-            is_powering_jump: false
+            is_powering_jump: false,
         }
     }
     fn handle_input(&mut self) {
         let gp = gamepad(0);
-        if (gp.up.just_pressed() || gp.start.just_pressed()) && (self.is_landed || self.coyote_timer > 0) && self.speed_y >= 0. {
-            if !self.is_powering_jump{
+        if (gp.up.just_pressed() || gp.start.just_pressed())
+            && (self.is_landed || self.coyote_timer > 0)
+            && self.speed_y >= 0.
+        {
+            if !self.is_powering_jump {
                 self.speed_y = -PLAYER_MIN_JUMP_FORCE;
                 self.is_powering_jump = true;
             }
         }
-        if self.is_powering_jump && (gp.up.pressed() || gp.start.pressed()){
-            self.speed_y -=0.5;
-            if self.speed_y <= -PLAYER_MAX_JUMP_FORCE{
+        if self.is_powering_jump && (gp.up.pressed() || gp.start.pressed()) {
+            self.speed_y -= 0.5;
+            if self.speed_y <= -PLAYER_MAX_JUMP_FORCE {
                 self.is_powering_jump = false;
             }
-        }
-        else{
+        } else {
             self.is_powering_jump = false;
             self.jump_power_counter = 0;
         }
@@ -129,55 +126,57 @@ impl Player {
         if gp.left.pressed() {
             self.speed_x -= PLAYER_ACCELERATION;
             self.is_facing_left = true;
-        }
-        else if gp.right.pressed() {
+        } else if gp.right.pressed() {
             self.speed_x += PLAYER_ACCELERATION;
             self.is_facing_left = false;
-        }
-        else{
-            if self.speed_x> 0.{
+        } else {
+            if self.speed_x > 0. {
                 self.speed_x -= PLAYER_DECELERATION
-            }
-            else if self.speed_x < 0.{
+            } else if self.speed_x < 0. {
                 self.speed_x += PLAYER_DECELERATION
             }
         }
 
-        self.speed_x = self.speed_x.clamp(-PLAYER_MOVE_SPEED_MAX, PLAYER_MOVE_SPEED_MAX);
+        self.speed_x = self
+            .speed_x
+            .clamp(-PLAYER_MOVE_SPEED_MAX, PLAYER_MOVE_SPEED_MAX);
         self.speed_y = self.speed_y.clamp(-PLAYER_MAX_JUMP_FORCE, self.max_gravity);
-        if !self.is_powering_jump{
+        if !self.is_powering_jump {
             self.speed_y += GRAVITY;
         }
         self.speed_y = self.speed_y.clamp(-self.max_gravity, self.max_gravity);
 
-        if self.coyote_timer > 0{
+        if self.coyote_timer > 0 {
             self.coyote_timer -= 1;
         }
         //let speed_y_text = format!("Speed Y: {}", self.speed_y);
         //text!(&speed_y_text, x = 50+(cam!().0-192), y = 10+(cam!().1-108), font = Font::L, color = 0xffffffff);
     }
-   
+
     //TODO: Figure out how to push into the collision edge without bugging the game
     fn check_collision_tilemap(&mut self, tiles: &[Tile]) {
         // Check collision down
         if self.speed_y > 0.0 {
-            if let Some(collision) = check_collision(self.x, self.y+self.speed_y, Direction::Down, tiles) {
+            if let Some(collision) =
+                check_collision(self.x, self.y + self.speed_y, Direction::Down, tiles)
+            {
                 self.speed_y = 0.0;
-                self.y = collision.y-16.;
+                self.y = collision.y - 16.;
                 self.is_landed = true;
-            }
-            else{
-                if self.is_landed{
+            } else {
+                if self.is_landed {
                     self.is_landed = false;
                     self.coyote_timer = self.coyote_timer_max;
                 }
             }
         }
-        
+
         // Check collision up
         if self.speed_y < 0.0 {
             while self.speed_y < 0.0 {
-                if let Some(_collision) = check_collision(self.x, self.y + self.speed_y, Direction::Up, tiles) {
+                if let Some(_collision) =
+                    check_collision(self.x, self.y + self.speed_y, Direction::Up, tiles)
+                {
                     self.speed_y += 1.0;
                 } else {
                     break;
@@ -188,7 +187,9 @@ impl Player {
         // Check collision right
         if self.speed_x > 0.0 {
             while self.speed_x > 0.0 {
-                if let Some(_collision) = check_collision(self.x + self.speed_x, self.y, Direction::Right, tiles) {
+                if let Some(_collision) =
+                    check_collision(self.x + self.speed_x, self.y, Direction::Right, tiles)
+                {
                     self.speed_x -= 1.0;
                 } else {
                     break;
@@ -199,7 +200,9 @@ impl Player {
         // Check collision left
         if self.speed_x < 0.0 {
             while self.speed_x < 0.0 {
-                if let Some(_collision) = check_collision(self.x + self.speed_x, self.y, Direction::Left, tiles) {
+                if let Some(_collision) =
+                    check_collision(self.x + self.speed_x, self.y, Direction::Left, tiles)
+                {
                     self.speed_x += 1.0;
                 } else {
                     break;
@@ -208,7 +211,7 @@ impl Player {
         }
     }
 
-    fn update_position(&mut self){
+    fn update_position(&mut self) {
         self.x += self.speed_x;
         self.y += self.speed_y;
         self.x = self.x.clamp(MAP_BOUNDS.0, MAP_BOUNDS.1);
@@ -218,8 +221,11 @@ impl Player {
     fn check_collision_fruits(&self, fruits: &mut [Fruit]) -> Option<usize> {
         for (index, fruit) in fruits.iter_mut().enumerate() {
             if !fruit.is_collected {
-                if fruit.contains(self.x, self.y) || fruit.contains(self.x + 16., self.y) 
-                || fruit.contains(self.x, self.y + 16.) || fruit.contains(self.x + 16., self.y + 16.) {
+                if fruit.contains(self.x, self.y)
+                    || fruit.contains(self.x + 16., self.y)
+                    || fruit.contains(self.x, self.y + 16.)
+                    || fruit.contains(self.x + 16., self.y + 16.)
+                {
                     return Some(index);
                 }
             }
@@ -228,11 +234,22 @@ impl Player {
     }
 
     fn draw(&self) {
-        if self.is_landed && self.speed_x !=0.{
-            sprite!("kiwi_walking", x = self.x as i32, y = self.y as i32, flip_x = self.is_facing_left, fps=fps::FAST);
-        }
-        else{
-            sprite!("kiwi_idle", x = self.x as i32, y = self.y as i32, flip_x = self.is_facing_left, fps=fps::MEDIUM);
+        if self.is_landed && self.speed_x != 0. {
+            sprite!(
+                "kiwi_walking",
+                x = self.x as i32,
+                y = self.y as i32,
+                flip_x = self.is_facing_left,
+                fps = fps::FAST
+            );
+        } else {
+            sprite!(
+                "kiwi_idle",
+                x = self.x as i32,
+                y = self.y as i32,
+                flip_x = self.is_facing_left,
+                fps = fps::MEDIUM
+            );
         }
     }
 }
@@ -247,34 +264,40 @@ struct Tile {
 impl Tile {
     #[allow(unused)]
     fn new(grid_x: usize, grid_y: usize, tile_type: i32) -> Self {
-        Self { grid_x, grid_y, tile_type }
+        Self {
+            grid_x,
+            grid_y,
+            tile_type,
+        }
     }
 
     fn draw(&self) {
         let x = self.grid_x as i32 * TILE_SIZE;
         let y = self.grid_y as i32 * TILE_SIZE;
 
-        sprite!(FILE_NAMES[self.tile_type as usize -1], x = x, y = y);
+        sprite!(FILE_NAMES[self.tile_type as usize - 1], x = x, y = y);
     }
 
     fn contains(&self, point_x: f32, point_y: f32) -> bool {
         let tile_x = self.grid_x as f32 * TILE_SIZE as f32;
         let tile_y = self.grid_y as f32 * TILE_SIZE as f32;
-        point_x >= tile_x && point_x < tile_x + TILE_SIZE as f32 &&
-        point_y >= tile_y && point_y < tile_y + TILE_SIZE as f32
+        point_x >= tile_x
+            && point_x < tile_x + TILE_SIZE as f32
+            && point_y >= tile_y
+            && point_y < tile_y + TILE_SIZE as f32
     }
 }
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
-enum FruitState{
+enum FruitState {
     OnTree,
     Moving,
     OnTile,
-    InBowl
+    InBowl,
 }
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
-struct Fruit{
+struct Fruit {
     grid_x: usize,
     grid_y: usize,
     fruit_state: FruitState,
@@ -289,16 +312,17 @@ struct Fruit{
     is_off_tree: bool,
 }
 
-impl Fruit{
+impl Fruit {
     fn new(grid_x: usize, grid_y: usize, start_pos: (i32, i32)) -> Self {
-        Self { grid_x, 
-            grid_y, 
-            y_offset: 0., 
-            timer: 0., 
+        Self {
+            grid_x,
+            grid_y,
+            y_offset: 0.,
+            timer: 0.,
             is_collected: false,
-            float_dist: 2., 
-            float_tween:Tween::new(0.).duration(60).ease(Easing::EaseInSine),
-            bowl_tween_x:Tween::new(0.).duration(30),
+            float_dist: 2.,
+            float_tween: Tween::new(0.).duration(60).ease(Easing::EaseInSine),
+            bowl_tween_x: Tween::new(0.).duration(30),
             bowl_tween_y: Tween::new(0.).duration(30),
             start_pos,
             is_off_tree: false,
@@ -307,20 +331,21 @@ impl Fruit{
     }
 
     fn update(&mut self) {
-        if self.float_tween.done(){
-            if self.y_offset > 0.{
+        if self.float_tween.done() {
+            if self.y_offset > 0. {
                 self.float_tween.set(-self.float_dist);
-            }
-            else{
+            } else {
                 self.float_tween.set(self.float_dist);
             }
         }
         self.y_offset = self.float_tween.get();
-        if self.bowl_tween_x.done() && self.bowl_tween_y.done() && self.fruit_state == FruitState::Moving{
-            if !self.is_collected{
+        if self.bowl_tween_x.done()
+            && self.bowl_tween_y.done()
+            && self.fruit_state == FruitState::Moving
+        {
+            if !self.is_collected {
                 self.fruit_state = FruitState::OnTile
-            }
-            else{
+            } else {
                 self.fruit_state = FruitState::InBowl
             }
         }
@@ -329,22 +354,33 @@ impl Fruit{
     fn contains(&self, point_x: f32, point_y: f32) -> bool {
         let tile_x = self.grid_x as f32 * TILE_SIZE as f32;
         let tile_y = self.grid_y as f32 * TILE_SIZE as f32;
-        point_x >= tile_x && point_x < tile_x + TILE_SIZE as f32 &&
-        point_y >= tile_y && point_y < tile_y + TILE_SIZE as f32
+        point_x >= tile_x
+            && point_x < tile_x + TILE_SIZE as f32
+            && point_y >= tile_y
+            && point_y < tile_y + TILE_SIZE as f32
     }
 
-    fn fly_off_tree(&mut self){
-        let target_position: (i32, i32) = (self.grid_x as i32 * TILE_SIZE, self.grid_y as i32 * TILE_SIZE);
+    fn fly_off_tree(&mut self) {
+        let target_position: (i32, i32) = (
+            self.grid_x as i32 * TILE_SIZE,
+            self.grid_y as i32 * TILE_SIZE,
+        );
         // let distance = (((target_position.0 - self.start_pos.0) as f32)).powi(2) + ((target_position.1 - self.start_pos.1) as f32).powi(2).sqrt();
         // let base_duration = 0.02;
         let duration = 30;
         //set tweens
-        self.bowl_tween_x = Tween::new(self.start_pos.0 as f32).duration(duration as usize).set(target_position.0 as f32).ease(Easing::EaseInSine);
-        self.bowl_tween_y = Tween::new(self.start_pos.1 as f32).duration(duration as usize).set(target_position.1 as f32).ease(Easing::EaseInQuint);
+        self.bowl_tween_x = Tween::new(self.start_pos.0 as f32)
+            .duration(duration as usize)
+            .set(target_position.0 as f32)
+            .ease(Easing::EaseInSine);
+        self.bowl_tween_y = Tween::new(self.start_pos.1 as f32)
+            .duration(duration as usize)
+            .set(target_position.1 as f32)
+            .ease(Easing::EaseInQuint);
         self.fruit_state = FruitState::Moving;
     }
 
-    fn get_collected(&mut self, target_position: (f32,f32)){
+    fn get_collected(&mut self, target_position: (f32, f32)) {
         self.is_collected = true;
         let x = (self.grid_x as i32 * TILE_SIZE) as f32;
         let y = (self.grid_y as i32 * TILE_SIZE) as f32;
@@ -352,8 +388,14 @@ impl Fruit{
         let base_duration = 6.0;
         let duration = base_duration * distance / TILE_SIZE as f32;
         //turbo::println!("Tween duration: {}", duration);
-        self.bowl_tween_x = Tween::new(x).duration(duration as usize).set(target_position.0).ease(Easing::EaseOutCubic);
-        self.bowl_tween_y = Tween::new(y).duration(duration as usize).set(target_position.1).ease(Easing::EaseInOutSine);
+        self.bowl_tween_x = Tween::new(x)
+            .duration(duration as usize)
+            .set(target_position.0)
+            .ease(Easing::EaseOutCubic);
+        self.bowl_tween_y = Tween::new(y)
+            .duration(duration as usize)
+            .set(target_position.1)
+            .ease(Easing::EaseInOutSine);
         self.fruit_state = FruitState::Moving;
     }
 
@@ -363,13 +405,11 @@ impl Fruit{
                 let x = self.start_pos.0;
                 let y = self.start_pos.1;
                 sprite!("fruit", x = x, y = y);
-
             }
             FruitState::Moving => {
                 let x = self.bowl_tween_x.get();
                 let y = self.bowl_tween_y.get();
                 sprite!("fruit", x = x, y = y);
-                
             }
             FruitState::OnTile => {
                 let x = self.grid_x as i32 * TILE_SIZE;
@@ -390,15 +430,12 @@ struct FruitBowl {
     grid_x: usize,
     grid_y: usize,
 }
-impl FruitBowl{
+impl FruitBowl {
     fn new(grid_x: usize, grid_y: usize) -> Self {
-        Self { 
-            grid_x,
-            grid_y,
-        }
+        Self { grid_x, grid_y }
     }
-    
-    fn fruit_position(&self, num_fruits: usize) -> (f32, f32){
+
+    fn fruit_position(&self, num_fruits: usize) -> (f32, f32) {
         let max_width = 8;
         let x_variation = 6.0;
         let y_variation = -4.0;
@@ -417,7 +454,7 @@ impl FruitBowl{
     fn draw(&self) {
         let x = self.grid_x as i32 * TILE_SIZE;
         let y = self.grid_y as i32 * TILE_SIZE;
-        sprite!("fruit_bowl_empty", x = x, y = y+7);
+        sprite!("fruit_bowl_empty", x = x, y = y + 7);
     }
 }
 
@@ -429,30 +466,30 @@ struct Cloud {
     spr_name: String,
 }
 
-impl Cloud{
+impl Cloud {
     fn new() -> Self {
         let spr_name = match rand() % 3 {
             0 => "cloud_big",
             1 => "cloud_medium",
             _ => "cloud_small",
         };
-        Self { 
-            x: random_range(50., 2500.),
-            y: random_range(0., 800.),
-            scroll_speed: random_range(0.25, 1.25), 
+        Self {
+            x: random_range(0., MAP_BOUNDS.1),
+            y: random_range(0., 1600.),
+            scroll_speed: random_range(0.125, 1.),
             spr_name: spr_name.to_string(),
         }
     }
 
-    fn update(&mut self){
+    fn update(&mut self) {
         self.x -= self.scroll_speed;
-        if self.x < -300.{
-            self.x = 2500.;
-            self.y = random_range(0., 800.);
+        if self.x < -100. {
+            self.x = MAP_BOUNDS.1 + 100.;
+            self.y = random_range(0., 1600.);
         }
     }
 
-    fn draw(&self){
+    fn draw(&self) {
         sprite!(&self.spr_name as &str, x = self.x, y = self.y);
     }
 }
@@ -470,24 +507,55 @@ enum Direction {
     Right,
 }
 
-//TODO: remove these magic numbers
-fn check_collision(player_x: f32, player_y: f32, direction: Direction, tiles: &[Tile]) -> Option<Collision> {
+fn check_collision(
+    player_x: f32,
+    player_y: f32,
+    direction: Direction,
+    tiles: &[Tile],
+) -> Option<Collision> {
+    let w: f32 = 12.;
+    let h: f32 = 12.;
+    let pad_x: f32 = 2.;
+    let pad_y: f32 = 2.;
     let (check_x1, check_y1, check_x2, check_y2) = match direction {
-        Direction::Up => (player_x+2., player_y, player_x + 14.0, player_y),
-        Direction::Down => (player_x+2., player_y + 16.0, player_x + 14.0, player_y + 16.0),
-        Direction::Left => (player_x-1., player_y+2.0, player_x-1., player_y + 14.0),
-        Direction::Right => (player_x + 17.0, player_y+2., player_x + 17.0, player_y + 14.0),
+        Direction::Up => (
+            player_x + pad_x,
+            player_y + pad_y,
+            player_x + pad_x + w,
+            player_y + pad_y,
+        ),
+        Direction::Down => (
+            player_x + pad_x,
+            player_y + pad_y + h + 2.,
+            player_x + pad_x + w,
+            player_y + pad_y + h + 2.,
+        ),
+        Direction::Left => (
+            player_x + pad_x - 1.,
+            player_y + pad_y,
+            player_x - 1.,
+            player_y + pad_y + h,
+        ),
+        Direction::Right => (
+            player_x + pad_x + w + 1.,
+            player_y + pad_y,
+            player_x + pad_x + w + 1.,
+            player_y + pad_y + h,
+        ),
     };
 
     for tile in tiles {
         if tile.contains(check_x1, check_y1) || tile.contains(check_x2, check_y2) {
-            return Some(Collision { x: check_x1, y: tile.grid_y as f32 * (TILE_SIZE as f32) });
+            return Some(Collision {
+                x: check_x1,
+                y: tile.grid_y as f32 * (TILE_SIZE as f32),
+            });
         }
     }
     None
 }
 
-fn update_camera(p_x: f32, p_y: f32, should_shake: bool){
+fn update_camera(p_x: f32, p_y: f32, should_shake: bool) {
     let x_move_point: f32 = 32.;
     let y_move_point: f32 = 32.;
     let mut cam_x = cam!().0 as f32;
@@ -496,39 +564,39 @@ fn update_camera(p_x: f32, p_y: f32, should_shake: bool){
     let mut shake_adj_y = 0.;
     let cam_speed = PLAYER_MOVE_SPEED_MAX;
     let canvas_width = canvas_size!()[0];
-    if should_shake{
+    if should_shake {
         center_camera(p_x, p_y);
-        shake_adj_x = -3.+(rand()%6) as f32;
-        shake_adj_y = -3.+(rand()%6) as f32;
+        shake_adj_x = -3. + (rand() % 6) as f32;
+        shake_adj_y = -3. + (rand() % 6) as f32;
         cam_x += shake_adj_x;
-        cam_y += shake_adj_y;    
-    }
-    else{
-        if p_x - cam_x > x_move_point{
-            cam_x+=cam_speed;
+        cam_y += shake_adj_y;
+    } else {
+        if p_x - cam_x > x_move_point {
+            cam_x += cam_speed;
+        } else if p_x - cam_x < -x_move_point {
+            cam_x -= cam_speed;
         }
-        else if p_x - cam_x < - x_move_point{
-            cam_x -=cam_speed;
-        }
-        if p_y - cam_y > y_move_point{
-            cam_y+=cam_speed;
-        }
-        else if p_y - cam_y < - y_move_point{
-            cam_y -=cam_speed;
+        if p_y - cam_y > y_move_point {
+            cam_y += cam_speed;
+        } else if p_y - cam_y < -y_move_point {
+            cam_y -= cam_speed;
         }
     }
 
     //Clamp camera so it stops scrolling when you hit the edge of the map
-    cam_x = cam_x.clamp(MAP_BOUNDS.0 + ((canvas_width/2) as f32), MAP_BOUNDS.1 - ((canvas_width/2)as f32) + 16.);
+    cam_x = cam_x.clamp(
+        MAP_BOUNDS.0 + ((canvas_width / 2) as f32),
+        MAP_BOUNDS.1 - ((canvas_width / 2) as f32) + 16.,
+    );
     set_cam!(x = cam_x as i32, y = cam_y as i32);
 }
 
-fn center_camera(p_x: f32, p_y: f32){
+fn center_camera(p_x: f32, p_y: f32) {
     set_cam!(x = p_x, y = p_y);
 }
 
-fn draw_tree(pos:(i32, i32)){
-    sprite!("fruit_tree", x=pos.0, y=pos.1);
+fn draw_tree(pos: (i32, i32)) {
+    sprite!("fruit_tree", x = pos.0, y = pos.1);
 }
 
 fn random_range(min: f32, max: f32) -> f32 {
@@ -538,7 +606,9 @@ fn random_range(min: f32, max: f32) -> f32 {
 }
 
 fn read_tile_map_from_csv(csv_content: &str) -> Result<(Vec<Tile>, Vec<Fruit>), Box<dyn Error>> {
-    let mut rdr = ReaderBuilder::new().has_headers(false).from_reader(csv_content.as_bytes());
+    let mut rdr = ReaderBuilder::new()
+        .has_headers(false)
+        .from_reader(csv_content.as_bytes());
     let mut tile_map = Vec::new();
     let mut fruits = Vec::new();
 
@@ -551,9 +621,12 @@ fn read_tile_map_from_csv(csv_content: &str) -> Result<(Vec<Tile>, Vec<Fruit>), 
                         Ok(number) => {
                             if number == 0 {
                                 continue;
-                            }
-                            else if number == 69 {
-                                fruits.push(Fruit::new(x, y, FRUIT_TREE_POSITIONS[fruits.len() % FRUIT_TREE_POSITIONS.len()]));
+                            } else if number == 69 {
+                                fruits.push(Fruit::new(
+                                    x,
+                                    y,
+                                    FRUIT_TREE_POSITIONS[fruits.len() % FRUIT_TREE_POSITIONS.len()],
+                                ));
                                 continue;
                             }
                             tile_map.push(Tile {
@@ -563,7 +636,13 @@ fn read_tile_map_from_csv(csv_content: &str) -> Result<(Vec<Tile>, Vec<Fruit>), 
                             });
                         }
                         Err(e) => {
-                            turbo::println!("Failed to parse field ({}, {}): {}. Error: {}", x, y, field, e);
+                            turbo::println!(
+                                "Failed to parse field ({}, {}): {}. Error: {}",
+                                x,
+                                y,
+                                field,
+                                e
+                            );
                         }
                     }
                 }
@@ -574,7 +653,7 @@ fn read_tile_map_from_csv(csv_content: &str) -> Result<(Vec<Tile>, Vec<Fruit>), 
         }
     }
 
-    Ok((tile_map,fruits))
+    Ok((tile_map, fruits))
 }
 
 turbo::go! {
@@ -605,7 +684,7 @@ turbo::go! {
 
      if let Some(index) = state.player.check_collision_fruits(&mut state.fruits) {
         state.num_fruits_collected += 1;
-        
+
         let fruit = &mut state.fruits[index];
         fruit.get_collected(state.fruit_bowl.fruit_position(state.num_fruits_collected));
      }
@@ -621,7 +700,7 @@ turbo::go! {
     //clear(0xadd8e6ff);
     //Draw bg
     sprite!("sky",x=-500, y=-500,w=3000,h=3000,repeat=true);
-    
+
     for cloud in &mut state.clouds{
         cloud.update();
         cloud.draw();
@@ -644,10 +723,9 @@ turbo::go! {
     let text = format!("Fruits: {}", state.num_fruits_collected);
 
     text!(&text, x = 10+(cam!().0-192), y = 10+(cam!().1-108), font = Font::L, color = 0xffffffff);
-    
+
     state.save();
 }
-
 
 //Tweening Code
 use std::ops::Add;
