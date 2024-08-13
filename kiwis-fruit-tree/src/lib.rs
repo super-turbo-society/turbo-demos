@@ -2,7 +2,7 @@ mod file_list;
 use file_list::*;
 
 turbo::cfg! {r#"
-    name = "Kiwi's Fruit Tree"
+    name = "Turbo Kiwi"
     version = "1.0.0"
     author = "Turbo"
     description = "Help Kiwi get his fruit back!"
@@ -17,15 +17,18 @@ const PLAYER_MOVE_SPEED_MAX: f32 = 2.0;
 const PLAYER_ACCELERATION: f32 = 1.0;
 const PLAYER_DECELERATION: f32 = 0.5;
 const PLAYER_MIN_JUMP_FORCE: f32 = 3.0;
-const PLAYER_MAX_JUMP_FORCE: f32 = 6.0;
+const PLAYER_MAX_JUMP_FORCE: f32 = 5.5;
+const PLAYER_JUMP_POWER_DUR: i32 = 6;
+const PLAYER_COYOTE_TIMER_DUR: i32 = 3;
+
 const GRAVITY: f32 = 0.6;
 const TILE_SIZE: i32 = 16;
 const SHAKE_TIMER: i32 = 30;
 const MAP_BOUNDS: (f32, f32) = (0., 2032.);
 
-const FRUIT_TREE_POSITIONS: [(i32, i32); 4] = [(372, 288), (390, 268), (414, 268), (432, 288)];
-
 const TREE_POS: (i32, i32) = (360, 264);
+
+const FRUIT_TREE_POSITIONS: [(i32, i32); 4] = [(12, 24), (30, 4), (54, 4), (72, 24)];
 
 const PLAYER_START_POS: (f32, f32) = (352., 352.);
 
@@ -78,9 +81,6 @@ struct Player {
     is_facing_left: bool,
     is_landed: bool,
     coyote_timer: i32,
-    coyote_timer_max: i32,
-    jump_power_counter: i32,
-    jump_power_counter_max: i32,
     is_powering_jump: bool,
 }
 
@@ -96,9 +96,6 @@ impl Player {
             is_facing_left: false,
             is_landed: false,
             coyote_timer: 0,
-            coyote_timer_max: 3,
-            jump_power_counter: 0,
-            jump_power_counter_max: 8,
             is_powering_jump: false,
         }
     }
@@ -114,13 +111,12 @@ impl Player {
             }
         }
         if self.is_powering_jump && (gp.up.pressed() || gp.start.pressed()) {
-            self.speed_y -= 0.5;
+            self.speed_y -= (PLAYER_MAX_JUMP_FORCE - PLAYER_MIN_JUMP_FORCE) / (PLAYER_JUMP_POWER_DUR as f32);
             if self.speed_y <= -PLAYER_MAX_JUMP_FORCE {
                 self.is_powering_jump = false;
             }
         } else {
             self.is_powering_jump = false;
-            self.jump_power_counter = 0;
         }
 
         if gp.left.pressed() {
@@ -140,17 +136,14 @@ impl Player {
         self.speed_x = self
             .speed_x
             .clamp(-PLAYER_MOVE_SPEED_MAX, PLAYER_MOVE_SPEED_MAX);
-        self.speed_y = self.speed_y.clamp(-PLAYER_MAX_JUMP_FORCE, self.max_gravity);
         if !self.is_powering_jump {
             self.speed_y += GRAVITY;
         }
-        self.speed_y = self.speed_y.clamp(-self.max_gravity, self.max_gravity);
+        self.speed_y = self.speed_y.clamp(-PLAYER_MAX_JUMP_FORCE, self.max_gravity);
 
         if self.coyote_timer > 0 {
             self.coyote_timer -= 1;
         }
-        //let speed_y_text = format!("Speed Y: {}", self.speed_y);
-        //text!(&speed_y_text, x = 50+(cam!().0-192), y = 10+(cam!().1-108), font = Font::L, color = 0xffffffff);
     }
 
     //TODO: Figure out how to push into the collision edge without bugging the game
@@ -166,7 +159,7 @@ impl Player {
             } else {
                 if self.is_landed {
                     self.is_landed = false;
-                    self.coyote_timer = self.coyote_timer_max;
+                    self.coyote_timer = PLAYER_COYOTE_TIMER_DUR;
                 }
             }
         }
@@ -178,6 +171,10 @@ impl Player {
                     check_collision(self.x, self.y + self.speed_y, Direction::Up, tiles)
                 {
                     self.speed_y += 1.0;
+                    //stop powering your jump when you collide up
+                    if self.is_powering_jump{
+                        self.is_powering_jump = false;
+                    }
                 } else {
                     break;
                 }
@@ -619,16 +616,20 @@ fn read_tile_map_from_csv(csv_content: &str) -> Result<(Vec<Tile>, Vec<Fruit>), 
                     let field = field.trim();
                     match field.parse::<i32>() {
                         Ok(number) => {
+                            //0s are blanks
                             if number == 0 {
                                 continue;
+                            //69 is the number for fruits in our tiled map
                             } else if number == 69 {
                                 fruits.push(Fruit::new(
                                     x,
                                     y,
-                                    FRUIT_TREE_POSITIONS[fruits.len() % FRUIT_TREE_POSITIONS.len()],
+                                    (TREE_POS.0 + FRUIT_TREE_POSITIONS[fruits.len() % FRUIT_TREE_POSITIONS.len()].0,
+                                                TREE_POS.1 + FRUIT_TREE_POSITIONS[fruits.len() % FRUIT_TREE_POSITIONS.len()].1)
                                 ));
                                 continue;
                             }
+                            //all other numbers are tiles
                             tile_map.push(Tile {
                                 tile_type: number,
                                 grid_x: x,
