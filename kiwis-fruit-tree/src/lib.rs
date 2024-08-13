@@ -228,7 +228,12 @@ impl Player {
     }
 
     fn draw(&self) {
-        sprite!("kiwi_idle", x = self.x as i32, y = self.y as i32, flip_x = self.is_facing_left, fps=fps::MEDIUM);
+        if self.is_landed && self.speed_x !=0.{
+            sprite!("kiwi_walking", x = self.x as i32, y = self.y as i32, flip_x = self.is_facing_left, fps=fps::FAST);
+        }
+        else{
+            sprite!("kiwi_idle", x = self.x as i32, y = self.y as i32, flip_x = self.is_facing_left, fps=fps::MEDIUM);
+        }
     }
 }
 
@@ -515,7 +520,7 @@ fn update_camera(p_x: f32, p_y: f32, should_shake: bool){
 
     //Clamp camera so it stops scrolling when you hit the edge of the map
     cam_x = cam_x.clamp(MAP_BOUNDS.0 + ((canvas_width/2) as f32), MAP_BOUNDS.1 - ((canvas_width/2)as f32) + 16.);
-    set_cam!(x = (cam_x+shake_adj_x) as i32, y = (cam_y+shake_adj_y) as i32);
+    set_cam!(x = cam_x as i32, y = cam_y as i32);
 }
 
 fn center_camera(p_x: f32, p_y: f32){
