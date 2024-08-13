@@ -43,6 +43,7 @@ turbo::init! {
         game_started: bool,
         shake_timer: i32,
         screen: Screen,
+
     } = {
         let csv_content = include_str!("../resources/tile_map.csv");
         let tiles = read_tile_map_from_csv(csv_content).expect("Failed to read tile map from CSV").0;
@@ -153,7 +154,6 @@ impl Player {
         }
     }
 
-    //TODO: Figure out how to push into the collision edge without bugging the game
     fn check_collision_tilemap(&mut self, tiles: &[Tile]) {
         // Check collision down
         if self.speed_y > 0.0 {
@@ -221,7 +221,6 @@ impl Player {
         self.x = self.x.clamp(MAP_BOUNDS.0, MAP_BOUNDS.1);
     }
 
-    //TODO: make a global contains that can be used for everything. Set x, y, w, h for each element.
     fn check_collision_fruits(&self, fruits: &mut [Fruit]) -> Option<usize> {
         for (index, fruit) in fruits.iter_mut().enumerate() {
             if !fruit.is_collected {
@@ -564,14 +563,12 @@ fn update_camera(p_x: f32, p_y: f32, should_shake: bool) {
     let y_move_point: f32 = 32.;
     let mut cam_x = cam!().0 as f32;
     let mut cam_y = cam!().1 as f32;
-    let mut shake_adj_x = 0.;
-    let mut shake_adj_y = 0.;
     let cam_speed = PLAYER_MOVE_SPEED_MAX;
     let canvas_width = canvas_size!()[0];
     if should_shake {
         center_camera(p_x, p_y);
-        shake_adj_x = -3. + (rand() % 6) as f32;
-        shake_adj_y = -3. + (rand() % 6) as f32;
+        let shake_adj_x = -3. + (rand() % 6) as f32;
+        let shake_adj_y = -3. + (rand() % 6) as f32;
         cam_x += shake_adj_x;
         cam_y += shake_adj_y;
     } else {
@@ -674,7 +671,11 @@ turbo::go! {
         let gp = gamepad(0);
         if gp.up.just_pressed() || gp.start.just_pressed(){
             state.screen = Screen::Game;
+            //make a variable that we started the game
+            //set tween to go to middle
+            //on tween done, change state and set tween to go to - canv width.
             center_camera(state.player.x, state.player.y);
+            
         }
     }
     else if state.screen == Screen::Game{
