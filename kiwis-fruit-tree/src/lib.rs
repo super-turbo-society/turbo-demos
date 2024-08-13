@@ -1,4 +1,3 @@
-// Define the game configuration using the turbo::cfg! macro
 mod file_list;
 use file_list::*;
 
@@ -14,7 +13,6 @@ turbo::cfg! {r#"
 use std::error::Error;
 use csv::ReaderBuilder;
 
-
 const PLAYER_MOVE_SPEED_MAX: f32 = 2.0;
 const PLAYER_ACCELERATION: f32 = 1.0;
 const PLAYER_DECELERATION: f32 = 0.5;
@@ -23,6 +21,7 @@ const PLAYER_MAX_JUMP_FORCE: f32 = 6.0;
 const GRAVITY: f32 = 0.6;
 const TILE_SIZE: i32 = 16;
 const SHAKE_TIMER: i32 = 30;
+const MAP_BOUNDS: (f32, f32) = (0.,2032.);
 
 const FRUIT_TREE_POSITIONS: [(i32, i32); 4] = [
     (372, 288),
@@ -117,7 +116,6 @@ impl Player {
             }
         }
         if self.is_powering_jump && (gp.up.pressed() || gp.start.pressed()){
-            log("HOLDING JUMP");
             self.speed_y -=0.5;
             if self.speed_y <= -PLAYER_MAX_JUMP_FORCE{
                 self.is_powering_jump = false;
@@ -213,6 +211,7 @@ impl Player {
     fn update_position(&mut self){
         self.x += self.speed_x;
         self.y += self.speed_y;
+        self.x = self.x.clamp(MAP_BOUNDS.0, MAP_BOUNDS.1);
     }
 
     //TODO: make a global contains that can be used for everything. Set x, y, w, h for each element.
@@ -491,10 +490,13 @@ fn update_camera(p_x: f32, p_y: f32, should_shake: bool){
     let mut shake_adj_x = 0.;
     let mut shake_adj_y = 0.;
     let cam_speed = PLAYER_MOVE_SPEED_MAX;
+    let canvas_width = canvas_size!()[0];
     if should_shake{
         center_camera(p_x, p_y);
         shake_adj_x = -3.+(rand()%6) as f32;
         shake_adj_y = -3.+(rand()%6) as f32;
+        cam_x += shake_adj_x;
+        cam_y += shake_adj_y;    
     }
     else{
         if p_x - cam_x > x_move_point{
@@ -510,6 +512,9 @@ fn update_camera(p_x: f32, p_y: f32, should_shake: bool){
             cam_y -=cam_speed;
         }
     }
+
+    //Clamp camera so it stops scrolling when you hit the edge of the map
+    cam_x = cam_x.clamp(MAP_BOUNDS.0 + ((canvas_width/2) as f32), MAP_BOUNDS.1 - ((canvas_width/2)as f32) + 16.);
     set_cam!(x = (cam_x+shake_adj_x) as i32, y = (cam_y+shake_adj_y) as i32);
 }
 
