@@ -26,11 +26,11 @@ const TILE_SIZE: i32 = 16;
 const SHAKE_TIMER: i32 = 30;
 const MAP_BOUNDS: (f32, f32) = (0., 2032.);
 
-const TREE_POS: (i32, i32) = (360, 264);
+const TREE_POS: (i32, i32) = (890, 38);
 
 const FRUIT_TREE_POSITIONS: [(i32, i32); 4] = [(12, 24), (30, 4), (54, 4), (72, 24)];
 
-const PLAYER_START_POS: (f32, f32) = (352., 352.);
+const PLAYER_START_POS: (f32, f32) = (990., 96.);
 
 turbo::init! {
     struct GameState {
@@ -42,9 +42,9 @@ turbo::init! {
         fruit_bowl: FruitBowl,
         game_started: bool,
         shake_timer: i32,
+        screen: Screen,
     } = {
         let csv_content = include_str!("../resources/tile_map.csv");
-        //TODO: Clean this up
         let tiles = read_tile_map_from_csv(csv_content).expect("Failed to read tile map from CSV").0;
         let fruits = read_tile_map_from_csv(csv_content).expect("Failed to read tile map from CSV").1;
 
@@ -55,8 +55,7 @@ turbo::init! {
             let c = Cloud::new();
             clouds.push(c);
         }
-        center_camera(PLAYER_START_POS.0, PLAYER_START_POS.1);
-
+        
         GameState {
             player: Player::new(PLAYER_START_POS.0, PLAYER_START_POS.1),
             tiles,
@@ -66,8 +65,16 @@ turbo::init! {
             clouds,
             game_started: false,
             shake_timer: 0,
+            screen: Screen::Title,
         }
     }
+}
+
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
+enum Screen{
+    Title,
+    Game,
+    Ending,
 }
 
 #[derive(BorshDeserialize, BorshSerialize, Debug, Clone, PartialEq)]
@@ -433,9 +440,9 @@ impl FruitBowl {
     }
 
     fn fruit_position(&self, num_fruits: usize) -> (f32, f32) {
-        let max_width = 8;
+        let max_width = 9;
         let x_variation = 6.0;
-        let y_variation = -4.0;
+        let y_variation = -2.0;
         let row = num_fruits / max_width;
         let col = num_fruits % max_width;
         let mut x_adj: f32 = x_variation * col as f32;
@@ -659,71 +666,92 @@ fn read_tile_map_from_csv(csv_content: &str) -> Result<(Vec<Tile>, Vec<Fruit>), 
 
 turbo::go! {
     let mut state = GameState::load();
-    //INPUT CODE
-    if state.game_started{
-        if state.shake_timer > SHAKE_TIMER{
-            state.player.handle_input();
-        }
-        else{
-            state.shake_timer+=1;
-        }
-    }
-    else{
-        //check for key press, if you get a keypress send all the fruits moving and start the game
+    
+    if state.screen == Screen::Title{
+        clear(0xadd8e6ff);
+        center_camera(192., 108.);
+        sprite!("title", x = 0, y = 0);
         let gp = gamepad(0);
         if gp.up.just_pressed() || gp.start.just_pressed(){
-            for fruit in &mut state.fruits{
-                fruit.fly_off_tree();
-                state.game_started = true;
-            }
+            state.screen = Screen::Game;
+            center_camera(state.player.x, state.player.y);
         }
     }
+    else if state.screen == Screen::Game{
+        if state.game_started{
+            if state.shake_timer > SHAKE_TIMER{
+                state.player.handle_input();
+            }
+            else{
+                state.shake_timer+=1;
+            }
+        }
+        else{
+            //check for key press, if you get a keypress send all the fruits moving and start the game
+            let gp = gamepad(0);
+            if gp.up.just_pressed() || gp.start.just_pressed(){
+                for fruit in &mut state.fruits{
+                    fruit.fly_off_tree();
+                    state.game_started = true;
+                }
+            }
+        }
 
-    state.player.check_collision_tilemap(&state.tiles);
+        state.player.check_collision_tilemap(&state.tiles);
 
-    state.player.update_position();
+        state.player.update_position();
 
-     if let Some(index) = state.player.check_collision_fruits(&mut state.fruits) {
-        state.num_fruits_collected += 1;
+        if let Some(index) = state.player.check_collision_fruits(&mut state.fruits) {
+            state.num_fruits_collected += 1;
 
-        let fruit = &mut state.fruits[index];
-        fruit.get_collected(state.fruit_bowl.fruit_position(state.num_fruits_collected));
-     }
+            let fruit = &mut state.fruits[index];
+            fruit.get_collected(state.fruit_bowl.fruit_position(state.num_fruits_collected));
+        }
 
-    let mut should_shake = false;
-    if state.game_started && state.shake_timer < SHAKE_TIMER{
-        should_shake = true;
+        //check if all fruits are collected and if so, end the game
+        if state.num_fruits_collected >= state.fruits.len(){
+            state.screen = Screen::Ending;
+        }
+
+        let mut should_shake = false;
+        if state.game_started && state.shake_timer < SHAKE_TIMER{
+            should_shake = true;
+        }
+        update_camera(state.player.x, state.player.y, should_shake);
+        //turbo::println!("player y {}",state.player.y);
+
+        //DRAWING CODE
+        //clear(0xadd8e6ff);
+        //Draw bg
+        sprite!("sky",x=-500, y=-500,w=3000,h=3000,repeat=true);
+
+        for cloud in &mut state.clouds{
+            cloud.update();
+            cloud.draw();
+        }
+
+        for tile in &state.tiles {
+            tile.draw();
+        }
+
+        state.fruit_bowl.draw();
+        draw_tree(TREE_POS);
+
+        for fruit in &mut state.fruits {
+            fruit.update();
+            fruit.draw();
+        }
+
+        state.player.draw();
+
+        let text = format!("Fruits: {}/50", state.num_fruits_collected);
+        text!(&text, x = 10+(cam!().0-192), y = 10+(cam!().1-108), font = Font::L, color = 0xffffffff);
     }
-    update_camera(state.player.x, state.player.y, should_shake);
-    //turbo::println!("player y {}",state.player.y);
+    else if state.screen == Screen::Ending{
+        center_camera(192., 108.);
+        sprite!("ending", x = 0, y = 0);
 
-    //DRAWING CODE
-    //clear(0xadd8e6ff);
-    //Draw bg
-    sprite!("sky",x=-500, y=-500,w=3000,h=3000,repeat=true);
-
-    for cloud in &mut state.clouds{
-        cloud.update();
-        cloud.draw();
     }
-
-    for tile in &state.tiles {
-        tile.draw();
-    }
-
-    state.fruit_bowl.draw();
-    draw_tree(TREE_POS);
-
-    for fruit in &mut state.fruits {
-        fruit.update();
-        fruit.draw();
-    }
-
-    state.player.draw();
-
-    let text = format!("Fruits: {}", state.num_fruits_collected);
-
-    text!(&text, x = 10+(cam!().0-192), y = 10+(cam!().1-108), font = Font::L, color = 0xffffffff);
 
     state.save();
 }
