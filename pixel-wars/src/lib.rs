@@ -1,3 +1,5 @@
+use std::string;
+
 turbo::cfg! {r#"
     name = "Pixel Wars"
     version = "1.0.0"
@@ -11,53 +13,125 @@ turbo::init! {
     struct GameState {
         phase: Phase,
         units: Vec<Unit>,
+        teams: Vec<Team>,
     } = {
-        let mut units = Vec::new();
+        let units = Vec::new();
 
         // Push 5 Tank units into the units vector
-        for i in 0..5 {
-            units.push(Unit::new(UnitType::Tank, (20., 30. * i as f32), 0));
-        }
-        for i in 0..10 {
-            units.push(Unit::new(UnitType::Speedy, (200., 15. * i as f32), 1));
-        }
+        // for i in 0..5 {
+        //     units.push(Unit::new(UnitType::Tank, (20., 30. * i as f32), 0));
+        // }
+        // for i in 0..10 {
+        //     units.push(Unit::new(UnitType::Speedy, (200., 15. * i as f32), 1));
+        // }
+        let mut teams = Vec::new();
+        teams.push(Team::new("Battle Bois".to_string()));
+        teams.push(Team::new("Pixel Peeps".to_string()));
         Self {
-            phase: Phase::Battle,
+            phase: Phase::PreBattle,
             units,
+            teams,
         }
     }
 }
 
 turbo::go!({
     let mut state = GameState::load();
-    let units_clone = state.units.clone();
-    let mut damage_map = Vec::new();
-    //go through each unit, see what it wants to do, and handle all actions from here
-    for unit in &mut state.units {
-        //check if unit is moving or not
-        if unit.state == UnitState::Idle {
-            if let Some(index) = closest_enemy_index(&unit, &units_clone) {
-                if unit.distance_to(&units_clone[index]) < unit.range {
-                    damage_map.push((index, unit.damage));
-                    unit.start_attack();
-                } else {
-                    if unit.state == UnitState::Idle{
-                        unit.move_toward_enemy(units_clone[index]);
+    if state.phase == Phase::PreBattle{
+        //handle input
+        let gp = gamepad(0);
+        if gp.up.just_pressed(){
+            state.teams[0].add_unit(UnitType::Tank);
+        }
+        if gp.down.just_pressed(){
+            state.teams[0].remove_unit(UnitType::Tank);
+        }
+        if gp.right.just_pressed(){
+            state.teams[1].add_unit(UnitType::Speedy);
+        }
+        if gp.left.just_pressed(){
+            state.teams[1].remove_unit(UnitType::Speedy);
+        }
+        if gp.start.just_pressed(){
+            //generate units
+            for (team_index, team) in state.teams.iter().enumerate() {
+                let x_start = if team_index == 0 { 20.0 } else { 200.0 };
+                let mut y_pos = 20.0;
+            
+                for (i, unit_type) in team.units.iter().enumerate() {
+                    let pos = (x_start, y_pos);
+                    state.units.push(Unit::new(*unit_type, pos, team_index as i32));
+                    y_pos += 20.0; // Increment y position for the next unit
+                }
+            }
+            //go to game state
+            state.phase = Phase::Battle;
+        }
+        //Draw text saying which team has which units
+        let pos_0 = 20;
+        let pos_1 = 200;
+        let y_start = 20;
+        let y_spacing = 20;
+
+        // Draw info for Team 0 (Left side)
+        let team_0 = &state.teams[0];
+        let mut y_pos = y_start;
+        let name_text_0 = format!("{}:", team_0.name);
+        text!(name_text_0.as_str(), x = pos_0, y = y_pos);
+        y_pos += y_spacing;
+
+        for unit_type in [UnitType::Tank, UnitType::Speedy, UnitType::DPS].iter() {
+            let num_units = team_0.num_unit(*unit_type);
+            let unit_text = format!("[{}] {:?}", num_units, unit_type);
+            text!(unit_text.as_str(), x = pos_0, y = y_pos);
+            y_pos += y_spacing;
+        }
+
+        // Draw info for Team 1 (Right side)
+        let team_1 = &state.teams[1];
+        y_pos = y_start;
+        let name_text_1 = format!("{}:", team_1.name);
+        text!(name_text_1.as_str(), x = pos_1, y = y_pos);
+        y_pos += y_spacing;
+
+        for unit_type in [UnitType::Tank, UnitType::Speedy, UnitType::DPS].iter() {
+            let num_units = team_1.num_unit(*unit_type);
+            let unit_text = format!("[{}] {:?}", num_units, unit_type);
+            text!(unit_text.as_str(), x = pos_1, y = y_pos);
+            y_pos += y_spacing;
+        }
+    }
+    
+    if state.phase == Phase::Battle{
+        let units_clone = state.units.clone();
+        let mut damage_map = Vec::new();
+        //go through each unit, see what it wants to do, and handle all actions from here
+        for unit in &mut state.units {
+            //check if unit is moving or not
+            if unit.state == UnitState::Idle {
+                if let Some(index) = closest_enemy_index(&unit, &units_clone) {
+                    if unit.distance_to(&units_clone[index]) < unit.range {
+                        damage_map.push((index, unit.damage));
+                        unit.start_attack();
+                    } else {
+                        if unit.state == UnitState::Idle {
+                            unit.move_toward_enemy(units_clone[index]);
+                        }
                     }
                 }
             }
+            unit.update();
+            unit.draw();
         }
-        unit.update();
-        unit.draw();
+        for d in damage_map {
+            state.units[d.0].take_damage(d.1);
+        }
+        //check for game over
+        if all_units_on_either_team_dead(&state.units) {
+            text!("GAME OVER", x = cam!().0,);
+        }
     }
-    for d in damage_map {
-        state.units[d.0].take_damage(d.1);
-    }
-    //check for game over
-    if all_units_on_either_team_dead(&state.units){
-        text!("GAME OVER", x = cam!().0,);
-    }
-     
+
     state.save();
 });
 
@@ -88,7 +162,7 @@ struct Unit {
 impl Unit {
     fn new(unit_type: UnitType, pos: (f32, f32), team: i32) -> Self {
         // Initialize default values
-        let (damage, max_health, speed, range, attack_time,) = match unit_type {
+        let (damage, max_health, speed, range, attack_time) = match unit_type {
             UnitType::Tank => (30.0, 200.0, 2.5, 16.0, 10),
             UnitType::Speedy => (8.0, 80.0, 10.0, 25.0, 5),
             UnitType::DPS => (15.0, 100.0, 5.0, 10.0, 7),
@@ -118,13 +192,13 @@ impl Unit {
                 self.state = UnitState::Idle;
             }
         }
-        if self.state == UnitState::Attacking{
+        if self.state == UnitState::Attacking {
             self.attack_timer -= 1;
-            if self.attack_timer <=0{
+            if self.attack_timer <= 0 {
                 self.state = UnitState::Idle;
             }
         }
-        if self.health <= 0.{
+        if self.health <= 0. {
             self.state = UnitState::Dead;
         }
         //if moving or attacking, update tween and check if tween is done
@@ -132,11 +206,11 @@ impl Unit {
     }
 
     fn draw(&self) {
-        if self.state != UnitState::Dead{
+        if self.state != UnitState::Dead {
             match self.unit_type {
                 UnitType::Tank => {
                     let mut color: usize = 0x0000ffff;
-                    if self.state == UnitState::Attacking{
+                    if self.state == UnitState::Attacking {
                         color = 0xff0000ff;
                     }
                     rect!(
@@ -149,7 +223,7 @@ impl Unit {
                 }
                 UnitType::Speedy => {
                     let mut color: usize = 0x00ff00ff;
-                    if self.state == UnitState::Attacking{
+                    if self.state == UnitState::Attacking {
                         color = 0xffa500ff;
                     }
                     circ!(x = self.pos.0, y = self.pos.1, d = 4, color = color);
@@ -232,7 +306,7 @@ impl Unit {
         self.health -= damage;
     }
 
-    fn start_attack(&mut self){
+    fn start_attack(&mut self) {
         self.attack_timer = self.attack_time;
         self.state = UnitState::Attacking;
         //do whatever visual changes here
@@ -257,7 +331,9 @@ fn closest_enemy_index(unit: &Unit, units: &Vec<Unit>) -> Option<usize> {
         .min_by(|(_, a), (_, b)| {
             let dist_a = distance_between(unit.pos, a.pos);
             let dist_b = distance_between(unit.pos, b.pos);
-            dist_a.partial_cmp(&dist_b).unwrap_or(std::cmp::Ordering::Equal)
+            dist_a
+                .partial_cmp(&dist_b)
+                .unwrap_or(std::cmp::Ordering::Equal)
         })
         .map(|(index, _)| index)
 }
@@ -269,8 +345,14 @@ fn distance_between(pos1: (f32, f32), pos2: (f32, f32)) -> f32 {
 }
 
 fn all_units_on_either_team_dead(units: &Vec<Unit>) -> bool {
-    let all_team_1_dead = units.iter().filter(|unit| unit.team == 0).all(|unit| unit.state == UnitState::Dead);
-    let all_team_2_dead = units.iter().filter(|unit| unit.team == 1).all(|unit| unit.state == UnitState::Dead);
+    let all_team_1_dead = units
+        .iter()
+        .filter(|unit| unit.team == 0)
+        .all(|unit| unit.state == UnitState::Dead);
+    let all_team_2_dead = units
+        .iter()
+        .filter(|unit| unit.team == 1)
+        .all(|unit| unit.state == UnitState::Dead);
 
     all_team_1_dead || all_team_2_dead
 }
@@ -288,4 +370,38 @@ enum UnitState {
     Attacking,
     Idle,
     Dead,
+}
+
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
+struct Team {
+    name: String,
+    units: Vec<UnitType>,
+}
+
+impl Team {
+    fn new(name: String) -> Self {
+        Self {
+            name,
+            units: Vec::new(),
+        }
+    }
+
+    fn add_unit(&mut self, unit: UnitType) {
+        self.units.push(unit);
+    }
+
+    fn num_unit(&self, unit_type: UnitType) -> i32 {
+        // Return the number of units of a specific UnitType in self.units
+        self.units.iter().filter(|&unit| *unit == unit_type).count() as i32
+    }
+
+    fn remove_unit(&mut self, unit_type: UnitType) -> bool {
+        // Remove the last unit of the specified UnitType, only if there is at least one
+        if let Some(pos) = self.units.iter().rposition(|&unit| unit == unit_type) {
+            self.units.remove(pos);
+            true
+        } else {
+            false
+        }
+    }
 }
