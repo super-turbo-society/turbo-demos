@@ -101,7 +101,7 @@ impl Player {
             speed_y: 0.0,
             max_gravity: 15.0,
             is_falling: false,
-            is_facing_left: false,
+            is_facing_left: true,
             is_landed: false,
             coyote_timer: 0,
             is_powering_jump: false,
@@ -497,6 +497,7 @@ impl Cloud {
     }
 }
 
+//This is generally unused, but could be useful in some contexts, so I've left it in
 #[allow(unused)]
 struct Collision {
     x: f32,
@@ -510,6 +511,7 @@ enum Direction {
     Right,
 }
 
+//check collision betwen the player and the tilemap
 fn check_collision(
     player_x: f32,
     player_y: f32,
@@ -666,16 +668,13 @@ turbo::go! {
     
     if state.screen == Screen::Title{
         clear(0xadd8e6ff);
+        //center camera in the middle of the screen, so 0,0 is the top left corner
         center_camera(192., 108.);
         sprite!("title", x = 0, y = 0);
         let gp = gamepad(0);
         if gp.up.just_pressed() || gp.start.just_pressed(){
             state.screen = Screen::Game;
-            //make a variable that we started the game
-            //set tween to go to middle
-            //on tween done, change state and set tween to go to - canv width.
-            center_camera(state.player.x, state.player.y);
-            
+            center_camera(state.player.x, state.player.y);   
         }
     }
     else if state.screen == Screen::Game{
@@ -719,10 +718,8 @@ turbo::go! {
             should_shake = true;
         }
         update_camera(state.player.x, state.player.y, should_shake);
-        //turbo::println!("player y {}",state.player.y);
 
         //DRAWING CODE
-        //clear(0xadd8e6ff);
         //Draw bg
         sprite!("sky",x=-500, y=-500,w=3000,h=3000,repeat=true);
 
