@@ -31,19 +31,25 @@ turbo::init! {
 turbo::go!({
     let mut state = GameState::load();
     let units_clone = state.units.clone();
+    let mut damage_map = Vec::new();
     //go through each unit, see what it wants to do, and handle all actions from here
     for unit in &mut state.units{
         //check if unit is moving or not
         if unit.state == UnitState::Idle{
             if let Some(index) = unit.closest_enemy_index(&units_clone){
+                if unit.distance_to(&units_clone[index]) < 10.{
+                    //enemy take damage for now
+                    //state.units[index].take_damage(1.);
+                    damage_map.push((index, 1.));
+                }
                 unit.move_toward_enemy(units_clone[index]);
             }
         }
         unit.update();
-    }
-    
-    for unit in &state.units {
         unit.draw();
+    }
+    for d in damage_map{
+        state.units[d.0].take_damage(d.1);
     }
     state.save();
 });
@@ -154,6 +160,10 @@ impl Unit{
                 dist_a.partial_cmp(&dist_b).unwrap_or(std::cmp::Ordering::Equal)
             })
             .map(|(index, _)| index)
+    }
+
+    fn take_damage(&mut self, damage: f32){
+        self.health -= damage;
     }
 
     fn distance_to(&self, other: &Unit) -> f32 {
