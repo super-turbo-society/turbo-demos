@@ -36,12 +36,14 @@ turbo::go!({
     for unit in &mut state.units {
         //check if unit is moving or not
         if unit.state == UnitState::Idle {
-            //TODO: move enemy index out of here, just find closest living unit as a global fn
-            if let Some(index) = unit.closest_enemy_index(&units_clone) {
+            if let Some(index) = closest_enemy_index(&unit, &units_clone) {
                 if unit.distance_to(&units_clone[index]) < unit.range {
-                    damage_map.push((index, 1.));
+                    damage_map.push((index, unit.damage));
+                    unit.start_attack();
                 } else {
-                    unit.move_toward_enemy(units_clone[index]);
+                    if unit.state == UnitState::Idle{
+                        unit.move_toward_enemy(units_clone[index]);
+                    }
                 }
             }
         }
@@ -51,6 +53,11 @@ turbo::go!({
     for d in damage_map {
         state.units[d.0].take_damage(d.1);
     }
+    //check for game over
+    if all_units_on_either_team_dead(&state.units){
+        text!("GAME OVER", x = cam!().0,);
+    }
+     
     state.save();
 });
 
@@ -74,15 +81,17 @@ struct Unit {
     state: UnitState,
     move_tween_x: Tween<f32>,
     move_tween_y: Tween<f32>,
+    attack_time: i32,
+    attack_timer: i32,
 }
 
 impl Unit {
     fn new(unit_type: UnitType, pos: (f32, f32), team: i32) -> Self {
         // Initialize default values
-        let (damage, max_health, speed, range) = match unit_type {
-            UnitType::Tank => (20.0, 200.0, 2.5, 16.0),
-            UnitType::Speedy => (10.0, 80.0, 10.0, 25.0),
-            UnitType::DPS => (15.0, 100.0, 5.0, 10.0),
+        let (damage, max_health, speed, range, attack_time,) = match unit_type {
+            UnitType::Tank => (30.0, 200.0, 2.5, 16.0, 10),
+            UnitType::Speedy => (8.0, 80.0, 10.0, 25.0, 5),
+            UnitType::DPS => (15.0, 100.0, 5.0, 10.0, 7),
         };
 
         Self {
@@ -97,15 +106,23 @@ impl Unit {
             state: UnitState::Idle,
             move_tween_x: Tween::new(0.),
             move_tween_y: Tween::new(0.),
+            attack_time,
+            attack_timer: 0,
         }
     }
     fn update(&mut self) {
         if self.state == UnitState::Moving {
             self.pos.0 = self.move_tween_x.get();
             self.pos.1 = self.move_tween_y.get();
+            if self.move_tween_x.done() {
+                self.state = UnitState::Idle;
+            }
         }
-        if self.move_tween_x.done() {
-            self.state = UnitState::Idle;
+        if self.state == UnitState::Attacking{
+            self.attack_timer -= 1;
+            if self.attack_timer <=0{
+                self.state = UnitState::Idle;
+            }
         }
         if self.health <= 0.{
             self.state = UnitState::Dead;
@@ -118,16 +135,24 @@ impl Unit {
         if self.state != UnitState::Dead{
             match self.unit_type {
                 UnitType::Tank => {
+                    let mut color: usize = 0x0000ffff;
+                    if self.state == UnitState::Attacking{
+                        color = 0xff0000ff;
+                    }
                     rect!(
                         x = self.pos.0,
                         y = self.pos.1,
                         w = 12,
                         h = 12,
-                        color = 0x0000ffff
+                        color = color
                     );
                 }
                 UnitType::Speedy => {
-                    circ!(x = self.pos.0, y = self.pos.1, d = 4, color = 0x00ff00ff);
+                    let mut color: usize = 0x00ff00ff;
+                    if self.state == UnitState::Attacking{
+                        color = 0xffa500ff;
+                    }
+                    circ!(x = self.pos.0, y = self.pos.1, d = 4, color = color);
                 }
                 UnitType::DPS => {}
             }
@@ -203,23 +228,14 @@ impl Unit {
         self.state = UnitState::Moving;
     }
 
-    fn closest_enemy_index(&self, units: &Vec<Unit>) -> Option<usize> {
-        units
-            .iter()
-            .enumerate()
-            .filter(|(_, unit)| unit.team != self.team)
-            .min_by(|(_, a), (_, b)| {
-                let dist_a = self.distance_to(a);
-                let dist_b = self.distance_to(b);
-                dist_a
-                    .partial_cmp(&dist_b)
-                    .unwrap_or(std::cmp::Ordering::Equal)
-            })
-            .map(|(index, _)| index)
-    }
-
     fn take_damage(&mut self, damage: f32) {
         self.health -= damage;
+    }
+
+    fn start_attack(&mut self){
+        self.attack_timer = self.attack_time;
+        self.state = UnitState::Attacking;
+        //do whatever visual changes here
     }
 
     fn distance_to(&self, other: &Unit) -> f32 {
@@ -229,10 +245,34 @@ impl Unit {
     }
 }
 
-fn distance_to(a: (f32, f32), b: (f32, f32)) -> f32 {
-    let dx = a.0 - b.0;
-    let dy = a.1 - b.1;
+fn closest_enemy_index(unit: &Unit, units: &Vec<Unit>) -> Option<usize> {
+    units
+        .iter()
+        .enumerate()
+        .filter(|(_, other_unit)| {
+            other_unit.team != unit.team && // Filter out units on the same team
+            other_unit.health > 0.0 &&      // Filter out dead units
+            !std::ptr::eq(unit, *other_unit) // Filter out the unit itself
+        })
+        .min_by(|(_, a), (_, b)| {
+            let dist_a = distance_between(unit.pos, a.pos);
+            let dist_b = distance_between(unit.pos, b.pos);
+            dist_a.partial_cmp(&dist_b).unwrap_or(std::cmp::Ordering::Equal)
+        })
+        .map(|(index, _)| index)
+}
+
+fn distance_between(pos1: (f32, f32), pos2: (f32, f32)) -> f32 {
+    let dx = pos1.0 - pos2.0;
+    let dy = pos1.1 - pos2.1;
     (dx * dx + dy * dy).sqrt()
+}
+
+fn all_units_on_either_team_dead(units: &Vec<Unit>) -> bool {
+    let all_team_1_dead = units.iter().filter(|unit| unit.team == 0).all(|unit| unit.state == UnitState::Dead);
+    let all_team_2_dead = units.iter().filter(|unit| unit.team == 1).all(|unit| unit.state == UnitState::Dead);
+
+    all_team_1_dead || all_team_2_dead
 }
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone, Copy)]
