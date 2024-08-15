@@ -84,40 +84,6 @@ turbo::go!({
                 }
             }
         }
-
-        // //Draw text saying which team has which units
-        // let pos_0 = 20;
-        // let pos_1 = 200;
-        // let y_start = 20;
-        // let y_spacing = 20;
-
-        // // Draw info for Team 0 (Left side)
-        // let team_0 = &state.teams[0];
-        // let mut y_pos = y_start;
-        // let name_text_0 = format!("{}:", team_0.name);
-        // text!(name_text_0.as_str(), x = pos_0, y = y_pos);
-        // y_pos += y_spacing;
-
-        // for unit_type in [UnitType::Tank, UnitType::Speedy, UnitType::DPS].iter() {
-        //     let num_units = team_0.num_unit(*unit_type);
-        //     let unit_text = format!("[{}] {:?}", num_units, unit_type);
-        //     text!(unit_text.as_str(), x = pos_0, y = y_pos);
-        //     y_pos += y_spacing;
-        // }
-
-        // // Draw info for Team 1 (Right side)
-        // let team_1 = &state.teams[1];
-        // y_pos = y_start;
-        // let name_text_1 = format!("{}:", team_1.name);
-        // text!(name_text_1.as_str(), x = pos_1, y = y_pos);
-        // y_pos += y_spacing;
-
-        // for unit_type in [UnitType::Tank, UnitType::Speedy, UnitType::DPS].iter() {
-        //     let num_units = team_1.num_unit(*unit_type);
-        //     let unit_text = format!("[{}] {:?}", num_units, unit_type);
-        //     text!(unit_text.as_str(), x = pos_1, y = y_pos);
-        //     y_pos += y_spacing;
-        // }
     }
     
     if state.phase == Phase::Battle{
@@ -130,7 +96,6 @@ turbo::go!({
             if unit.state == UnitState::Idle {
                 if let Some(index) = closest_enemy_index(&unit, &units_clone) {
                     if unit.distance_to(&units_clone[index]) < unit.range {
-                        //damage_map.push((index, unit.damage));
                         state.attacks.push(unit.start_attack(index));
                     } else {
                         if unit.state == UnitState::Idle {
@@ -149,7 +114,17 @@ turbo::go!({
             
             if !should_keep {
                 //deal the actual damage here
-                state.units[attack.target_unit_index].take_damage(attack.damage);
+                if attack.splash_area == 0. {
+                    state.units[attack.target_unit_index].take_damage(attack.damage);
+                }
+                //if it has splash area, then look for all enemy units within range
+                if attack.splash_area > 0.{
+                    for unit in &mut state.units{
+                        if distance_between(attack.pos, unit.pos) <= attack.splash_area{
+                            unit.take_damage(attack.damage);
+                        }
+                    }
+                }
             }
             
             should_keep
@@ -178,6 +153,7 @@ struct Unit {
     unit_type: UnitType,
     team: i32,
     damage: f32,
+    splash_area: f32,
     range: f32,
     max_health: f32,
     health: f32,
@@ -193,11 +169,11 @@ struct Unit {
 impl Unit {
     fn new(unit_type: UnitType, pos: (f32, f32), team: i32) -> Self {
         // Initialize default values
-        let (damage, max_health, speed, range, attack_time) = match unit_type {
-            UnitType::Tank => (30.0, 200.0, 2.5, 16.0, 20),
-            UnitType::Speedy => (8.0, 80.0, 10.0, 8.0, 40),
-            UnitType::DPS => (50.0, 50.0, 5.0, 120.0, 80),
-            UnitType::Skeleton => (15.0, 100.0, 5.0, 10.0, 7),
+        let (damage, max_health, speed, range, attack_time, splash_area) = match unit_type {
+            UnitType::Tank => (30.0, 200.0, 5.0, 16.0, 20, 0.),
+            UnitType::Speedy => (8.0, 80.0, 15.0, 8.0, 40, 0.),
+            UnitType::DPS => (50.0, 50.0, 5.0, 120.0, 120, 0.),
+            UnitType::AOE => (80.0, 100.0, 5.0, 80.0, 40, 20.),
         };
 
         Self {
@@ -214,6 +190,7 @@ impl Unit {
             move_tween_y: Tween::new(0.),
             attack_time,
             attack_timer: 0,
+            splash_area,
         }
     }
     fn update(&mut self) {
@@ -267,7 +244,19 @@ impl Unit {
                     }
                     circ!(x = self.pos.0, y = self.pos.1, d = 6, color = color);
                 }
-                UnitType::Skeleton => {}
+                UnitType::AOE => {
+                    let mut color: usize = 0xD3D3D3FF;
+                    if self.state == UnitState::Attacking {
+                        color = 0xA9A9A9FF;
+                    }
+                    rect!(
+                        x = self.pos.0,
+                        y = self.pos.1,
+                        w = 16,
+                        h = 16,
+                        color = color
+                    );
+                }
             }
             self.draw_health_bar();
         }
@@ -352,7 +341,11 @@ impl Unit {
         self.attack_timer = self.attack_time;
         self.state = UnitState::Attacking;
         //create the actual attack
-        Attack::new(target_index, 1., self.pos, self.damage,)
+        let mut size  = 1;
+        if self.unit_type == UnitType::AOE{
+            size = 2;
+        }
+        Attack::new(target_index, 2., self.pos, self.damage,self.splash_area, size)
     }
 
     fn distance_to(&self, other: &Unit) -> f32 {
@@ -368,16 +361,20 @@ struct Attack{
     speed: f32,
     pos: (f32, f32),
     damage: f32,
+    splash_area: f32,
+    size: i32,
 }
 
 impl Attack{
     //new
-    fn new(target_unit_index: usize, speed: f32, pos: (f32,f32), damage: f32) -> Self {
+    fn new(target_unit_index: usize, speed: f32, pos: (f32,f32), damage: f32, splash_area: f32, size: i32) -> Self {
         Self {
             target_unit_index,
             speed,
             pos,
             damage,
+            splash_area,
+            size,
         }
     }
     fn update(&mut self, units: &Vec<Unit>) -> bool {
@@ -403,7 +400,7 @@ impl Attack{
 
     fn draw(&self) {
         // Draw a small red circle at the current position (x, y)
-        circ!(x = self.pos.0 as i32, y = self.pos.1 as i32, d = 5, color = 0xff0000ff); // Diameter 5, Red color
+        circ!(x = self.pos.0 as i32, y = self.pos.1 as i32, d = 5*self.size, color = 0xff0000ff); // Diameter 5, Red color
     }
 }
 
@@ -460,7 +457,7 @@ fn draw_team_info_and_buttons(state: &mut GameState) {
     text!(name_text_0.as_str(), x = pos_0, y = y_pos);
     y_pos += y_spacing;
 
-    for unit_type in [UnitType::Tank, UnitType::Speedy, UnitType::DPS].iter() {
+    for unit_type in [UnitType::Tank, UnitType::Speedy, UnitType::DPS, UnitType::AOE].iter() {
         let num_units = team_0.num_unit(*unit_type);
         let unit_text = format!("[{}] {:?}", num_units, unit_type);
         text!(unit_text.as_str(), x = pos_0, y = y_pos);
@@ -495,7 +492,7 @@ fn draw_team_info_and_buttons(state: &mut GameState) {
     text!(name_text_1.as_str(), x = pos_1, y = y_pos);
     y_pos += y_spacing;
 
-    for unit_type in [UnitType::Tank, UnitType::Speedy, UnitType::DPS].iter() {
+    for unit_type in [UnitType::Tank, UnitType::Speedy, UnitType::DPS, UnitType::AOE].iter() {
         let num_units = team_1.num_unit(*unit_type);
         let unit_text = format!("[{}] {:?}", num_units, unit_type);
         text!(unit_text.as_str(), x = pos_1, y = y_pos);
@@ -529,7 +526,7 @@ enum UnitType {
     Tank,
     Speedy,
     DPS,
-    Skeleton,
+    AOE,
 }
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone, Copy)]
