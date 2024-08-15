@@ -1,12 +1,10 @@
-use std::string;
-
 turbo::cfg! {r#"
     name = "Pixel Wars"
     version = "1.0.0"
     author = "Turbo"
     description = "Epic Fantasy Battles of All Time"
     [settings]
-    resolution = [256, 144]
+    resolution = [384, 216]
 "#}
 
 turbo::init! {
@@ -14,6 +12,8 @@ turbo::init! {
         phase: Phase,
         units: Vec<Unit>,
         teams: Vec<Team>,
+        attacks: Vec<Attack>,
+        event_queue: Vec<GameEvent>,
     } = {
         let units = Vec::new();
 
@@ -31,11 +31,14 @@ turbo::init! {
             phase: Phase::PreBattle,
             units,
             teams,
+            attacks: Vec::new(),
+            event_queue: Vec::new(),
         }
     }
 }
 
 turbo::go!({
+
     let mut state = GameState::load();
     if state.phase == Phase::PreBattle{
         //handle input
@@ -67,52 +70,68 @@ turbo::go!({
             //go to game state
             state.phase = Phase::Battle;
         }
-        //Draw text saying which team has which units
-        let pos_0 = 20;
-        let pos_1 = 200;
-        let y_start = 20;
-        let y_spacing = 20;
-
-        // Draw info for Team 0 (Left side)
-        let team_0 = &state.teams[0];
-        let mut y_pos = y_start;
-        let name_text_0 = format!("{}:", team_0.name);
-        text!(name_text_0.as_str(), x = pos_0, y = y_pos);
-        y_pos += y_spacing;
-
-        for unit_type in [UnitType::Tank, UnitType::Speedy, UnitType::DPS].iter() {
-            let num_units = team_0.num_unit(*unit_type);
-            let unit_text = format!("[{}] {:?}", num_units, unit_type);
-            text!(unit_text.as_str(), x = pos_0, y = y_pos);
-            y_pos += y_spacing;
+        draw_team_info_and_buttons(&mut state);
+        while let Some(event) = state.event_queue.pop() {
+            match event {
+                GameEvent::AddUnitToTeam(team_index, unit_type) => {
+                    state.teams[team_index].add_unit(unit_type);
+                }
+                GameEvent::ChangeSelectedUnit(unit_type) => {
+                    // Logic to change the selected unit type
+                }
+                GameEvent::RemoveUnitFromTeam(team_index, unit_type) => {
+                    state.teams[team_index].remove_unit(unit_type);
+                }
+            }
         }
 
-        // Draw info for Team 1 (Right side)
-        let team_1 = &state.teams[1];
-        y_pos = y_start;
-        let name_text_1 = format!("{}:", team_1.name);
-        text!(name_text_1.as_str(), x = pos_1, y = y_pos);
-        y_pos += y_spacing;
+        // //Draw text saying which team has which units
+        // let pos_0 = 20;
+        // let pos_1 = 200;
+        // let y_start = 20;
+        // let y_spacing = 20;
 
-        for unit_type in [UnitType::Tank, UnitType::Speedy, UnitType::DPS].iter() {
-            let num_units = team_1.num_unit(*unit_type);
-            let unit_text = format!("[{}] {:?}", num_units, unit_type);
-            text!(unit_text.as_str(), x = pos_1, y = y_pos);
-            y_pos += y_spacing;
-        }
+        // // Draw info for Team 0 (Left side)
+        // let team_0 = &state.teams[0];
+        // let mut y_pos = y_start;
+        // let name_text_0 = format!("{}:", team_0.name);
+        // text!(name_text_0.as_str(), x = pos_0, y = y_pos);
+        // y_pos += y_spacing;
+
+        // for unit_type in [UnitType::Tank, UnitType::Speedy, UnitType::DPS].iter() {
+        //     let num_units = team_0.num_unit(*unit_type);
+        //     let unit_text = format!("[{}] {:?}", num_units, unit_type);
+        //     text!(unit_text.as_str(), x = pos_0, y = y_pos);
+        //     y_pos += y_spacing;
+        // }
+
+        // // Draw info for Team 1 (Right side)
+        // let team_1 = &state.teams[1];
+        // y_pos = y_start;
+        // let name_text_1 = format!("{}:", team_1.name);
+        // text!(name_text_1.as_str(), x = pos_1, y = y_pos);
+        // y_pos += y_spacing;
+
+        // for unit_type in [UnitType::Tank, UnitType::Speedy, UnitType::DPS].iter() {
+        //     let num_units = team_1.num_unit(*unit_type);
+        //     let unit_text = format!("[{}] {:?}", num_units, unit_type);
+        //     text!(unit_text.as_str(), x = pos_1, y = y_pos);
+        //     y_pos += y_spacing;
+        // }
     }
     
     if state.phase == Phase::Battle{
         let units_clone = state.units.clone();
-        let mut damage_map = Vec::new();
+        //let mut damage_map = Vec::new();
+        
         //go through each unit, see what it wants to do, and handle all actions from here
         for unit in &mut state.units {
             //check if unit is moving or not
             if unit.state == UnitState::Idle {
                 if let Some(index) = closest_enemy_index(&unit, &units_clone) {
                     if unit.distance_to(&units_clone[index]) < unit.range {
-                        damage_map.push((index, unit.damage));
-                        unit.start_attack();
+                        //damage_map.push((index, unit.damage));
+                        state.attacks.push(unit.start_attack(index));
                     } else {
                         if unit.state == UnitState::Idle {
                             unit.move_toward_enemy(units_clone[index]);
@@ -123,9 +142,21 @@ turbo::go!({
             unit.update();
             unit.draw();
         }
-        for d in damage_map {
-            state.units[d.0].take_damage(d.1);
-        }
+        //go through attacks and update, then draw
+        state.attacks.retain_mut(|attack| {
+            let should_keep = !attack.update(&units_clone);
+            attack.draw();
+            
+            if !should_keep {
+                //deal the actual damage here
+                state.units[attack.target_unit_index].take_damage(attack.damage);
+            }
+            
+            should_keep
+        });
+        // for d in damage_map {
+        //     state.units[d.0].take_damage(d.1);
+        // }
         //check for game over
         if all_units_on_either_team_dead(&state.units) {
             text!("GAME OVER", x = cam!().0,);
@@ -163,9 +194,10 @@ impl Unit {
     fn new(unit_type: UnitType, pos: (f32, f32), team: i32) -> Self {
         // Initialize default values
         let (damage, max_health, speed, range, attack_time) = match unit_type {
-            UnitType::Tank => (30.0, 200.0, 2.5, 16.0, 10),
-            UnitType::Speedy => (8.0, 80.0, 10.0, 25.0, 5),
-            UnitType::DPS => (15.0, 100.0, 5.0, 10.0, 7),
+            UnitType::Tank => (30.0, 200.0, 2.5, 16.0, 20),
+            UnitType::Speedy => (8.0, 80.0, 10.0, 8.0, 40),
+            UnitType::DPS => (50.0, 50.0, 5.0, 120.0, 80),
+            UnitType::Skeleton => (15.0, 100.0, 5.0, 10.0, 7),
         };
 
         Self {
@@ -228,7 +260,14 @@ impl Unit {
                     }
                     circ!(x = self.pos.0, y = self.pos.1, d = 4, color = color);
                 }
-                UnitType::DPS => {}
+                UnitType::DPS => {
+                    let mut color: usize = 0x6A0DADFF;
+                    if self.state == UnitState::Attacking {
+                        color = 0x9370DBFF;
+                    }
+                    circ!(x = self.pos.0, y = self.pos.1, d = 6, color = color);
+                }
+                UnitType::Skeleton => {}
             }
             self.draw_health_bar();
         }
@@ -295,8 +334,11 @@ impl Unit {
         let norm_dir_x = dir_x / length;
         let norm_dir_y = dir_y / length;
 
-        let new_x = self.pos.0 + norm_dir_x * self.speed + (rand() % 5) as f32;
-        let new_y = self.pos.1 + norm_dir_y * self.speed;
+        let rand_x = (rand() % 5) as f32 * norm_dir_x.signum();
+        let rand_y = (rand() % 5) as f32 * norm_dir_y.signum();
+
+        let new_x = self.pos.0 + norm_dir_x * self.speed + rand_x;
+        let new_y = self.pos.1 + norm_dir_y * self.speed + rand_y;
         self.move_tween_x = Tween::new(self.pos.0).set(new_x).duration(20);
         self.move_tween_y = Tween::new(self.pos.1).set(new_y).duration(20);
         self.state = UnitState::Moving;
@@ -306,16 +348,62 @@ impl Unit {
         self.health -= damage;
     }
 
-    fn start_attack(&mut self) {
+    fn start_attack(&mut self, target_index: usize) -> Attack {
         self.attack_timer = self.attack_time;
         self.state = UnitState::Attacking;
-        //do whatever visual changes here
+        //create the actual attack
+        Attack::new(target_index, 1., self.pos, self.damage,)
     }
 
     fn distance_to(&self, other: &Unit) -> f32 {
         let dx = self.pos.0 - other.pos.0;
         let dy = self.pos.1 - other.pos.1;
         (dx * dx + dy * dy).sqrt()
+    }
+}
+
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone, Copy)]
+struct Attack{
+    target_unit_index: usize,
+    speed: f32,
+    pos: (f32, f32),
+    damage: f32,
+}
+
+impl Attack{
+    //new
+    fn new(target_unit_index: usize, speed: f32, pos: (f32,f32), damage: f32) -> Self {
+        Self {
+            target_unit_index,
+            speed,
+            pos,
+            damage,
+        }
+    }
+    fn update(&mut self, units: &Vec<Unit>) -> bool {
+
+        // Get the target unit's position
+        let target_position = units[self.target_unit_index].pos;
+
+        // Calculate the direction vector towards the target
+        let direction_x = target_position.0 - self.pos.0;
+        let direction_y = target_position.1 - self.pos.1;
+
+        // Calculate the distance to the target
+        let distance = (direction_x * direction_x + direction_y * direction_y).sqrt();
+
+        // Normalize the direction vector and scale by speed
+        if distance > 0.0 {
+            self.pos.0 += self.speed * (direction_x / distance);
+            self.pos.1 += self.speed * (direction_y / distance);
+        }
+        //if distance is less than speed, we want to remove the attack and deal the damage
+        distance <= self.speed
+    }
+
+    fn draw(&self) {
+        // Draw a small red circle at the current position (x, y)
+        circ!(x = self.pos.0 as i32, y = self.pos.1 as i32, d = 5, color = 0xff0000ff); // Diameter 5, Red color
     }
 }
 
@@ -357,11 +445,91 @@ fn all_units_on_either_team_dead(units: &Vec<Unit>) -> bool {
     all_team_1_dead || all_team_2_dead
 }
 
+fn draw_team_info_and_buttons(state: &mut GameState) {
+    let pos_0 = 20;
+    let pos_1 = 200;
+    let y_start = 20;
+    let y_spacing = 20;
+    let button_width = 20;
+    let button_height = 10;
+
+    // Draw info and buttons for Team 0 (Left side)
+    let team_0 = &mut state.teams[0].clone();
+    let mut y_pos = y_start;
+    let name_text_0 = format!("{}:", team_0.name);
+    text!(name_text_0.as_str(), x = pos_0, y = y_pos);
+    y_pos += y_spacing;
+
+    for unit_type in [UnitType::Tank, UnitType::Speedy, UnitType::DPS].iter() {
+        let num_units = team_0.num_unit(*unit_type);
+        let unit_text = format!("[{}] {:?}", num_units, unit_type);
+        text!(unit_text.as_str(), x = pos_0, y = y_pos);
+
+        // Plus Button
+        let plus_button = Button::new(
+            String::from("+"),
+            (pos_0 as f32 + 100.0, y_pos as f32),
+            (button_width as f32, button_height as f32),
+            GameEvent::AddUnitToTeam(0, *unit_type),
+        );
+        plus_button.draw();
+        plus_button.handle_click(state);
+
+        // Minus Button
+        let minus_button = Button::new(
+            String::from("-"),
+            (pos_0 as f32 + 130.0, y_pos as f32),
+            (button_width as f32, button_height as f32),
+            GameEvent::RemoveUnitFromTeam(0, *unit_type),
+        );
+        minus_button.draw();
+        minus_button.handle_click(state);
+
+        y_pos += y_spacing;
+    }
+
+    // Draw info and buttons for Team 1 (Right side)
+    let team_1 = &mut state.teams[1].clone();
+    y_pos = y_start;
+    let name_text_1 = format!("{}:", team_1.name);
+    text!(name_text_1.as_str(), x = pos_1, y = y_pos);
+    y_pos += y_spacing;
+
+    for unit_type in [UnitType::Tank, UnitType::Speedy, UnitType::DPS].iter() {
+        let num_units = team_1.num_unit(*unit_type);
+        let unit_text = format!("[{}] {:?}", num_units, unit_type);
+        text!(unit_text.as_str(), x = pos_1, y = y_pos);
+
+        // Plus Button
+        let plus_button = Button::new(
+            String::from("+"),
+            (pos_1 as f32 + 100.0, y_pos as f32),
+            (button_width as f32, button_height as f32),
+            GameEvent::AddUnitToTeam(1, *unit_type),
+        );
+        plus_button.draw();
+        plus_button.handle_click(state);
+
+        // Minus Button
+        let minus_button = Button::new(
+            String::from("-"),
+            (pos_1 as f32 + 130.0, y_pos as f32),
+            (button_width as f32, button_height as f32),
+            GameEvent::RemoveUnitFromTeam(1, *unit_type),
+        );
+        minus_button.draw();
+        minus_button.handle_click(state);
+
+        y_pos += y_spacing;
+    }
+}
+
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone, Copy)]
 enum UnitType {
     Tank,
     Speedy,
     DPS,
+    Skeleton,
 }
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone, Copy)]
@@ -403,5 +571,51 @@ impl Team {
         } else {
             false
         }
+    }
+}
+
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
+enum GameEvent {
+    AddUnitToTeam(usize, UnitType),
+    RemoveUnitFromTeam(usize, UnitType),
+    ChangeSelectedUnit(UnitType),
+}
+
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
+struct Button {
+    label: String,
+    position: (f32, f32),
+    size: (f32, f32),
+    event: GameEvent,
+}
+
+impl Button {
+    fn new(label: String, position: (f32, f32), size: (f32, f32), event: GameEvent) -> Self {
+        Self {
+            label,
+            position,
+            size,
+            event,
+        }
+    }
+
+    fn is_clicked(&self, click_position: [i32; 2]) -> bool {
+        let (x, y) = self.position;
+        let (width, height) = self.size;
+        let (click_x, click_y) = (click_position[0] as f32, click_position[1] as f32);
+
+        click_x >= x && click_x <= x + width && click_y >= y && click_y <= y + height
+    }
+
+    fn handle_click(&self, game_state: &mut GameState) {
+        if mouse(0).left.just_pressed() && self.is_clicked(mouse(0).position) {
+            game_state.event_queue.push(self.event.clone());
+        }
+    }
+
+    fn draw(&self) {
+        // Drawing logic for the button
+        rect!(x = self.position.0, y = self.position.1, w = self.size.0, h = self.size.1, color = 0x808080ff); // Example button background
+        text!(self.label.as_str(), x = (self.position.0) as i32, y = (self.position.1) as i32); // Example button label
     }
 }
