@@ -15,21 +15,12 @@ turbo::init! {
         attacks: Vec<Attack>,
         event_queue: Vec<GameEvent>,
     } = {
-        let units = Vec::new();
-
-        // Push 5 Tank units into the units vector
-        // for i in 0..5 {
-        //     units.push(Unit::new(UnitType::Tank, (20., 30. * i as f32), 0));
-        // }
-        // for i in 0..10 {
-        //     units.push(Unit::new(UnitType::Speedy, (200., 15. * i as f32), 1));
-        // }
         let mut teams = Vec::new();
         teams.push(Team::new("Battle Bois".to_string()));
         teams.push(Team::new("Pixel Peeps".to_string()));
         Self {
             phase: Phase::PreBattle,
-            units,
+            units: Vec::new(),
             teams,
             attacks: Vec::new(),
             event_queue: Vec::new(),
@@ -38,33 +29,47 @@ turbo::init! {
 }
 
 turbo::go!({
-
     let mut state = GameState::load();
-    if state.phase == Phase::PreBattle{
+    if state.phase == Phase::PreBattle {
         //handle input
         let gp = gamepad(0);
-        if gp.up.just_pressed(){
+        if gp.up.just_pressed() {
             state.teams[0].add_unit(UnitType::Tank);
         }
-        if gp.down.just_pressed(){
+        if gp.down.just_pressed() {
             state.teams[0].remove_unit(UnitType::Tank);
         }
-        if gp.right.just_pressed(){
+        if gp.right.just_pressed() {
             state.teams[1].add_unit(UnitType::Speedy);
         }
-        if gp.left.just_pressed(){
+        if gp.left.just_pressed() {
             state.teams[1].remove_unit(UnitType::Speedy);
         }
-        if gp.start.just_pressed(){
+        if gp.start.just_pressed() {
             //generate units
+            let row_height = 20.0;
+            let row_width = 20.0;
+            let max_y = 180.0; // Adjust this value as needed
+
             for (team_index, team) in state.teams.iter().enumerate() {
-                let x_start = if team_index == 0 { 20.0 } else { 200.0 };
+                let mut x_start = if team_index == 0 { 20.0 } else { 380.0 }; // Adjusted starting x for team 1
                 let mut y_pos = 20.0;
-            
+
                 for (i, unit_type) in team.units.iter().enumerate() {
+                    if y_pos > max_y {
+                        // Reset y_pos and adjust x_start
+                        y_pos = 20.0;
+                        if team_index == 0 {
+                            x_start += row_width;
+                        } else {
+                            x_start -= row_width;
+                        }
+                    }
                     let pos = (x_start, y_pos);
-                    state.units.push(Unit::new(*unit_type, pos, team_index as i32));
-                    y_pos += 20.0; // Increment y position for the next unit
+                    state
+                        .units
+                        .push(Unit::new(*unit_type, pos, team_index as i32));
+                    y_pos += row_height;
                 }
             }
             //go to game state
@@ -85,11 +90,11 @@ turbo::go!({
             }
         }
     }
-    
-    if state.phase == Phase::Battle{
+
+    if state.phase == Phase::Battle {
         let units_clone = state.units.clone();
         //let mut damage_map = Vec::new();
-        
+
         //go through each unit, see what it wants to do, and handle all actions from here
         for unit in &mut state.units {
             //check if unit is moving or not
@@ -111,22 +116,22 @@ turbo::go!({
         state.attacks.retain_mut(|attack| {
             let should_keep = !attack.update(&units_clone);
             attack.draw();
-            
+
             if !should_keep {
                 //deal the actual damage here
                 if attack.splash_area == 0. {
                     state.units[attack.target_unit_index].take_damage(attack.damage);
                 }
                 //if it has splash area, then look for all enemy units within range
-                if attack.splash_area > 0.{
-                    for unit in &mut state.units{
-                        if distance_between(attack.pos, unit.pos) <= attack.splash_area{
+                if attack.splash_area > 0. {
+                    for unit in &mut state.units {
+                        if distance_between(attack.pos, unit.pos) <= attack.splash_area {
                             unit.take_damage(attack.damage);
                         }
                     }
                 }
             }
-            
+
             should_keep
         });
         // for d in damage_map {
@@ -341,11 +346,18 @@ impl Unit {
         self.attack_timer = self.attack_time;
         self.state = UnitState::Attacking;
         //create the actual attack
-        let mut size  = 1;
-        if self.unit_type == UnitType::AOE{
+        let mut size = 1;
+        if self.unit_type == UnitType::AOE {
             size = 2;
         }
-        Attack::new(target_index, 2., self.pos, self.damage,self.splash_area, size)
+        Attack::new(
+            target_index,
+            2.,
+            self.pos,
+            self.damage,
+            self.splash_area,
+            size,
+        )
     }
 
     fn distance_to(&self, other: &Unit) -> f32 {
@@ -356,7 +368,7 @@ impl Unit {
 }
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone, Copy)]
-struct Attack{
+struct Attack {
     target_unit_index: usize,
     speed: f32,
     pos: (f32, f32),
@@ -365,9 +377,16 @@ struct Attack{
     size: i32,
 }
 
-impl Attack{
+impl Attack {
     //new
-    fn new(target_unit_index: usize, speed: f32, pos: (f32,f32), damage: f32, splash_area: f32, size: i32) -> Self {
+    fn new(
+        target_unit_index: usize,
+        speed: f32,
+        pos: (f32, f32),
+        damage: f32,
+        splash_area: f32,
+        size: i32,
+    ) -> Self {
         Self {
             target_unit_index,
             speed,
@@ -378,7 +397,6 @@ impl Attack{
         }
     }
     fn update(&mut self, units: &Vec<Unit>) -> bool {
-
         // Get the target unit's position
         let target_position = units[self.target_unit_index].pos;
 
@@ -400,7 +418,12 @@ impl Attack{
 
     fn draw(&self) {
         // Draw a small red circle at the current position (x, y)
-        circ!(x = self.pos.0 as i32, y = self.pos.1 as i32, d = 5*self.size, color = 0xff0000ff); // Diameter 5, Red color
+        circ!(
+            x = self.pos.0 as i32,
+            y = self.pos.1 as i32,
+            d = 5 * self.size,
+            color = 0xff0000ff
+        ); // Diameter 5, Red color
     }
 }
 
@@ -457,7 +480,14 @@ fn draw_team_info_and_buttons(state: &mut GameState) {
     text!(name_text_0.as_str(), x = pos_0, y = y_pos);
     y_pos += y_spacing;
 
-    for unit_type in [UnitType::Tank, UnitType::Speedy, UnitType::DPS, UnitType::AOE].iter() {
+    for unit_type in [
+        UnitType::Tank,
+        UnitType::Speedy,
+        UnitType::DPS,
+        UnitType::AOE,
+    ]
+    .iter()
+    {
         let num_units = team_0.num_unit(*unit_type);
         let unit_text = format!("[{}] {:?}", num_units, unit_type);
         text!(unit_text.as_str(), x = pos_0, y = y_pos);
@@ -492,7 +522,14 @@ fn draw_team_info_and_buttons(state: &mut GameState) {
     text!(name_text_1.as_str(), x = pos_1, y = y_pos);
     y_pos += y_spacing;
 
-    for unit_type in [UnitType::Tank, UnitType::Speedy, UnitType::DPS, UnitType::AOE].iter() {
+    for unit_type in [
+        UnitType::Tank,
+        UnitType::Speedy,
+        UnitType::DPS,
+        UnitType::AOE,
+    ]
+    .iter()
+    {
         let num_units = team_1.num_unit(*unit_type);
         let unit_text = format!("[{}] {:?}", num_units, unit_type);
         text!(unit_text.as_str(), x = pos_1, y = y_pos);
@@ -612,7 +649,17 @@ impl Button {
 
     fn draw(&self) {
         // Drawing logic for the button
-        rect!(x = self.position.0, y = self.position.1, w = self.size.0, h = self.size.1, color = 0x808080ff); // Example button background
-        text!(self.label.as_str(), x = (self.position.0) as i32, y = (self.position.1) as i32); // Example button label
+        rect!(
+            x = self.position.0,
+            y = self.position.1,
+            w = self.size.0,
+            h = self.size.1,
+            color = 0x808080ff
+        ); // Example button background
+        text!(
+            self.label.as_str(),
+            x = (self.position.0) as i32,
+            y = (self.position.1) as i32
+        ); // Example button label
     }
 }
