@@ -33,23 +33,11 @@ turbo::go!({
     if state.phase == Phase::PreBattle {
         //handle input
         let gp = gamepad(0);
-        if gp.up.just_pressed() {
-            state.teams[0].add_unit(UnitType::Tank);
-        }
-        if gp.down.just_pressed() {
-            state.teams[0].remove_unit(UnitType::Tank);
-        }
-        if gp.right.just_pressed() {
-            state.teams[1].add_unit(UnitType::Speedy);
-        }
-        if gp.left.just_pressed() {
-            state.teams[1].remove_unit(UnitType::Speedy);
-        }
         if gp.start.just_pressed() {
             //generate units
             let row_height = 20.0;
             let row_width = 20.0;
-            let max_y = 180.0; // Adjust this value as needed
+            let max_y = 180.0;
 
             for (team_index, team) in state.teams.iter().enumerate() {
                 let mut x_start = if team_index == 0 { 20.0 } else { 380.0 }; // Adjusted starting x for team 1
@@ -59,6 +47,7 @@ turbo::go!({
                     if y_pos > max_y {
                         // Reset y_pos and adjust x_start
                         y_pos = 20.0;
+                        //Team 0 is the left side team
                         if team_index == 0 {
                             x_start += row_width;
                         } else {
@@ -72,7 +61,7 @@ turbo::go!({
                     y_pos += row_height;
                 }
             }
-            //go to game state
+            //go to Battle Phase
             state.phase = Phase::Battle;
         }
         draw_team_info_and_buttons(&mut state);
@@ -92,6 +81,7 @@ turbo::go!({
     }
 
     if state.phase == Phase::Battle {
+        clear!(0x8f8cacff);
         let units_clone = state.units.clone();
         //let mut damage_map = Vec::new();
 
@@ -115,7 +105,7 @@ turbo::go!({
         //go through attacks and update, then draw
         state.attacks.retain_mut(|attack| {
             let should_keep = !attack.update(&units_clone);
-            attack.draw();
+            //attack.draw();
 
             if !should_keep {
                 //deal the actual damage here
@@ -175,10 +165,10 @@ impl Unit {
     fn new(unit_type: UnitType, pos: (f32, f32), team: i32) -> Self {
         // Initialize default values
         let (damage, max_health, speed, range, attack_time, splash_area) = match unit_type {
-            UnitType::Tank => (30.0, 200.0, 5.0, 16.0, 20, 0.),
-            UnitType::Speedy => (8.0, 80.0, 15.0, 8.0, 40, 0.),
-            UnitType::DPS => (50.0, 50.0, 5.0, 120.0, 120, 0.),
-            UnitType::AOE => (80.0, 100.0, 5.0, 80.0, 40, 20.),
+            UnitType::Axeman => (8.0, 50.0, 4.0, 12.0, 20, 0.),
+            UnitType::BigPound => (8.0, 80.0, 15.0, 8.0, 40, 0.),
+            UnitType::Hunter => (50.0, 50.0, 5.0, 120.0, 120, 0.),
+            UnitType::Pyro => (15.0, 30.0, 6.0, 12.0, 20, 0.),
         };
 
         Self {
@@ -220,63 +210,94 @@ impl Unit {
     }
 
     fn draw(&self) {
-        if self.state != UnitState::Dead {
-            match self.unit_type {
-                UnitType::Tank => {
-                    let mut color: usize = 0x0000ffff;
-                    if self.state == UnitState::Attacking {
-                        color = 0xff0000ff;
-                    }
-                    rect!(
-                        x = self.pos.0,
-                        y = self.pos.1,
-                        w = 12,
-                        h = 12,
-                        color = color
-                    );
+        if self.state != UnitState::Dead{
+            let mut spr_name = self.unit_type.to_lowercase_string();
+            let mut flip_x = false;
+            if self.team == 1{
+                flip_x = true;
+            }
+            match self.state{
+                UnitState::Attacking =>
+                {
+                    spr_name.push_str("_attack");
+                    sprite!(spr_name.as_str(), x=self.pos.0, y=self.pos.1, sw = 16, fps = fps::FAST, flip_x = flip_x);
+                    self.draw_health_bar();
                 }
-                UnitType::Speedy => {
-                    let mut color: usize = 0x00ff00ff;
-                    if self.state == UnitState::Attacking {
-                        color = 0xffa500ff;
-                    }
-                    circ!(x = self.pos.0, y = self.pos.1, d = 4, color = color);
+                UnitState::Dead =>
+                {
+                    spr_name.push_str("_death");
+                    sprite!(spr_name.as_str(), x=self.pos.0, y=self.pos.1, sw = 16, flip_x = flip_x);
                 }
-                UnitType::DPS => {
-                    let mut color: usize = 0x6A0DADFF;
-                    if self.state == UnitState::Attacking {
-                        color = 0x9370DBFF;
-                    }
-                    circ!(x = self.pos.0, y = self.pos.1, d = 6, color = color);
+                UnitState::Idle =>
+                {
+                    spr_name.push_str("_idle");
+                    sprite!(spr_name.as_str(), x=self.pos.0, y=self.pos.1, sw = 16, fps = fps::FAST, flip_x = flip_x);
                 }
-                UnitType::AOE => {
-                    let mut color: usize = 0xD3D3D3FF;
-                    if self.state == UnitState::Attacking {
-                        color = 0xA9A9A9FF;
-                    }
-                    rect!(
-                        x = self.pos.0,
-                        y = self.pos.1,
-                        w = 16,
-                        h = 16,
-                        color = color
-                    );
+                UnitState::Moving =>
+                {
+                    spr_name.push_str("_walk");
+                    sprite!(spr_name.as_str(), x=self.pos.0, y=self.pos.1, sw = 16, fps = fps::FAST, flip_x = flip_x);
                 }
             }
-            self.draw_health_bar();
+            
+            
+                
+            }
+            // match self.unit_type {
+            //     UnitType::Axeman => {
+            //         let mut color: usize = 0x0000ffff;
+            //         if self.state == UnitState::Attacking {
+            //             color = 0xff0000ff;
+            //         }
+            //         rect!(
+            //             x = self.pos.0,
+            //             y = self.pos.1,
+            //             w = 12,
+            //             h = 12,
+            //             color = color
+            //         );
+            //     }
+            //     UnitType::BigPound => {
+            //         let mut color: usize = 0x00ff00ff;
+            //         if self.state == UnitState::Attacking {
+            //             color = 0xffa500ff;
+            //         }
+            //         circ!(x = self.pos.0, y = self.pos.1, d = 4, color = color);
+            //     }
+            //     UnitType::Pyro => {
+            //         let mut color: usize = 0x6A0DADFF;
+            //         if self.state == UnitState::Attacking {
+            //             color = 0x9370DBFF;
+            //         }
+            //         circ!(x = self.pos.0, y = self.pos.1, d = 6, color = color);
+            //     }
+            //     UnitType::Hunter => {
+            //         let mut color: usize = 0xD3D3D3FF;
+            //         if self.state == UnitState::Attacking {
+            //             color = 0xA9A9A9FF;
+            //         }
+            //         rect!(
+            //             x = self.pos.0,
+            //             y = self.pos.1,
+            //             w = 16,
+            //             h = 16,
+            //             color = color
+            //         );
+            //     }
+            // }
+
         }
-    }
 
     fn draw_health_bar(&self) {
         let x = self.pos.0;
         let y = self.pos.1;
         let x_bar = x;
-        let y_bar = y - 5.;
-        let w_bar = 0.1 * self.max_health;
-        let h_bar = 5;
-        let border_color: u32 = 0xa69e9aff;
-        let main_color: u32 = 0xff0000ff;
-        let back_color: u32 = 0x000000ff;
+        let y_bar = y - 2.;
+        let w_bar = 0.25 * self.max_health;
+        let h_bar = 2;
+        //let border_color: u32 = 0xa69e9aff;
+        let main_color: u32 = 0xc4f129ff;
+        let back_color: u32 = 0xb9451dff;
         let mut health_width = (self.health as f32 / self.max_health as f32 * w_bar as f32) as i32;
         health_width = health_width.max(0);
 
@@ -298,17 +319,17 @@ impl Unit {
             color = main_color
         );
 
-        // Draw health bar border
-        rect!(
-            w = w_bar + 2.,
-            h = h_bar,
-            x = x_bar - 1.,
-            y = y_bar,
-            color = 0,
-            border_color = border_color,
-            border_width = 1,
-            border_radius = 2
-        )
+        // // Draw health bar border
+        // rect!(
+        //     w = w_bar + 2.,
+        //     h = h_bar,
+        //     x = x_bar - 1.,
+        //     y = y_bar,
+        //     color = 0,
+        //     border_color = border_color,
+        //     border_width = 1,
+        //     border_radius = 2
+        // )
     }
 
     fn move_toward_enemy(&mut self, enemy: Unit) {
@@ -343,11 +364,11 @@ impl Unit {
     }
 
     fn start_attack(&mut self, target_index: usize) -> Attack {
-        self.attack_timer = self.attack_time;
+        self.attack_timer = self.attack_time + (rand() % 10) as i32;
         self.state = UnitState::Attacking;
         //create the actual attack
         let mut size = 1;
-        if self.unit_type == UnitType::AOE {
+        if self.unit_type == UnitType::BigPound {
             size = 2;
         }
         Attack::new(
@@ -481,10 +502,10 @@ fn draw_team_info_and_buttons(state: &mut GameState) {
     y_pos += y_spacing;
 
     for unit_type in [
-        UnitType::Tank,
-        UnitType::Speedy,
-        UnitType::DPS,
-        UnitType::AOE,
+        UnitType::Axeman,
+        UnitType::BigPound,
+        UnitType::Hunter,
+        UnitType::Pyro,
     ]
     .iter()
     {
@@ -523,10 +544,10 @@ fn draw_team_info_and_buttons(state: &mut GameState) {
     y_pos += y_spacing;
 
     for unit_type in [
-        UnitType::Tank,
-        UnitType::Speedy,
-        UnitType::DPS,
-        UnitType::AOE,
+        UnitType::Axeman,
+        UnitType::BigPound,
+        UnitType::Hunter,
+        UnitType::Pyro,
     ]
     .iter()
     {
@@ -560,10 +581,16 @@ fn draw_team_info_and_buttons(state: &mut GameState) {
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone, Copy)]
 enum UnitType {
-    Tank,
-    Speedy,
-    DPS,
-    AOE,
+    Axeman,
+    BigPound,
+    Hunter,
+    Pyro,
+}
+
+impl UnitType{
+    fn to_lowercase_string(&self) -> String {
+        format!("{:?}", self).to_lowercase()
+    }
 }
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone, Copy)]
@@ -613,6 +640,24 @@ enum GameEvent {
     AddUnitToTeam(usize, UnitType),
     RemoveUnitFromTeam(usize, UnitType),
     ChangeSelectedUnit(UnitType),
+}
+
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
+enum ObstacleShape {
+    Square,
+    Circle,
+}
+
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
+struct Obstacle {
+    size: i32,
+    shape: ObstacleShape,
+}
+
+impl Obstacle {
+    //Create an obstalce with a certain shape
+    //draw obstacle
+    //obstacle contains point function -> bool
 }
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
