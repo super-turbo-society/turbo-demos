@@ -57,7 +57,7 @@ turbo::go!({
                     let pos = (x_start, y_pos);
                     state
                         .units
-                        .push(Unit::new(*unit_type, pos, team_index as i32));
+                        .push(Unit::new(unit_type.clone(), pos, team_index as i32));
                     y_pos += row_height;
                 }
             }
@@ -94,7 +94,7 @@ turbo::go!({
                         state.attacks.push(unit.start_attack(index));
                     } else {
                         if unit.state == UnitState::Idle {
-                            unit.move_toward_enemy(units_clone[index]);
+                            unit.move_toward_enemy(units_clone[index].clone());
                         }
                     }
                 }
@@ -136,14 +136,14 @@ turbo::go!({
     state.save();
 });
 
-#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone, Copy)]
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 enum Phase {
     PreBattle,
     Battle,
     WrapUp,
 }
 
-#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone, Copy)]
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 struct Unit {
     unit_type: UnitType,
     team: i32,
@@ -159,17 +159,20 @@ struct Unit {
     move_tween_y: Tween<f32>,
     attack_time: i32,
     attack_timer: i32,
+    animator: Animator,
+    sprite_width: i32,
 }
 
 impl Unit {
     fn new(unit_type: UnitType, pos: (f32, f32), team: i32) -> Self {
         // Initialize default values
-        let (damage, max_health, speed, range, attack_time, splash_area) = match unit_type {
-            UnitType::Axeman => (8.0, 50.0, 4.0, 12.0, 20, 0.),
-            UnitType::BigPound => (8.0, 80.0, 15.0, 8.0, 40, 0.),
-            UnitType::Hunter => (50.0, 50.0, 5.0, 120.0, 120, 0.),
-            UnitType::Pyro => (15.0, 30.0, 6.0, 12.0, 20, 0.),
+        let (damage, max_health, speed, range, attack_time, splash_area, sprite_width,) = match unit_type {
+            UnitType::Axeman => (8.0, 50.0, 4.0, 12.0, 40, 0., 16),
+            UnitType::Blade => (12.0, 20.0, 6.0, 8.0, 40, 0., 16),
+            UnitType::Hunter => (10.0, 25.0, 5.0, 120.0, 40, 0., 32),
+            UnitType::Pyro => (15.0, 30.0, 6.0, 12.0, 40, 0., 16),
         };
+        //let cur_anim_name = unit_type.to_lowercase_string() + "_walk";
 
         Self {
             unit_type,
@@ -186,6 +189,14 @@ impl Unit {
             attack_time,
             attack_timer: 0,
             splash_area,
+            sprite_width,
+            animator: Animator::new(Animation {
+                name: "axeman_walk".to_string(),
+                s_w: sprite_width,
+                num_frames: 4,
+                loops_per_frame: 10,
+                is_looping: true,
+            }),
         }
     }
     fn update(&mut self) {
@@ -209,103 +220,37 @@ impl Unit {
         //if idle do nothing
     }
 
-    fn draw(&self) {
+    fn draw(&mut self) {
+        let mut new_anim = Animation {
+            name: self.unit_type.to_lowercase_string(),
+            s_w: self.sprite_width,
+            num_frames: 4,
+            loops_per_frame: 10,
+            is_looping: true,
+        };
+        let mut flip_x = false;
+        if self.team == 1 {
+            flip_x = true;
+        }
+        if self.state == UnitState::Moving {
+            new_anim.name += "_walk";
+            self.animator.set_cur_anim(new_anim);
+        } else if self.state == UnitState::Dead {
+            new_anim.name += "_death";
+            new_anim.is_looping = false;
+            self.animator.set_cur_anim(new_anim);
+        } else if self.state == UnitState::Attacking {
+            new_anim.name += "_attack";
+            self.animator.set_cur_anim(new_anim);
+        } else if self.state == UnitState::Idle{
+            new_anim.name += "_idle";
+            self.animator.set_cur_anim(new_anim);
+        }
+        self.animator.draw(self.pos, flip_x);
+        self.animator.update();
         if self.state != UnitState::Dead {
-            let mut spr_name = self.unit_type.to_lowercase_string();
-            let mut flip_x = false;
-            if self.team == 1 {
-                flip_x = true;
-            }
-            match self.state {
-                UnitState::Attacking => {
-                    spr_name.push_str("_attack");
-                    sprite!(
-                        spr_name.as_str(),
-                        x = self.pos.0,
-                        y = self.pos.1,
-                        sw = 16,
-                        fps = fps::FAST,
-                        flip_x = flip_x
-                    );
-                  
-                }
-                UnitState::Dead => {
-                    spr_name.push_str("_death");
-                    sprite!(
-                        spr_name.as_str(),
-                        x = self.pos.0,
-                        y = self.pos.1,
-                        sw = 16,
-                        flip_x = flip_x
-                    );
-                }
-                UnitState::Idle => {
-                    spr_name.push_str("_idle");
-                    sprite!(
-                        spr_name.as_str(),
-                        x = self.pos.0,
-                        y = self.pos.1,
-                        sw = 16,
-                        fps = fps::FAST,
-                        flip_x = flip_x
-                    );
-                }
-                UnitState::Moving => {
-                    spr_name.push_str("_walk");
-                    sprite!(
-                        spr_name.as_str(),
-                        x = self.pos.0,
-                        y = self.pos.1,
-                        sw = 16,
-                        fps = fps::FAST,
-                        flip_x = flip_x
-                    );
-                }
-            }
             self.draw_health_bar();
         }
-        // match self.unit_type {
-        //     UnitType::Axeman => {
-        //         let mut color: usize = 0x0000ffff;
-        //         if self.state == UnitState::Attacking {
-        //             color = 0xff0000ff;
-        //         }
-        //         rect!(
-        //             x = self.pos.0,
-        //             y = self.pos.1,
-        //             w = 12,
-        //             h = 12,
-        //             color = color
-        //         );
-        //     }
-        //     UnitType::BigPound => {
-        //         let mut color: usize = 0x00ff00ff;
-        //         if self.state == UnitState::Attacking {
-        //             color = 0xffa500ff;
-        //         }
-        //         circ!(x = self.pos.0, y = self.pos.1, d = 4, color = color);
-        //     }
-        //     UnitType::Pyro => {
-        //         let mut color: usize = 0x6A0DADFF;
-        //         if self.state == UnitState::Attacking {
-        //             color = 0x9370DBFF;
-        //         }
-        //         circ!(x = self.pos.0, y = self.pos.1, d = 6, color = color);
-        //     }
-        //     UnitType::Hunter => {
-        //         let mut color: usize = 0xD3D3D3FF;
-        //         if self.state == UnitState::Attacking {
-        //             color = 0xA9A9A9FF;
-        //         }
-        //         rect!(
-        //             x = self.pos.0,
-        //             y = self.pos.1,
-        //             w = 16,
-        //             h = 16,
-        //             color = color
-        //         );
-        //     }
-        // }
     }
 
     fn draw_health_bar(&self) {
@@ -317,7 +262,7 @@ impl Unit {
         let h_bar = 2;
         //let border_color: u32 = 0xa69e9aff;
         let mut main_color: u32 = 0xc4f129ff;
-        if self.team == 1{
+        if self.team == 1 {
             main_color = 0xa69e9aff;
         }
         let back_color: u32 = 0xb9451dff;
@@ -391,7 +336,7 @@ impl Unit {
         self.state = UnitState::Attacking;
         //create the actual attack
         let mut size = 1;
-        if self.unit_type == UnitType::BigPound {
+        if self.unit_type == UnitType::Pyro {
             size = 2;
         }
         Attack::new(
@@ -411,7 +356,7 @@ impl Unit {
     }
 }
 
-#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone, Copy)]
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 struct Attack {
     target_unit_index: usize,
     speed: f32,
@@ -526,13 +471,13 @@ fn draw_team_info_and_buttons(state: &mut GameState) {
 
     for unit_type in [
         UnitType::Axeman,
-        UnitType::BigPound,
+        UnitType::Blade,
         UnitType::Hunter,
         UnitType::Pyro,
     ]
     .iter()
     {
-        let num_units = team_0.num_unit(*unit_type);
+        let num_units = team_0.num_unit(unit_type.clone());
         let unit_text = format!("[{}] {:?}", num_units, unit_type);
         text!(unit_text.as_str(), x = pos_0, y = y_pos);
 
@@ -541,7 +486,7 @@ fn draw_team_info_and_buttons(state: &mut GameState) {
             String::from("+"),
             (pos_0 as f32 + 100.0, y_pos as f32),
             (button_width as f32, button_height as f32),
-            GameEvent::AddUnitToTeam(0, *unit_type),
+            GameEvent::AddUnitToTeam(0, unit_type.clone()),
         );
         plus_button.draw();
         plus_button.handle_click(state);
@@ -551,7 +496,7 @@ fn draw_team_info_and_buttons(state: &mut GameState) {
             String::from("-"),
             (pos_0 as f32 + 130.0, y_pos as f32),
             (button_width as f32, button_height as f32),
-            GameEvent::RemoveUnitFromTeam(0, *unit_type),
+            GameEvent::RemoveUnitFromTeam(0, unit_type.clone()),
         );
         minus_button.draw();
         minus_button.handle_click(state);
@@ -568,13 +513,13 @@ fn draw_team_info_and_buttons(state: &mut GameState) {
 
     for unit_type in [
         UnitType::Axeman,
-        UnitType::BigPound,
+        UnitType::Blade,
         UnitType::Hunter,
         UnitType::Pyro,
     ]
     .iter()
     {
-        let num_units = team_1.num_unit(*unit_type);
+        let num_units = team_1.num_unit(unit_type.clone());
         let unit_text = format!("[{}] {:?}", num_units, unit_type);
         text!(unit_text.as_str(), x = pos_1, y = y_pos);
 
@@ -583,7 +528,7 @@ fn draw_team_info_and_buttons(state: &mut GameState) {
             String::from("+"),
             (pos_1 as f32 + 100.0, y_pos as f32),
             (button_width as f32, button_height as f32),
-            GameEvent::AddUnitToTeam(1, *unit_type),
+            GameEvent::AddUnitToTeam(1, unit_type.clone()),
         );
         plus_button.draw();
         plus_button.handle_click(state);
@@ -593,7 +538,7 @@ fn draw_team_info_and_buttons(state: &mut GameState) {
             String::from("-"),
             (pos_1 as f32 + 130.0, y_pos as f32),
             (button_width as f32, button_height as f32),
-            GameEvent::RemoveUnitFromTeam(1, *unit_type),
+            GameEvent::RemoveUnitFromTeam(1, unit_type.clone()),
         );
         minus_button.draw();
         minus_button.handle_click(state);
@@ -602,10 +547,10 @@ fn draw_team_info_and_buttons(state: &mut GameState) {
     }
 }
 
-#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone, Copy)]
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 enum UnitType {
     Axeman,
-    BigPound,
+    Blade,
     Hunter,
     Pyro,
 }
@@ -616,7 +561,7 @@ impl UnitType {
     }
 }
 
-#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone, Copy)]
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 enum UnitState {
     Moving,
     Attacking,
@@ -649,7 +594,7 @@ impl Team {
 
     fn remove_unit(&mut self, unit_type: UnitType) -> bool {
         // Remove the last unit of the specified UnitType, only if there is at least one
-        if let Some(pos) = self.units.iter().rposition(|&unit| unit == unit_type) {
+        if let Some(pos) = self.units.iter().rposition(|unit| *unit == unit_type) {
             self.units.remove(pos);
             true
         } else {
@@ -669,6 +614,85 @@ enum GameEvent {
 enum ObstacleShape {
     Square,
     Circle,
+}
+
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
+struct Animator {
+    //current animation
+    cur_anim: Animation,
+    anim_timer: i32,
+    next_anim: Option<Animation>,
+}
+
+impl Animator {
+    fn new(cur_anim: Animation) -> Self {
+        Animator {
+            cur_anim,
+            anim_timer: 0,
+            next_anim: None,
+        }
+    }
+
+    fn update(&mut self) {
+        self.anim_timer += 1;
+        if self.anim_timer > self.cur_anim.total_animation_time() {
+            if self.cur_anim.is_looping {
+                self.anim_timer = 0;
+            } else if let Some(next_anim) = self.next_anim.take() {
+                self.cur_anim = next_anim;
+                self.anim_timer = 0;
+            }
+        }
+    }
+
+    fn draw(&self, pos: (f32, f32), flip_x: bool) {
+        let name = self.cur_anim.name.as_str();
+        let frame_index = (self.anim_timer / self.cur_anim.loops_per_frame); // Calculate the frame index
+        let sx = (frame_index * self.cur_anim.s_w)
+            .clamp(0, self.cur_anim.s_w * (self.cur_anim.num_frames - 1)); // Calculate the sprite X coordinate
+        //patch for turbo bug, to be removed later, when bug is fixed
+        let mut x_adj = 0.;
+        if sx > 32 {
+            x_adj = -self.cur_anim.s_w as f32;
+        }
+        if sx > 64{
+            x_adj = 2.* - self.cur_anim.s_w as f32;
+        }
+        sprite!(
+            name,
+            x = pos.0 + x_adj,
+            y = pos.1,
+            sx = sx,
+            flip_x = flip_x,
+            sw = 16,
+        );
+    }
+
+    fn set_cur_anim(&mut self, new_anim: Animation) {
+        if self.cur_anim.name != new_anim.name {
+            self.cur_anim = new_anim;
+            self.anim_timer = 0;
+        }
+    }
+
+    fn set_next_anim(&mut self, next_anim: Option<Animation>) {
+        self.next_anim = next_anim;
+    }
+}
+
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
+struct Animation {
+    name: String,
+    s_w: i32,
+    num_frames: i32,
+    loops_per_frame: i32,
+    is_looping: bool,
+}
+
+impl Animation {
+    fn total_animation_time(&self) -> i32 {
+        return self.num_frames * self.loops_per_frame;
+    }
 }
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
