@@ -210,83 +210,103 @@ impl Unit {
     }
 
     fn draw(&self) {
-        if self.state != UnitState::Dead{
+        if self.state != UnitState::Dead {
             let mut spr_name = self.unit_type.to_lowercase_string();
             let mut flip_x = false;
-            if self.team == 1{
+            if self.team == 1 {
                 flip_x = true;
             }
-            match self.state{
-                UnitState::Attacking =>
-                {
+            match self.state {
+                UnitState::Attacking => {
                     spr_name.push_str("_attack");
-                    sprite!(spr_name.as_str(), x=self.pos.0, y=self.pos.1, sw = 16, fps = fps::FAST, flip_x = flip_x);
-                    self.draw_health_bar();
+                    sprite!(
+                        spr_name.as_str(),
+                        x = self.pos.0,
+                        y = self.pos.1,
+                        sw = 16,
+                        fps = fps::FAST,
+                        flip_x = flip_x
+                    );
+                  
                 }
-                UnitState::Dead =>
-                {
+                UnitState::Dead => {
                     spr_name.push_str("_death");
-                    sprite!(spr_name.as_str(), x=self.pos.0, y=self.pos.1, sw = 16, flip_x = flip_x);
+                    sprite!(
+                        spr_name.as_str(),
+                        x = self.pos.0,
+                        y = self.pos.1,
+                        sw = 16,
+                        flip_x = flip_x
+                    );
                 }
-                UnitState::Idle =>
-                {
+                UnitState::Idle => {
                     spr_name.push_str("_idle");
-                    sprite!(spr_name.as_str(), x=self.pos.0, y=self.pos.1, sw = 16, fps = fps::FAST, flip_x = flip_x);
+                    sprite!(
+                        spr_name.as_str(),
+                        x = self.pos.0,
+                        y = self.pos.1,
+                        sw = 16,
+                        fps = fps::FAST,
+                        flip_x = flip_x
+                    );
                 }
-                UnitState::Moving =>
-                {
+                UnitState::Moving => {
                     spr_name.push_str("_walk");
-                    sprite!(spr_name.as_str(), x=self.pos.0, y=self.pos.1, sw = 16, fps = fps::FAST, flip_x = flip_x);
+                    sprite!(
+                        spr_name.as_str(),
+                        x = self.pos.0,
+                        y = self.pos.1,
+                        sw = 16,
+                        fps = fps::FAST,
+                        flip_x = flip_x
+                    );
                 }
             }
-            
-            
-                
-            }
-            // match self.unit_type {
-            //     UnitType::Axeman => {
-            //         let mut color: usize = 0x0000ffff;
-            //         if self.state == UnitState::Attacking {
-            //             color = 0xff0000ff;
-            //         }
-            //         rect!(
-            //             x = self.pos.0,
-            //             y = self.pos.1,
-            //             w = 12,
-            //             h = 12,
-            //             color = color
-            //         );
-            //     }
-            //     UnitType::BigPound => {
-            //         let mut color: usize = 0x00ff00ff;
-            //         if self.state == UnitState::Attacking {
-            //             color = 0xffa500ff;
-            //         }
-            //         circ!(x = self.pos.0, y = self.pos.1, d = 4, color = color);
-            //     }
-            //     UnitType::Pyro => {
-            //         let mut color: usize = 0x6A0DADFF;
-            //         if self.state == UnitState::Attacking {
-            //             color = 0x9370DBFF;
-            //         }
-            //         circ!(x = self.pos.0, y = self.pos.1, d = 6, color = color);
-            //     }
-            //     UnitType::Hunter => {
-            //         let mut color: usize = 0xD3D3D3FF;
-            //         if self.state == UnitState::Attacking {
-            //             color = 0xA9A9A9FF;
-            //         }
-            //         rect!(
-            //             x = self.pos.0,
-            //             y = self.pos.1,
-            //             w = 16,
-            //             h = 16,
-            //             color = color
-            //         );
-            //     }
-            // }
-
+            self.draw_health_bar();
         }
+        // match self.unit_type {
+        //     UnitType::Axeman => {
+        //         let mut color: usize = 0x0000ffff;
+        //         if self.state == UnitState::Attacking {
+        //             color = 0xff0000ff;
+        //         }
+        //         rect!(
+        //             x = self.pos.0,
+        //             y = self.pos.1,
+        //             w = 12,
+        //             h = 12,
+        //             color = color
+        //         );
+        //     }
+        //     UnitType::BigPound => {
+        //         let mut color: usize = 0x00ff00ff;
+        //         if self.state == UnitState::Attacking {
+        //             color = 0xffa500ff;
+        //         }
+        //         circ!(x = self.pos.0, y = self.pos.1, d = 4, color = color);
+        //     }
+        //     UnitType::Pyro => {
+        //         let mut color: usize = 0x6A0DADFF;
+        //         if self.state == UnitState::Attacking {
+        //             color = 0x9370DBFF;
+        //         }
+        //         circ!(x = self.pos.0, y = self.pos.1, d = 6, color = color);
+        //     }
+        //     UnitType::Hunter => {
+        //         let mut color: usize = 0xD3D3D3FF;
+        //         if self.state == UnitState::Attacking {
+        //             color = 0xA9A9A9FF;
+        //         }
+        //         rect!(
+        //             x = self.pos.0,
+        //             y = self.pos.1,
+        //             w = 16,
+        //             h = 16,
+        //             color = color
+        //         );
+        //     }
+        // }
+    }
 
     fn draw_health_bar(&self) {
         let x = self.pos.0;
@@ -296,7 +316,10 @@ impl Unit {
         let w_bar = 0.25 * self.max_health;
         let h_bar = 2;
         //let border_color: u32 = 0xa69e9aff;
-        let main_color: u32 = 0xc4f129ff;
+        let mut main_color: u32 = 0xc4f129ff;
+        if self.team == 1{
+            main_color = 0xa69e9aff;
+        }
         let back_color: u32 = 0xb9451dff;
         let mut health_width = (self.health as f32 / self.max_health as f32 * w_bar as f32) as i32;
         health_width = health_width.max(0);
@@ -364,7 +387,7 @@ impl Unit {
     }
 
     fn start_attack(&mut self, target_index: usize) -> Attack {
-        self.attack_timer = self.attack_time + (rand() % 10) as i32;
+        self.attack_timer = self.attack_time;
         self.state = UnitState::Attacking;
         //create the actual attack
         let mut size = 1;
@@ -587,7 +610,7 @@ enum UnitType {
     Pyro,
 }
 
-impl UnitType{
+impl UnitType {
     fn to_lowercase_string(&self) -> String {
         format!("{:?}", self).to_lowercase()
     }
