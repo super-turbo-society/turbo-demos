@@ -16,6 +16,7 @@ turbo::init! {
         teams: Vec<Team>,
         attacks: Vec<Attack>,
         event_queue: Vec<GameEvent>,
+        rng: RNG,
     } = {
         let mut teams = Vec::new();
         teams.push(Team::new("Battle Bois".to_string()));
@@ -26,6 +27,8 @@ turbo::init! {
             teams,
             attacks: Vec::new(),
             event_queue: Vec::new(),
+            //replace this number with a program number later
+            rng: RNG::new(12345),
         }
     }
 }
@@ -42,14 +45,14 @@ turbo::go!({
             let max_y = 180.0;
 
             for (team_index, team) in state.teams.iter().enumerate() {
-                let mut x_start = if team_index == 0 { 20.0 } else { 380.0 }; // Adjusted starting x for team 1
+                let mut x_start = if team_index == 0 { 20.0 } else { 320.0 }; // Adjusted starting x for team 1
                 let mut y_pos = 20.0;
 
                 for (i, unit_type) in team.units.iter().enumerate() {
                     if y_pos > max_y {
-                        // Reset y_pos and adjust x_start
+                        
                         y_pos = 20.0;
-                        //Team 0 is the left side team
+                        
                         if team_index == 0 {
                             x_start += row_width;
                         } else {
@@ -72,9 +75,6 @@ turbo::go!({
                 GameEvent::AddUnitToTeam(team_index, unit_type) => {
                     state.teams[team_index].add_unit(unit_type);
                 }
-                GameEvent::ChangeSelectedUnit(unit_type) => {
-                    // Logic to change the selected unit type
-                }
                 GameEvent::RemoveUnitFromTeam(team_index, unit_type) => {
                     state.teams[team_index].remove_unit(unit_type);
                 }
@@ -96,7 +96,7 @@ turbo::go!({
                         state.attacks.push(unit.start_attack(index));
                     } else {
                         if unit.state == UnitState::Idle {
-                            unit.move_toward_enemy(units_clone[index].clone());
+                            unit.new_target_tween_position(units_clone[index].clone().pos, &mut state.rng);
                         }
                     }
                 }
@@ -136,6 +136,11 @@ turbo::go!({
             let index: usize = winning_team.take().unwrap_or(-1) as usize;
             let text = format!("{} Win!", state.teams[index].name);
             text!(text.as_str(), x = cam!().0,);
+            for unit in &mut state.units{
+                if unit.state != UnitState::Dead{
+                    unit.state = UnitState::Idle;
+                }
+            }
         }
     }
 
@@ -175,8 +180,9 @@ impl Unit {
         let (damage, max_health, speed, range, attack_time, splash_area, sprite_width,) = match unit_type {
             UnitType::Axeman => (8.0, 50.0, 4.0, 12.0, 40, 0., 16),
             UnitType::Blade => (12.0, 20.0, 6.0, 8.0, 40, 0., 16),
-            UnitType::Hunter => (10.0, 25.0, 5.0, 120.0, 40, 0., 32),
+            UnitType::Hunter => (10.0, 25.0, 5.0, 120.0, 120, 0., 32),
             UnitType::Pyro => (15.0, 30.0, 6.0, 12.0, 40, 0., 16),
+            UnitType::BigPound => (20.0, 100., 2.0, 10., 120, 4., 32),
         };
         //let cur_anim_name = unit_type.to_lowercase_string() + "_walk";
 
@@ -196,6 +202,7 @@ impl Unit {
             attack_timer: 0,
             splash_area,
             sprite_width,
+            //placeholder, gets overwritten when they are drawn, but I can't figure out how to do it more logically than this
             animator: Animator::new(Animation {
                 name: "axeman_walk".to_string(),
                 s_w: sprite_width,
@@ -222,8 +229,6 @@ impl Unit {
         if self.health <= 0. {
             self.state = UnitState::Dead;
         }
-        //if moving or attacking, update tween and check if tween is done
-        //if idle do nothing
     }
 
     fn draw(&mut self) {
@@ -247,6 +252,7 @@ impl Unit {
             self.animator.set_cur_anim(new_anim);
         } else if self.state == UnitState::Attacking {
             new_anim.name += "_attack";
+            new_anim.is_looping = false;
             self.animator.set_cur_anim(new_anim);
         } else if self.state == UnitState::Idle{
             new_anim.name += "_idle";
@@ -266,7 +272,6 @@ impl Unit {
         let y_bar = y - 2.;
         let w_bar = 0.25 * self.max_health;
         let h_bar = 2;
-        //let border_color: u32 = 0xa69e9aff;
         let mut main_color: u32 = 0xc4f129ff;
         if self.team == 1 {
             main_color = 0xa69e9aff;
@@ -306,12 +311,12 @@ impl Unit {
         // )
     }
 
-    fn move_toward_enemy(&mut self, enemy: Unit) {
-        //set tween position to be x units toward the enemy
-        self.new_target_tween_position(enemy.pos);
-    }
+    // fn move_toward_enemy(&mut self, enemy: Unit) {
+    //     //set tween position to be x units toward the enemy
+    //     self.new_target_tween_position(enemy.pos);
+    // }
 
-    fn new_target_tween_position(&mut self, target: (f32, f32)) {
+    fn new_target_tween_position(&mut self, target: (f32, f32), rng: &mut RNG) {
         // Calculate the direction vector from self.pos to target
         let dir_x = target.0 - self.pos.0;
         let dir_y = target.1 - self.pos.1;
@@ -323,8 +328,11 @@ impl Unit {
         let norm_dir_x = dir_x / length;
         let norm_dir_y = dir_y / length;
 
-        let rand_x = (rand() % 5) as f32 * norm_dir_x.signum();
-        let rand_y = (rand() % 5) as f32 * norm_dir_y.signum();
+        let rand_x = rng.next_in_range(0,5) as f32 * norm_dir_x.signum();
+        //turbo::println!("rand_x: {}", rand_x);
+
+        let rand_y = rng.next_in_range(0,5) as f32 * norm_dir_y.signum();
+        //turbo::println!("rand_y: {}", rand_x);
 
         let new_x = self.pos.0 + norm_dir_x * self.speed + rand_x;
         let new_y = self.pos.1 + norm_dir_y * self.speed + rand_y;
@@ -486,6 +494,7 @@ fn draw_team_info_and_buttons(state: &mut GameState) {
         UnitType::Blade,
         UnitType::Hunter,
         UnitType::Pyro,
+        UnitType::BigPound,
     ]
     .iter()
     {
@@ -528,6 +537,7 @@ fn draw_team_info_and_buttons(state: &mut GameState) {
         UnitType::Blade,
         UnitType::Hunter,
         UnitType::Pyro,
+        UnitType::BigPound,
     ]
     .iter()
     {
@@ -565,6 +575,7 @@ enum UnitType {
     Blade,
     Hunter,
     Pyro,
+    BigPound,
 }
 
 impl UnitType {
@@ -619,7 +630,6 @@ impl Team {
 enum GameEvent {
     AddUnitToTeam(usize, UnitType),
     RemoveUnitFromTeam(usize, UnitType),
-    ChangeSelectedUnit(UnitType),
 }
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
@@ -766,4 +776,43 @@ impl Button {
             y = (self.position.1) as i32
         ); // Example button label
     }
+}
+
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
+struct RNG {
+    seed: u32,
+}
+
+impl RNG {
+    // Create a new MyRNG with a seed
+    fn new(seed: u32) -> Self {
+        RNG { seed }
+    }
+
+    // Generate the next random number
+    fn next(&mut self) -> u32 {
+        // Constants for the LCG (these are just examples; you can use different values)
+        let a: u32 = 1664525;
+        let c: u32 = 1013904223;
+        let m: u32 = u32::MAX;
+
+        // Update the seed and produce a new number
+        self.seed = (a.wrapping_mul(self.seed).wrapping_add(c)) % m;
+        self.seed
+    }
+
+    // Generate a random number within a specific range [min, max]
+    fn next_in_range(&mut self, min: u32, max: u32) -> u32 {
+        let range = max - min + 1;
+        let mut number = (self.next() % range) + min;
+        
+        // Make sure you use an odd number
+        if range % 2 == 0 {
+            number += 1;
+        }
+        
+        number % range + min
+    }
+
+    
 }
