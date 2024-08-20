@@ -717,6 +717,27 @@ impl Animation {
     }
 }
 
+
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
+struct StatusEffect{
+    status: Status,
+    timer: i32,
+}
+
+impl StatusEffect{
+    //new
+    //update - run timer
+    //draw - draw sprite based on name, at position
+}
+
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
+enum Status {
+    Poison,
+    Healing,
+    Freeze,
+}
+
+
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 struct Obstacle {
     size: i32,
