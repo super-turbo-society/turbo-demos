@@ -1,3 +1,5 @@
+use std::fmt::format;
+
 turbo::cfg! {r#"
     name = "Pixel Wars"
     version = "1.0.0"
@@ -128,8 +130,12 @@ turbo::go!({
         //     state.units[d.0].take_damage(d.1);
         // }
         //check for game over
-        if all_units_on_either_team_dead(&state.units) {
-            text!("GAME OVER", x = cam!().0,);
+        let mut winning_team = has_some_team_won(&state.units); 
+        if winning_team.is_some()
+        {
+            let index: usize = winning_team.take().unwrap_or(-1) as usize;
+            let text = format!("{} Win!", state.teams[index].name);
+            text!(text.as_str(), x = cam!().0,);
         }
     }
 
@@ -441,17 +447,23 @@ fn distance_between(pos1: (f32, f32), pos2: (f32, f32)) -> f32 {
     (dx * dx + dy * dy).sqrt()
 }
 
-fn all_units_on_either_team_dead(units: &Vec<Unit>) -> bool {
-    let all_team_1_dead = units
+fn has_some_team_won(units: &Vec<Unit>) -> Option<i32> {
+    let all_team_0_dead = units
         .iter()
         .filter(|unit| unit.team == 0)
         .all(|unit| unit.state == UnitState::Dead);
-    let all_team_2_dead = units
+    let all_team_1_dead = units
         .iter()
         .filter(|unit| unit.team == 1)
         .all(|unit| unit.state == UnitState::Dead);
 
-    all_team_1_dead || all_team_2_dead
+    if all_team_0_dead{
+        return Some(1);
+    }
+    else if all_team_1_dead{
+        return Some(0);
+    }
+    None
 }
 
 fn draw_team_info_and_buttons(state: &mut GameState) {
