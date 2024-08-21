@@ -1,4 +1,4 @@
-use std::fmt::format;
+
 
 turbo::cfg! {r#"
     name = "Pixel Wars"
@@ -650,7 +650,7 @@ impl Animator {
     fn new(cur_anim: Animation) -> Self {
         Animator {
             cur_anim,
-            anim_timer: 0,
+            anim_timer: 0, 
             next_anim: None,
         }
     }
@@ -717,7 +717,6 @@ impl Animation {
     }
 }
 
-
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 struct StatusEffect{
     status: Status,
@@ -735,6 +734,7 @@ enum Status {
     Poison,
     Healing,
     Freeze,
+    Burn,
 }
 
 
