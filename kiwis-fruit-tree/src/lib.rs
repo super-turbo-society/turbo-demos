@@ -748,6 +748,10 @@ turbo::go! {
     else if state.screen == Screen::Ending{
         center_camera(192., 108.);
         sprite!("ending", x = 0, y = 0);
+        let gp = gamepad(0);
+        if gp.start.just_pressed() || gp.up.just_pressed(){
+            state = GameState::default();
+        }
 
     }
 
