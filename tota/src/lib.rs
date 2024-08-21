@@ -787,14 +787,14 @@ impl BattleScreen {
             Wave {
                 enemies: vec![
                     Enemy::new_car((1, 1), CarType::Red, RiderType::Rifle),
-                    Enemy::new_plane((0, 0), 2, 3),
+                    Enemy::new_plane((0, 0), 2, 2),
                 ],
             },
             Wave {
                 enemies: vec![
                     Enemy::new_car((0, 1), CarType::Blue, RiderType::Pistol),
                     Enemy::new_car((0, 2), CarType::Red, RiderType::Rifle),
-                    Enemy::new_plane((1, 0), 3, 3),
+                    Enemy::new_plane((1, 0), 3, 2),
                 ],
             },
             Wave {
@@ -803,7 +803,6 @@ impl BattleScreen {
                     Enemy::new_car((0, 2), CarType::Red, RiderType::Rifle),
                     Enemy::new_car((1, 1), CarType::Blue, RiderType::Rifle),
                     Enemy::new_plane((0, 0), 4, 3),
-                    //Enemy::new_plane((1, 0), 4, 3),
                 ],
             },
             Wave {
@@ -817,8 +816,8 @@ impl BattleScreen {
             },
             Wave {
                 enemies: vec![
-                    Enemy::new_plane((0, 0), 3, 4),
-                    Enemy::new_plane((1, 0), 4, 4),
+                    Enemy::new_plane((0, 0), 3, 3),
+                    Enemy::new_plane((1, 0), 4, 3),
                     Enemy::new_car((0, 2), CarType::Blue, RiderType::Rifle),
                     Enemy::new_car((0, 1), CarType::Boss, RiderType::Boss),
                 ],
@@ -1654,8 +1653,8 @@ impl Shape {
 impl Enemy {
     fn new_car(grid_position: (i32, i32), car_type: CarType, rider_type: RiderType) -> Self {
         let health= match car_type {
-            CarType::Red => 3,
-            CarType::Blue => 4,
+            CarType::Red => 2,
+            CarType::Blue => 3,
             CarType::Green => 6,
             CarType::Boss => 10,
         };
@@ -1664,8 +1663,8 @@ impl Enemy {
             RiderType::Pistol => 2,
             RiderType::Shotgun => 3,
             RiderType::Rifle => 4,
-            RiderType::Rocket => 5,
-            RiderType::Boss => 8,
+            RiderType::Rocket => 6,
+            RiderType::Boss => 6,
         };
 
         let position_offset = Tween::new(ENEMY_OFFSET_START).duration(TWEEN_DUR_MIN).ease(Easing::EaseOutQuart);
@@ -1922,11 +1921,6 @@ fn create_enemy_bullet(bullets: &mut Vec<Bullet>, x: f32, y: f32, target_x: f32,
 
     bullets.push(Bullet::new(x, y, damage, true, path, "bullet".to_string()));
 }
-
-//TODO: Figure out why this is never used
-// fn create_player_bullet(bullets: &mut Vec<Bullet>, x: f32, y: f32, target_x: f32, target_y: f32, damage: i32) {
-//     bullets.push(Bullet::new(x, y, target_x, target_y, damage, false));
-// }
 
 fn should_draw_ui(battle_state: &BattleState) -> bool {
     matches!(
@@ -2217,7 +2211,6 @@ fn calculate_endurance(upgrades: &Vec<Upgrade>) -> i32 {
 fn calculate_brutality(upgrades: &Vec<Upgrade>) -> i32 {
     upgrades.iter().map(|u| u.brutality).sum()
 }
-
 
 fn calculate_firepower(upgrades: &Vec<Upgrade>) -> i32 {
     //triple this so it looks better in the chart
@@ -2762,7 +2755,7 @@ turbo::go!({
                             screen.current_wave += 1;
                             screen.enemies = screen.waves[screen.current_wave].enemies.clone();
                             //give back 25 health (cap at 100)
-                            screen.player_health = (screen.player_health + 25).min(100);
+                            screen.player_health = (screen.player_health + 20).min(100);
                             state.saved_battle_screen = Some(screen.clone()); // Save current Battle screen state
                             //this will also set us up to add some wiggle around the truck later on
                             next_screen = Some(Screen::UpgradeSelection(UpgradeSelectionScreen::new(screen.upgrades.clone())));
@@ -2956,10 +2949,7 @@ turbo::go!({
             }
         },
     }
-    // let o = state.fade_out.get();
-    // //turbo::println!("tween val {:?}", o);
-    // rect!(x = 0, y=0, w=canvas_size()[0], h = canvas_size()[1], color = black_with_opacity(o));
-    //rect!(x=0, y=0, w=100, h=100, color = 0x00ff0080u32);
+
     //change screens whenever next_screen is different from screen    
     if let Some(screen) = next_screen {
         //turbo::println!("IN THE LAST SCREEN FUNCTION");
@@ -2974,7 +2964,11 @@ turbo::go!({
     if is_dialog_done {
         state.dialog_box = None;
     }
-
+    let gp = gamepad(0);
+    if gp.start.just_pressed() && gp.select.pressed(){
+        //reset the game
+        state = GameState::default();
+    }
     state.save();
 });
 

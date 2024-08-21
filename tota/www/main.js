@@ -1,4 +1,4 @@
-import initTurbo, * as turbo from "./pkg/turbo_genesis_host_wasm_bindgen.js";
+import initTurbo, * as turbo from "./pkg/turbo_genesis_impl_wasm_bindgen.js";
 
 /**************************************************/
 /* CONFIGURATION                                  */
