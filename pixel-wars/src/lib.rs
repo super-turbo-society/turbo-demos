@@ -1,4 +1,9 @@
+use csv::{ReaderBuilder, Reader};
+use std::collections::HashMap;
+use std::error::Error;
+use std::fmt::Display;
 
+const UNIT_DATA_CSV: &[u8] = include_bytes!("../resources/unit-data.csv");
 
 turbo::cfg! {r#"
     name = "Pixel Wars"
@@ -43,31 +48,44 @@ turbo::go!({
             let row_height = 20.0;
             let row_width = 20.0;
             let max_y = 180.0;
+            log("BEFORE TRYING TO FIND CSV");
+            //create the unit data store where all the unit data comes from
+            match UnitTypeDataStore::load_from_csv(UNIT_DATA_CSV) {
+                Ok(unit_type_store) => {
+                    for (team_index, team) in state.teams.iter().enumerate() {
+                        let mut x_start = if team_index == 0 { 20.0 } else { 320.0 }; // Adjusted starting x for team 1
+                        let mut y_pos = 20.0;
 
-            for (team_index, team) in state.teams.iter().enumerate() {
-                let mut x_start = if team_index == 0 { 20.0 } else { 320.0 }; // Adjusted starting x for team 1
-                let mut y_pos = 20.0;
+                        for (i, unit_type) in team.units.iter().enumerate() {
+                            if y_pos > max_y {
+                                y_pos = 20.0;
 
-                for (i, unit_type) in team.units.iter().enumerate() {
-                    if y_pos > max_y {
-                        
-                        y_pos = 20.0;
-                        
-                        if team_index == 0 {
-                            x_start += row_width;
-                        } else {
-                            x_start -= row_width;
+                                if team_index == 0 {
+                                    x_start += row_width;
+                                } else {
+                                    x_start -= row_width;
+                                }
+                            }
+                            let pos = (x_start, y_pos);
+                            state.units.push(Unit::new(
+                                unit_type.clone(),
+                                pos,
+                                team_index as i32,
+                                &unit_type_store,
+                            ));
+                            //let unit = Unit::new(UnitType::Axeman, (0.0, 0.0), 0, &unit_type_store);
+                            y_pos += row_height;
                         }
                     }
-                    let pos = (x_start, y_pos);
-                    state
-                        .units
-                        .push(Unit::new(unit_type.clone(), pos, team_index as i32));
-                    y_pos += row_height;
+                    //go to Battle Phase
+                    state.phase = Phase::Battle;
+                }
+                Err(e) => {
+                    log("CSV ERROR");
+                    eprintln!("Error loading unit type data: {}", e);
+                    return;
                 }
             }
-            //go to Battle Phase
-            state.phase = Phase::Battle;
         }
         draw_team_info_and_buttons(&mut state);
         while let Some(event) = state.event_queue.pop() {
@@ -92,11 +110,14 @@ turbo::go!({
             //check if unit is moving or not
             if unit.state == UnitState::Idle {
                 if let Some(index) = closest_enemy_index(&unit, &units_clone) {
-                    if unit.distance_to(&units_clone[index]) < unit.range {
+                    if unit.distance_to(&units_clone[index]) < unit.data.range {
                         state.attacks.push(unit.start_attack(index));
                     } else {
                         if unit.state == UnitState::Idle {
-                            unit.new_target_tween_position(units_clone[index].clone().pos, &mut state.rng);
+                            unit.new_target_tween_position(
+                                units_clone[index].clone().pos,
+                                &mut state.rng,
+                            );
                         }
                     }
                 }
@@ -130,14 +151,13 @@ turbo::go!({
         //     state.units[d.0].take_damage(d.1);
         // }
         //check for game over
-        let mut winning_team = has_some_team_won(&state.units); 
-        if winning_team.is_some()
-        {
+        let mut winning_team = has_some_team_won(&state.units);
+        if winning_team.is_some() {
             let index: usize = winning_team.take().unwrap_or(-1) as usize;
             let text = format!("{} Win!", state.teams[index].name);
             text!(text.as_str(), x = cam!().0,);
-            for unit in &mut state.units{
-                if unit.state != UnitState::Dead{
+            for unit in &mut state.units {
+                if unit.state != UnitState::Dead {
                     unit.state = UnitState::Idle;
                 }
             }
@@ -157,55 +177,37 @@ enum Phase {
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 struct Unit {
     unit_type: UnitType,
+    data: UnitData,
     team: i32,
-    damage: f32,
-    splash_area: f32,
-    range: f32,
-    max_health: f32,
     health: f32,
-    speed: f32,
     pos: (f32, f32),
     state: UnitState,
     move_tween_x: Tween<f32>,
     move_tween_y: Tween<f32>,
-    attack_time: i32,
     attack_timer: i32,
     animator: Animator,
-    sprite_width: i32,
 }
 
 impl Unit {
-    fn new(unit_type: UnitType, pos: (f32, f32), team: i32) -> Self {
+    fn new(unit_type: UnitType, pos: (f32, f32), team: i32, store: &UnitTypeDataStore) -> Self {
         // Initialize default values
-        let (damage, max_health, speed, range, attack_time, splash_area, sprite_width,) = match unit_type {
-            UnitType::Axeman => (8.0, 50.0, 4.0, 12.0, 40, 0., 16),
-            UnitType::Blade => (12.0, 20.0, 6.0, 8.0, 40, 0., 16),
-            UnitType::Hunter => (10.0, 25.0, 5.0, 120.0, 120, 0., 32),
-            UnitType::Pyro => (15.0, 30.0, 6.0, 12.0, 40, 0., 16),
-            UnitType::BigPound => (20.0, 100., 2.0, 10., 120, 4., 32),
-        };
-        //let cur_anim_name = unit_type.to_lowercase_string() + "_walk";
-
+        let data = store.get_unit_data(&unit_type).unwrap_or_else(|| {
+            panic!("Unit type not found in the data store");
+        });
         Self {
+            data: data.clone(),
             unit_type,
             team,
-            damage,
-            max_health,
-            health: max_health,
-            speed,
-            range,
+            health: data.max_health,
             pos,
             state: UnitState::Idle,
             move_tween_x: Tween::new(0.),
             move_tween_y: Tween::new(0.),
-            attack_time,
             attack_timer: 0,
-            splash_area,
-            sprite_width,
             //placeholder, gets overwritten when they are drawn, but I can't figure out how to do it more logically than this
             animator: Animator::new(Animation {
                 name: "axeman_walk".to_string(),
-                s_w: sprite_width,
+                s_w: data.sprite_width,
                 num_frames: 4,
                 loops_per_frame: 10,
                 is_looping: true,
@@ -234,7 +236,7 @@ impl Unit {
     fn draw(&mut self) {
         let mut new_anim = Animation {
             name: self.unit_type.to_lowercase_string(),
-            s_w: self.sprite_width,
+            s_w: self.data.sprite_width,
             num_frames: 4,
             loops_per_frame: 10,
             is_looping: true,
@@ -254,7 +256,7 @@ impl Unit {
             new_anim.name += "_attack";
             new_anim.is_looping = false;
             self.animator.set_cur_anim(new_anim);
-        } else if self.state == UnitState::Idle{
+        } else if self.state == UnitState::Idle {
             new_anim.name += "_idle";
             self.animator.set_cur_anim(new_anim);
         }
@@ -270,14 +272,15 @@ impl Unit {
         let y = self.pos.1;
         let x_bar = x;
         let y_bar = y - 2.;
-        let w_bar = 0.25 * self.max_health;
+        let w_bar = 0.25 * self.data.max_health;
         let h_bar = 2;
         let mut main_color: u32 = 0xc4f129ff;
         if self.team == 1 {
             main_color = 0xa69e9aff;
         }
         let back_color: u32 = 0xb9451dff;
-        let mut health_width = (self.health as f32 / self.max_health as f32 * w_bar as f32) as i32;
+        let mut health_width =
+            (self.health as f32 / self.data.max_health as f32 * w_bar as f32) as i32;
         health_width = health_width.max(0);
 
         // Draw health bar background
@@ -328,14 +331,14 @@ impl Unit {
         let norm_dir_x = dir_x / length;
         let norm_dir_y = dir_y / length;
 
-        let rand_x = rng.next_in_range(0,5) as f32 * norm_dir_x.signum();
+        let rand_x = rng.next_in_range(0, 5) as f32 * norm_dir_x.signum();
         //turbo::println!("rand_x: {}", rand_x);
 
-        let rand_y = rng.next_in_range(0,5) as f32 * norm_dir_y.signum();
+        let rand_y = rng.next_in_range(0, 5) as f32 * norm_dir_y.signum();
         //turbo::println!("rand_y: {}", rand_x);
 
-        let new_x = self.pos.0 + norm_dir_x * self.speed + rand_x;
-        let new_y = self.pos.1 + norm_dir_y * self.speed + rand_y;
+        let new_x = self.pos.0 + norm_dir_x * self.data.speed + rand_x;
+        let new_y = self.pos.1 + norm_dir_y * self.data.speed + rand_y;
         self.move_tween_x = Tween::new(self.pos.0).set(new_x).duration(20);
         self.move_tween_y = Tween::new(self.pos.1).set(new_y).duration(20);
         self.state = UnitState::Moving;
@@ -346,7 +349,7 @@ impl Unit {
     }
 
     fn start_attack(&mut self, target_index: usize) -> Attack {
-        self.attack_timer = self.attack_time;
+        self.attack_timer = self.data.attack_time;
         self.state = UnitState::Attacking;
         //create the actual attack
         let mut size = 1;
@@ -357,8 +360,8 @@ impl Unit {
             target_index,
             2.,
             self.pos,
-            self.damage,
-            self.splash_area,
+            self.data.damage,
+            self.data.splash_area,
             size,
         )
     }
@@ -368,6 +371,18 @@ impl Unit {
         let dy = self.pos.1 - other.pos.1;
         (dx * dx + dy * dy).sqrt()
     }
+}
+
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
+struct UnitData {
+    unit_type: UnitType,
+    damage: f32,
+    max_health: f32,
+    speed: f32,
+    range: f32,
+    attack_time: i32,
+    splash_area: f32,
+    sprite_width: i32,
 }
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
@@ -465,10 +480,9 @@ fn has_some_team_won(units: &Vec<Unit>) -> Option<i32> {
         .filter(|unit| unit.team == 1)
         .all(|unit| unit.state == UnitState::Dead);
 
-    if all_team_0_dead{
+    if all_team_0_dead {
         return Some(1);
-    }
-    else if all_team_1_dead{
+    } else if all_team_1_dead {
         return Some(0);
     }
     None
@@ -569,7 +583,7 @@ fn draw_team_info_and_buttons(state: &mut GameState) {
     }
 }
 
-#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone, Eq, Hash, Copy, PartialOrd)]
 enum UnitType {
     Axeman,
     Blade,
@@ -650,7 +664,7 @@ impl Animator {
     fn new(cur_anim: Animation) -> Self {
         Animator {
             cur_anim,
-            anim_timer: 0, 
+            anim_timer: 0,
             next_anim: None,
         }
     }
@@ -672,13 +686,13 @@ impl Animator {
         let frame_index = (self.anim_timer / self.cur_anim.loops_per_frame); // Calculate the frame index
         let sx = (frame_index * self.cur_anim.s_w)
             .clamp(0, self.cur_anim.s_w * (self.cur_anim.num_frames - 1)); // Calculate the sprite X coordinate
-        //patch for turbo bug, to be removed later, when bug is fixed
+                                                                           //patch for turbo bug, to be removed later, when bug is fixed
         let mut x_adj = 0.;
         if sx > 32 {
             x_adj = -self.cur_anim.s_w as f32;
         }
-        if sx > 64{
-            x_adj = 2.* - self.cur_anim.s_w as f32;
+        if sx > 64 {
+            x_adj = 2. * -self.cur_anim.s_w as f32;
         }
         sprite!(
             name,
@@ -718,12 +732,12 @@ impl Animation {
 }
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
-struct StatusEffect{
+struct StatusEffect {
     status: Status,
     timer: i32,
 }
 
-impl StatusEffect{
+impl StatusEffect {
     //new
     //update - run timer
     //draw - draw sprite based on name, at position
@@ -736,7 +750,6 @@ enum Status {
     Freeze,
     Burn,
 }
-
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 struct Obstacle {
@@ -800,6 +813,71 @@ impl Button {
 }
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
+struct UnitTypeDataStore {
+    data: HashMap<UnitType, UnitData>,
+}
+
+impl UnitTypeDataStore {
+    fn new() -> Self {
+        UnitTypeDataStore {
+            data: HashMap::new(),
+        }
+    }
+
+    fn add_unit_data(&mut self, data: UnitData) {
+        self.data.insert(data.unit_type, data);
+    }
+
+    fn get_unit_data(&self, unit_type: &UnitType) -> Option<&UnitData> {
+        self.data.get(unit_type)
+    }
+
+    pub fn load_from_csv(file_path: &[u8]) -> Result<Self, Box<dyn std::error::Error>> {
+        log("CHECKING RECORDS");
+
+        let mut store = UnitTypeDataStore::new();
+        let mut reader = ReaderBuilder::new()
+        .has_headers(false)
+        .from_reader(file_path);
+        for record in reader.records().skip(1) {
+            let record = record?;
+            let unit_type = match record.get(0).ok_or("Missing unit type")? {
+                "axeman" => UnitType::Axeman,
+                "blade" => UnitType::Blade,
+                "pyro" => UnitType::Pyro,
+                "bigpound" => UnitType::BigPound,
+                "hunter" => UnitType::Hunter,
+                other => return Err(format!("Unknown unit type: {}", other).into()),
+            };
+            let damage = record.get(1).ok_or("Missing damage")?.parse::<f32>()?;
+            let max_health = record.get(2).ok_or("Missing max health")?.parse::<f32>()?;
+            let speed = record.get(3).ok_or("Missing speed")?.parse::<f32>()?;
+            let range = record.get(4).ok_or("Missing range")?.parse::<f32>()?;
+            let attack_time = record.get(5).ok_or("Missing attack time")?.parse::<i32>()?;
+            let splash_area = record.get(6).ok_or("Missing splash area")?.parse::<f32>()?;
+            let sprite_width = record
+                .get(7)
+                .ok_or("Missing sprite width")?
+                .parse::<i32>()?;
+
+            let unit_data = UnitData {
+                unit_type,
+                damage,
+                max_health,
+                speed,
+                range,
+                attack_time,
+                splash_area,
+                sprite_width,
+            };
+            store.add_unit_data(unit_data);
+        }
+
+        Ok(store)
+    }
+}
+
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 struct RNG {
     seed: u32,
 }
@@ -826,14 +904,12 @@ impl RNG {
     fn next_in_range(&mut self, min: u32, max: u32) -> u32 {
         let range = max - min + 1;
         let mut number = (self.next() % range) + min;
-        
+
         // Make sure you use an odd number
         if range % 2 == 0 {
             number += 1;
         }
-        
+
         number % range + min
     }
-
-    
 }
