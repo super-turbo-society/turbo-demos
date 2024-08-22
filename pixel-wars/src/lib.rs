@@ -22,6 +22,7 @@ turbo::init! {
         attacks: Vec<Attack>,
         event_queue: Vec<GameEvent>,
         rng: RNG,
+        data_store: Option<UnitDataStore>,
     } = {
         let mut teams = Vec::new();
         teams.push(Team::new("Battle Bois".to_string()));
@@ -34,6 +35,7 @@ turbo::init! {
             event_queue: Vec::new(),
             //replace this number with a program number later
             rng: RNG::new(12345),
+            data_store: None,
         }
     }
 }
@@ -41,6 +43,19 @@ turbo::init! {
 turbo::go!({
     let mut state = GameState::load();
     if state.phase == Phase::PreBattle {
+        //initialize the data store if it is blank
+        if state.data_store.is_none() {
+            match UnitDataStore::load_from_csv(UNIT_DATA_CSV) {
+                Ok(loaded_store) => {
+                    state.data_store = Some(loaded_store);
+                    log("DATA LOADED");
+                },
+                Err(e) => {
+                    eprintln!("Failed to load UnitDataStore: {}", e);
+                    state.data_store = Some(UnitDataStore::new());
+                }
+            }
+        }
         //handle input
         let gp = gamepad(0);
         if gp.start.just_pressed() {
@@ -48,44 +63,35 @@ turbo::go!({
             let row_height = 20.0;
             let row_width = 20.0;
             let max_y = 180.0;
-            log("BEFORE TRYING TO FIND CSV");
-            //create the unit data store where all the unit data comes from
-            match UnitTypeDataStore::load_from_csv(UNIT_DATA_CSV) {
-                Ok(unit_type_store) => {
-                    for (team_index, team) in state.teams.iter().enumerate() {
-                        let mut x_start = if team_index == 0 { 20.0 } else { 320.0 }; // Adjusted starting x for team 1
-                        let mut y_pos = 20.0;
+            let data_store = state.data_store.as_ref().expect("Data store should be loaded");
 
-                        for (i, unit_type) in team.units.iter().enumerate() {
-                            if y_pos > max_y {
-                                y_pos = 20.0;
+            for (team_index, team) in state.teams.iter().enumerate() {
+                let mut x_start = if team_index == 0 { 20.0 } else { 320.0 }; // Adjusted starting x for team 1
+                let mut y_pos = 20.0;
 
-                                if team_index == 0 {
-                                    x_start += row_width;
-                                } else {
-                                    x_start -= row_width;
-                                }
-                            }
-                            let pos = (x_start, y_pos);
-                            state.units.push(Unit::new(
-                                unit_type.clone(),
-                                pos,
-                                team_index as i32,
-                                &unit_type_store,
-                            ));
-                            //let unit = Unit::new(UnitType::Axeman, (0.0, 0.0), 0, &unit_type_store);
-                            y_pos += row_height;
+                for (i, unit_type) in team.units.iter().enumerate() {
+                    if y_pos > max_y {
+                        y_pos = 20.0;
+
+                        if team_index == 0 {
+                            x_start += row_width;
+                        } else {
+                            x_start -= row_width;
                         }
                     }
-                    //go to Battle Phase
-                    state.phase = Phase::Battle;
-                }
-                Err(e) => {
-                    log("CSV ERROR");
-                    eprintln!("Error loading unit type data: {}", e);
-                    return;
+                    let pos = (x_start, y_pos);
+                    state.units.push(Unit::new(
+                        unit_type.clone(),
+                        pos,
+                        team_index as i32,
+                        &data_store,
+                    ));
+                    //let unit = Unit::new(UnitType::Axeman, (0.0, 0.0), 0, &unit_type_store);
+                    y_pos += row_height;
                 }
             }
+            //go to Battle Phase
+            state.phase = Phase::Battle;
         }
         draw_team_info_and_buttons(&mut state);
         while let Some(event) = state.event_queue.pop() {
@@ -176,7 +182,7 @@ enum Phase {
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 struct Unit {
-    unit_type: UnitType,
+    unit_type: String,
     data: UnitData,
     team: i32,
     health: f32,
@@ -189,7 +195,7 @@ struct Unit {
 }
 
 impl Unit {
-    fn new(unit_type: UnitType, pos: (f32, f32), team: i32, store: &UnitTypeDataStore) -> Self {
+    fn new(unit_type: String, pos: (f32, f32), team: i32, store: &UnitDataStore) -> Self {
         // Initialize default values
         let data = store.get_unit_data(&unit_type).unwrap_or_else(|| {
             panic!("Unit type not found in the data store");
@@ -235,7 +241,7 @@ impl Unit {
 
     fn draw(&mut self) {
         let mut new_anim = Animation {
-            name: self.unit_type.to_lowercase_string(),
+            name: self.unit_type.to_lowercase(),
             s_w: self.data.sprite_width,
             num_frames: 4,
             loops_per_frame: 10,
@@ -352,10 +358,7 @@ impl Unit {
         self.attack_timer = self.data.attack_time;
         self.state = UnitState::Attacking;
         //create the actual attack
-        let mut size = 1;
-        if self.unit_type == UnitType::Pyro {
-            size = 2;
-        }
+        let size = 1;
         Attack::new(
             target_index,
             2.,
@@ -375,7 +378,7 @@ impl Unit {
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 struct UnitData {
-    unit_type: UnitType,
+    unit_type: String,
     damage: f32,
     max_health: f32,
     speed: f32,
@@ -496,107 +499,67 @@ fn draw_team_info_and_buttons(state: &mut GameState) {
     let button_width = 20;
     let button_height = 10;
 
-    // Draw info and buttons for Team 0 (Left side)
-    let team_0 = &mut state.teams[0].clone();
-    let mut y_pos = y_start;
-    let name_text_0 = format!("{}:", team_0.name);
-    text!(name_text_0.as_str(), x = pos_0, y = y_pos);
-    y_pos += y_spacing;
+    let data_store = state.data_store.as_ref().expect("Data store should be loaded");
+    let mut unit_types = data_store.get_all_unit_types();
+    unit_types.sort(); // Sort the unit types alphabetically
 
-    for unit_type in [
-        UnitType::Axeman,
-        UnitType::Blade,
-        UnitType::Hunter,
-        UnitType::Pyro,
-        UnitType::BigPound,
-    ]
-    .iter()
-    {
-        let num_units = team_0.num_unit(unit_type.clone());
-        let unit_text = format!("[{}] {:?}", num_units, unit_type);
-        text!(unit_text.as_str(), x = pos_0, y = y_pos);
-
-        // Plus Button
-        let plus_button = Button::new(
-            String::from("+"),
-            (pos_0 as f32 + 100.0, y_pos as f32),
-            (button_width as f32, button_height as f32),
-            GameEvent::AddUnitToTeam(0, unit_type.clone()),
-        );
-        plus_button.draw();
-        plus_button.handle_click(state);
-
-        // Minus Button
-        let minus_button = Button::new(
-            String::from("-"),
-            (pos_0 as f32 + 130.0, y_pos as f32),
-            (button_width as f32, button_height as f32),
-            GameEvent::RemoveUnitFromTeam(0, unit_type.clone()),
-        );
-        minus_button.draw();
-        minus_button.handle_click(state);
-
+    for (team_index, pos) in [(0, pos_0), (1, pos_1)].iter() {
+        let team = &mut state.teams[*team_index].clone();
+        let mut y_pos = y_start;
+        
+        // Draw team name
+        let name_text = format!("{}:", team.name);
+        text!(name_text.as_str(), x = *pos, y = y_pos);
         y_pos += y_spacing;
-    }
 
-    // Draw info and buttons for Team 1 (Right side)
-    let team_1 = &mut state.teams[1].clone();
-    y_pos = y_start;
-    let name_text_1 = format!("{}:", team_1.name);
-    text!(name_text_1.as_str(), x = pos_1, y = y_pos);
-    y_pos += y_spacing;
+        // Draw unit info and buttons
+        for unit_type in &unit_types {
+            let num_units = team.num_unit(unit_type.clone());
+            let unit_type_capitalized = unit_type.chars().next().unwrap().to_uppercase().collect::<String>() + &unit_type[1..];
+            let unit_text = format!("[{}] {}", num_units, unit_type_capitalized);
+            text!(unit_text.as_str(), x = *pos, y = y_pos, font = Font::L);
 
-    for unit_type in [
-        UnitType::Axeman,
-        UnitType::Blade,
-        UnitType::Hunter,
-        UnitType::Pyro,
-        UnitType::BigPound,
-    ]
-    .iter()
-    {
-        let num_units = team_1.num_unit(unit_type.clone());
-        let unit_text = format!("[{}] {:?}", num_units, unit_type);
-        text!(unit_text.as_str(), x = pos_1, y = y_pos);
+            // Plus Button
+            let plus_button = Button::new(
+                String::from("+"),
+                (*pos as f32 + 100.0, y_pos as f32),
+                (button_width as f32, button_height as f32),
+                GameEvent::AddUnitToTeam(*team_index, unit_type.clone()),
+            );
+            plus_button.draw();
+            plus_button.handle_click(state);
 
-        // Plus Button
-        let plus_button = Button::new(
-            String::from("+"),
-            (pos_1 as f32 + 100.0, y_pos as f32),
-            (button_width as f32, button_height as f32),
-            GameEvent::AddUnitToTeam(1, unit_type.clone()),
-        );
-        plus_button.draw();
-        plus_button.handle_click(state);
+            // Minus Button
+            let minus_button = Button::new(
+                String::from("-"),
+                (*pos as f32 + 130.0, y_pos as f32),
+                (button_width as f32, button_height as f32),
+                GameEvent::RemoveUnitFromTeam(*team_index, unit_type.clone()),
+            );
+            minus_button.draw();
+            minus_button.handle_click(state);
 
-        // Minus Button
-        let minus_button = Button::new(
-            String::from("-"),
-            (pos_1 as f32 + 130.0, y_pos as f32),
-            (button_width as f32, button_height as f32),
-            GameEvent::RemoveUnitFromTeam(1, unit_type.clone()),
-        );
-        minus_button.draw();
-        minus_button.handle_click(state);
-
-        y_pos += y_spacing;
+            y_pos += y_spacing;
+        }
     }
 }
 
-#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone, Eq, Hash, Copy, PartialOrd)]
-enum UnitType {
-    Axeman,
-    Blade,
-    Hunter,
-    Pyro,
-    BigPound,
-}
 
-impl UnitType {
-    fn to_lowercase_string(&self) -> String {
-        format!("{:?}", self).to_lowercase()
-    }
-}
+// //to create a new unit, add it here, then 
+// #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone, Eq, Hash, Copy, PartialOrd)]
+// enum UnitType {
+//     Axeman,
+//     Blade,
+//     Hunter,
+//     Pyro,
+//     BigPound,
+// }
+
+// impl UnitType {
+//     fn to_lowercase_string(&self) -> String {
+//         format!("{:?}", self).to_lowercase()
+//     }
+// }
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 enum UnitState {
@@ -609,7 +572,7 @@ enum UnitState {
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 struct Team {
     name: String,
-    units: Vec<UnitType>,
+    units: Vec<String>,
 }
 
 impl Team {
@@ -620,16 +583,16 @@ impl Team {
         }
     }
 
-    fn add_unit(&mut self, unit: UnitType) {
+    fn add_unit(&mut self, unit: String) {
         self.units.push(unit);
     }
 
-    fn num_unit(&self, unit_type: UnitType) -> i32 {
+    fn num_unit(&self, unit_type: String) -> i32 {
         // Return the number of units of a specific UnitType in self.units
         self.units.iter().filter(|&unit| *unit == unit_type).count() as i32
     }
 
-    fn remove_unit(&mut self, unit_type: UnitType) -> bool {
+    fn remove_unit(&mut self, unit_type: String) -> bool {
         // Remove the last unit of the specified UnitType, only if there is at least one
         if let Some(pos) = self.units.iter().rposition(|unit| *unit == unit_type) {
             self.units.remove(pos);
@@ -642,8 +605,8 @@ impl Team {
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 enum GameEvent {
-    AddUnitToTeam(usize, UnitType),
-    RemoveUnitFromTeam(usize, UnitType),
+    AddUnitToTeam(usize, String),
+    RemoveUnitFromTeam(usize, String),
 }
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
@@ -813,42 +776,38 @@ impl Button {
 }
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
-struct UnitTypeDataStore {
-    data: HashMap<UnitType, UnitData>,
+struct UnitDataStore {
+    data: HashMap<String, UnitData>,
 }
 
-impl UnitTypeDataStore {
+impl UnitDataStore {
     fn new() -> Self {
-        UnitTypeDataStore {
+        UnitDataStore {
             data: HashMap::new(),
         }
     }
 
     fn add_unit_data(&mut self, data: UnitData) {
-        self.data.insert(data.unit_type, data);
+        self.data.insert(data.unit_type.clone(), data);
     }
 
-    fn get_unit_data(&self, unit_type: &UnitType) -> Option<&UnitData> {
+    fn get_unit_data(&self, unit_type: &String) -> Option<&UnitData> {
         self.data.get(unit_type)
     }
 
-    pub fn load_from_csv(file_path: &[u8]) -> Result<Self, Box<dyn std::error::Error>> {
-        log("CHECKING RECORDS");
+    pub fn get_all_unit_types(&self) -> Vec<String> {
+        self.data.keys().cloned().collect()
+    }
 
-        let mut store = UnitTypeDataStore::new();
+    pub fn load_from_csv(file_path: &[u8]) -> Result<Self, Box<dyn std::error::Error>> {
+
+        let mut store = UnitDataStore::new();
         let mut reader = ReaderBuilder::new()
         .has_headers(false)
         .from_reader(file_path);
         for record in reader.records().skip(1) {
             let record = record?;
-            let unit_type = match record.get(0).ok_or("Missing unit type")? {
-                "axeman" => UnitType::Axeman,
-                "blade" => UnitType::Blade,
-                "pyro" => UnitType::Pyro,
-                "bigpound" => UnitType::BigPound,
-                "hunter" => UnitType::Hunter,
-                other => return Err(format!("Unknown unit type: {}", other).into()),
-            };
+            let unit_type = record.get(0).ok_or("Missing damage")?.parse::<String>()?;
             let damage = record.get(1).ok_or("Missing damage")?.parse::<f32>()?;
             let max_health = record.get(2).ok_or("Missing max health")?.parse::<f32>()?;
             let speed = record.get(3).ok_or("Missing speed")?.parse::<f32>()?;
