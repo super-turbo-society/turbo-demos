@@ -649,7 +649,7 @@ impl Animator {
         let frame_index = (self.anim_timer / self.cur_anim.loops_per_frame); // Calculate the frame index
         let sx = (frame_index * self.cur_anim.s_w)
             .clamp(0, self.cur_anim.s_w * (self.cur_anim.num_frames - 1)); // Calculate the sprite X coordinate
-                                                                           //patch for turbo bug, to be removed later, when bug is fixed
+        //patch for turbo bug, to be removed later, when bug is fixed
         let mut x_adj = 0.;
         if sx > 32 {
             x_adj = -self.cur_anim.s_w as f32;
