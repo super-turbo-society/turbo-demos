@@ -24,6 +24,7 @@ turbo::init! {
         event_queue: Vec<GameEvent>,
         rng: RNG,
         data_store: Option<UnitDataStore>,
+        traps: Vec<Trap>,
     } = {
         let mut teams = Vec::new();
         teams.push(Team::new("Battle Bois".to_string()));
@@ -34,6 +35,7 @@ turbo::init! {
             teams,
             attacks: Vec::new(),
             event_queue: Vec::new(),
+            traps: Vec::new(),
             //replace this number with a program number later
             rng: RNG::new(12345),
             data_store: None,
@@ -95,6 +97,9 @@ turbo::go!({
                     y_pos += row_height;
                 }
             }
+            //add a random trap for now
+            state.traps.push(Trap::new(48., (160.,75.), 1., 120,120));
+            state.traps.push(Trap::new(48., (200.,120.), 1., 120,120));
             //go to Battle Phase
             state.phase = Phase::Battle;
         }
@@ -134,6 +139,12 @@ turbo::go!({
                 }
             }
             unit.update();
+            //check for traps
+            for trap in &state.traps{
+                if distance_between(unit.pos, trap.pos) < trap.size/2. && trap.is_active(){
+                    unit.take_damage(trap.damage);
+                }
+            }
             //unit.draw();
         }
         //go through attacks and update, then draw
@@ -158,9 +169,11 @@ turbo::go!({
 
             should_keep
         });
-        // for d in damage_map {
-        //     state.units[d.0].take_damage(d.1);
-        // }
+        //go through traps, update and draw
+        for trap in &mut state.traps{
+            trap.update();
+            trap.draw();
+        }
         //check for game over
         let mut winning_team = has_some_team_won(&state.units);
         if winning_team.is_some() {
@@ -176,30 +189,30 @@ turbo::go!({
         //DRAW UNITS
         let mut indices: Vec<usize> = (0..state.units.len()).collect();
 
-    // Sort the indices based on our criteria
-    indices.sort_by(|&a, &b| {
-        let unit_a = &state.units[a];
-        let unit_b = &state.units[b];
+        // Sort the indices based on our criteria
+        indices.sort_by(|&a, &b| {
+            let unit_a = &state.units[a];
+            let unit_b = &state.units[b];
 
-        // First, sort by dead/alive status
-        match (unit_a.state == UnitState::Dead, unit_b.state == UnitState::Dead) {
-            (true, false) => return Ordering::Less,
-            (false, true) => return Ordering::Greater,
-            _ => {}
+            // First, sort by dead/alive status
+            match (unit_a.state == UnitState::Dead, unit_b.state == UnitState::Dead) {
+                (true, false) => return Ordering::Less,
+                (false, true) => return Ordering::Greater,
+                _ => {}
+            }
+
+            // If both are alive or both are dead, sort by y-position
+            if unit_a.state != UnitState::Dead {
+                unit_a.pos.1.partial_cmp(&unit_b.pos.1).unwrap_or(Ordering::Equal)
+            } else {
+                Ordering::Equal
+            }
+        });
+
+        // Draw units in the sorted order
+        for &index in &indices {
+            state.units[index].draw();
         }
-
-        // If both are alive or both are dead, sort by y-position
-        if unit_a.state != UnitState::Dead {
-            unit_a.pos.1.partial_cmp(&unit_b.pos.1).unwrap_or(Ordering::Equal)
-        } else {
-            Ordering::Equal
-        }
-    });
-
-    // Draw units in the sorted order
-    for &index in &indices {
-        state.units[index].draw();
-    }
     }
 
     state.save();
@@ -763,15 +776,50 @@ enum Status {
 }
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
-struct Obstacle {
-    size: i32,
-    shape: ObstacleShape,
+struct Trap {
+    size: f32,
+    pos: (f32, f32),
+    damage: f32,
+    on_dur: i32,
+    off_dur: i32,
+    timer: i32,
 }
 
-impl Obstacle {
-    //Create an obstalce with a certain shape
-    //draw obstacle
-    //obstacle contains point function -> bool
+impl Trap {
+    // New trap with 4 parameters, timer always starts at 0
+    fn new(size: f32, pos: (f32,f32), damage: f32, on_dur: i32, off_dur: i32,) -> Self {
+        Trap {
+            size,
+            pos,
+            damage,
+            on_dur,
+            off_dur,
+            timer: 0,
+        }
+    }
+
+    // Update function: add 1 to timer, if timer is greater than off_dur+on_dur reset it to 0
+    fn update(&mut self) {
+        self.timer += 1;
+        if self.timer > self.off_dur + self.on_dur {
+            self.timer = 0;
+        }
+    }
+
+    // Draw function: use the circ! macro to draw a red circle of size 'size'
+    fn draw(&self) {
+        if self.timer <= self.on_dur {
+            circ!(x=self.draw_pos().0, y=self.draw_pos().1, d = self.size, color = 0xFF0000ff );
+        }
+    }
+    
+    fn draw_pos(&self) -> (f32,f32){
+        (self.pos.0 - self.size/2., self.pos.1 - self.size/2.)
+    }
+    // Helper function to check if the trap is currently active
+    fn is_active(&self) -> bool {
+        self.timer <= self.on_dur
+    }
 }
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
