@@ -64,11 +64,15 @@ turbo::go!({
             let row_width = 20.0;
             let max_y = 180.0;
             let data_store = state.data_store.as_ref().expect("Data store should be loaded");
+            //shuffle the units in each team
+            for team in &mut state.teams {
+                shuffle(&mut state.rng, &mut team.units);
+            }
 
             for (team_index, team) in state.teams.iter().enumerate() {
                 let mut x_start = if team_index == 0 { 20.0 } else { 320.0 }; // Adjusted starting x for team 1
                 let mut y_pos = 20.0;
-
+                
                 for (i, unit_type) in team.units.iter().enumerate() {
                     if y_pos > max_y {
                         y_pos = 20.0;
@@ -445,6 +449,15 @@ impl Attack {
             d = 5 * self.size,
             color = 0xff0000ff
         ); // Diameter 5, Red color
+    }
+}
+
+pub fn shuffle<T>(rng: &mut RNG, array: &mut [T]) {
+    let len = array.len();
+    for i in (1..len).rev() {
+        // Generate a random index between 0 and i (inclusive)
+        let j = rng.next_in_range(0, i as u32) as usize;
+        array.swap(i, j);
     }
 }
 
