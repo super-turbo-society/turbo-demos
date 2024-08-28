@@ -270,7 +270,7 @@ impl Unit {
             new_anim.name += "_idle";
             self.animator.set_cur_anim(new_anim);
         }
-        self.animator.draw(self.pos, flip_x);
+        self.animator.draw(self.draw_position(), flip_x);
         self.animator.update();
         if self.state != UnitState::Dead {
             self.draw_health_bar();
@@ -278,8 +278,9 @@ impl Unit {
     }
 
     fn draw_health_bar(&self) {
-        let x = self.pos.0;
-        let y = self.pos.1;
+        let d_p = self.draw_position();
+        let x = d_p.0;
+        let y = d_p.1;
         let x_bar = x;
         let y_bar = y - 2.;
         let w_bar = 0.25 * self.data.max_health;
@@ -377,6 +378,12 @@ impl Unit {
         let dx = self.pos.0 - other.pos.0;
         let dy = self.pos.1 - other.pos.1;
         (dx * dx + dy * dy).sqrt()
+    }
+
+    fn draw_position(&self) -> (f32, f32){
+        //return position - half spr_width 
+        let d_p = (self.pos.0 - self.data.sprite_width as f32/2., self.pos.1 -8.);
+        d_p
     }
 }
 
