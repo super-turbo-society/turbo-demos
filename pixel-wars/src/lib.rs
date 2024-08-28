@@ -1,5 +1,6 @@
 use csv::{ReaderBuilder, Reader};
 use std::collections::HashMap;
+use std::cmp::Ordering;
 use std::error::Error;
 use std::fmt::Display;
 
@@ -133,7 +134,7 @@ turbo::go!({
                 }
             }
             unit.update();
-            unit.draw();
+            //unit.draw();
         }
         //go through attacks and update, then draw
         state.attacks.retain_mut(|attack| {
@@ -172,6 +173,33 @@ turbo::go!({
                 }
             }
         }
+        //DRAW UNITS
+        let mut indices: Vec<usize> = (0..state.units.len()).collect();
+
+    // Sort the indices based on our criteria
+    indices.sort_by(|&a, &b| {
+        let unit_a = &state.units[a];
+        let unit_b = &state.units[b];
+
+        // First, sort by dead/alive status
+        match (unit_a.state == UnitState::Dead, unit_b.state == UnitState::Dead) {
+            (true, false) => return Ordering::Less,
+            (false, true) => return Ordering::Greater,
+            _ => {}
+        }
+
+        // If both are alive or both are dead, sort by y-position
+        if unit_a.state != UnitState::Dead {
+            unit_a.pos.1.partial_cmp(&unit_b.pos.1).unwrap_or(Ordering::Equal)
+        } else {
+            Ordering::Equal
+        }
+    });
+
+    // Draw units in the sorted order
+    for &index in &indices {
+        state.units[index].draw();
+    }
     }
 
     state.save();
