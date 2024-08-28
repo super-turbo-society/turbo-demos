@@ -70,7 +70,7 @@ turbo::go!({
             }
 
             for (team_index, team) in state.teams.iter().enumerate() {
-                let mut x_start = if team_index == 0 { 20.0 } else { 320.0 }; // Adjusted starting x for team 1
+                let mut x_start = if team_index == 0 { 70.0 } else { 270.0 }; // Adjusted starting x for team 1
                 let mut y_pos = 20.0;
                 
                 for (i, unit_type) in team.units.iter().enumerate() {
@@ -78,9 +78,9 @@ turbo::go!({
                         y_pos = 20.0;
 
                         if team_index == 0 {
-                            x_start += row_width;
-                        } else {
                             x_start -= row_width;
+                        } else {
+                            x_start += row_width;
                         }
                     }
                     let pos = (x_start, y_pos);
