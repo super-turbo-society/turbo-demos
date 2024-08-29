@@ -1,8 +1,8 @@
-use csv::{ReaderBuilder, Reader};
+use csv::{Reader, ReaderBuilder};
+use std::cmp::{max, Ordering};
 use std::collections::HashMap;
-use std::cmp::Ordering;
 use std::error::Error;
-use std::fmt::Display;
+use std::fmt::{format, Display};
 
 const UNIT_DATA_CSV: &[u8] = include_bytes!("../resources/unit-data.csv");
 
@@ -52,7 +52,7 @@ turbo::go!({
                 Ok(loaded_store) => {
                     state.data_store = Some(loaded_store);
                     log("DATA LOADED");
-                },
+                }
                 Err(e) => {
                     eprintln!("Failed to load UnitDataStore: {}", e);
                     state.data_store = Some(UnitDataStore::new());
@@ -66,7 +66,10 @@ turbo::go!({
             let row_height = 20.0;
             let row_width = 20.0;
             let max_y = 180.0;
-            let data_store = state.data_store.as_ref().expect("Data store should be loaded");
+            let data_store = state
+                .data_store
+                .as_ref()
+                .expect("Data store should be loaded");
             //shuffle the units in each team
             for team in &mut state.teams {
                 shuffle(&mut state.rng, &mut team.units);
@@ -75,7 +78,7 @@ turbo::go!({
             for (team_index, team) in state.teams.iter().enumerate() {
                 let mut x_start = if team_index == 0 { 70.0 } else { 270.0 }; // Adjusted starting x for team 1
                 let mut y_pos = 20.0;
-                
+
                 for (i, unit_type) in team.units.iter().enumerate() {
                     if y_pos > max_y {
                         y_pos = 20.0;
@@ -98,8 +101,8 @@ turbo::go!({
                 }
             }
             //add a random trap for now
-            state.traps.push(Trap::new(48., (160.,75.), 1., 120,120));
-            state.traps.push(Trap::new(48., (200.,120.), 1., 120,120));
+            //state.traps.push(Trap::new(48., (160., 75.), 1., 120, 120));
+            //state.traps.push(Trap::new(48., (200., 120.), 1., 120, 120));
             //go to Battle Phase
             state.phase = Phase::Battle;
         }
@@ -140,12 +143,11 @@ turbo::go!({
             }
             unit.update();
             //check for traps
-            for trap in &state.traps{
-                if distance_between(unit.pos, trap.pos) < trap.size/2. && trap.is_active(){
+            for trap in &state.traps {
+                if distance_between(unit.pos, trap.pos) < trap.size / 2. && trap.is_active() {
                     unit.take_damage(trap.damage);
                 }
             }
-            //unit.draw();
         }
         //go through attacks and update, then draw
         state.attacks.retain_mut(|attack| {
@@ -170,10 +172,11 @@ turbo::go!({
             should_keep
         });
         //go through traps, update and draw
-        for trap in &mut state.traps{
+        for trap in &mut state.traps {
             trap.update();
             trap.draw();
         }
+
         //check for game over
         let mut winning_team = has_some_team_won(&state.units);
         if winning_team.is_some() {
@@ -195,7 +198,10 @@ turbo::go!({
             let unit_b = &state.units[b];
 
             // First, sort by dead/alive status
-            match (unit_a.state == UnitState::Dead, unit_b.state == UnitState::Dead) {
+            match (
+                unit_a.state == UnitState::Dead,
+                unit_b.state == UnitState::Dead,
+            ) {
                 (true, false) => return Ordering::Less,
                 (false, true) => return Ordering::Greater,
                 _ => {}
@@ -203,7 +209,11 @@ turbo::go!({
 
             // If both are alive or both are dead, sort by y-position
             if unit_a.state != UnitState::Dead {
-                unit_a.pos.1.partial_cmp(&unit_b.pos.1).unwrap_or(Ordering::Equal)
+                unit_a
+                    .pos
+                    .1
+                    .partial_cmp(&unit_b.pos.1)
+                    .unwrap_or(Ordering::Equal)
             } else {
                 Ordering::Equal
             }
@@ -213,7 +223,46 @@ turbo::go!({
         for &index in &indices {
             state.units[index].draw();
         }
+        
+        //Draw team health bars
+        // Initialize variables to store health totals for each team
+        let mut team0_base_health = 0.0;
+        let mut team0_current_health = 0.0;
+        let mut team1_base_health = 0.0;
+        let mut team1_current_health = 0.0;
+
+        // Iterate through all units and sum up health values
+        for unit in &state.units {
+            if unit.team == 0 {
+                team0_base_health += unit.data.max_health as f32;
+                team0_current_health += unit.health as f32;
+            } else {
+                team1_base_health += unit.data.max_health as f32;
+                team1_current_health += unit.health as f32;
+            }
+        }
+        turbo::println!("Team 0 - Base Health: {}, Current Health: {}", team0_base_health, team0_current_health);
+        turbo::println!("Team 1 - Base Health: {}, Current Health: {}", team1_base_health, team1_current_health);
+        // Draw health bar for team 0
+        draw_team_health_bar(
+            team0_base_health,
+            team0_current_health,
+            (20.0, 20.0),
+            &state.teams[0].name,
+            0xc4f129ff  // Red color in hexadecimal
+        );
+
+        // Draw health bar for team 1
+        draw_team_health_bar(
+            team1_base_health,
+            team1_current_health,
+            (250.0, 20.0),
+            &state.teams[1].name,
+            0xa69e9aff  // Gray color in hexadecimal
+        );
+
     }
+
 
     state.save();
 });
@@ -398,6 +447,7 @@ impl Unit {
 
     fn take_damage(&mut self, damage: f32) {
         self.health -= damage;
+        self.health = self.health.max(0.);
     }
 
     fn start_attack(&mut self, target_index: usize) -> Attack {
@@ -421,9 +471,12 @@ impl Unit {
         (dx * dx + dy * dy).sqrt()
     }
 
-    fn draw_position(&self) -> (f32, f32){
-        //return position - half spr_width 
-        let d_p = (self.pos.0 - self.data.sprite_width as f32/2., self.pos.1 -8.);
+    fn draw_position(&self) -> (f32, f32) {
+        //return position - half spr_width
+        let d_p = (
+            self.pos.0 - self.data.sprite_width as f32 / 2.,
+            self.pos.1 - 8.,
+        );
         d_p
     }
 }
@@ -560,14 +613,17 @@ fn draw_team_info_and_buttons(state: &mut GameState) {
     let button_width = 20;
     let button_height = 10;
 
-    let data_store = state.data_store.as_ref().expect("Data store should be loaded");
+    let data_store = state
+        .data_store
+        .as_ref()
+        .expect("Data store should be loaded");
     let mut unit_types = data_store.get_all_unit_types();
     unit_types.sort(); // Sort the unit types alphabetically
 
     for (team_index, pos) in [(0, pos_0), (1, pos_1)].iter() {
         let team = &mut state.teams[*team_index].clone();
         let mut y_pos = y_start;
-        
+
         // Draw team name
         let name_text = format!("{}:", team.name);
         text!(name_text.as_str(), x = *pos, y = y_pos);
@@ -576,7 +632,13 @@ fn draw_team_info_and_buttons(state: &mut GameState) {
         // Draw unit info and buttons
         for unit_type in &unit_types {
             let num_units = team.num_unit(unit_type.clone());
-            let unit_type_capitalized = unit_type.chars().next().unwrap().to_uppercase().collect::<String>() + &unit_type[1..];
+            let unit_type_capitalized = unit_type
+                .chars()
+                .next()
+                .unwrap()
+                .to_uppercase()
+                .collect::<String>()
+                + &unit_type[1..];
             let unit_text = format!("[{}] {}", num_units, unit_type_capitalized);
             text!(unit_text.as_str(), x = *pos, y = y_pos, font = Font::L);
 
@@ -605,8 +667,7 @@ fn draw_team_info_and_buttons(state: &mut GameState) {
     }
 }
 
-
-// //to create a new unit, add it here, then 
+// //to create a new unit, add it here, then
 // #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone, Eq, Hash, Copy, PartialOrd)]
 // enum UnitType {
 //     Axeman,
@@ -621,6 +682,64 @@ fn draw_team_info_and_buttons(state: &mut GameState) {
 //         format!("{:?}", self).to_lowercase()
 //     }
 // }
+
+pub fn draw_team_health_bar(
+    total_base_health: f32,
+    current_health: f32,
+    pos: (f32, f32),
+    team_name: &str,
+    team_color: u32
+) {
+    //normalized health bar width
+    //colors
+    //sizes
+    //draw text
+    let x = pos.0;
+    let y = pos.1;
+    let x_bar = x;
+    let y_bar = y;
+    let w_bar = 120.;
+    let h_bar = 15;
+    let main_color: u32 = team_color;
+    let back_color: u32 = 0xb9451dff;
+    let border_color: u32 = 0x000000ff;
+    let mut health_width =
+        (current_health / total_base_health* w_bar) as i32;
+    health_width = health_width.max(0);
+
+    // Draw health bar background
+    rect!(
+        w = w_bar,
+        h = h_bar,
+        x = x_bar,
+        y = y_bar,
+        color = back_color
+    );
+
+    // Draw current health bar
+    rect!(
+        w = health_width,
+        h = h_bar,
+        x = x_bar,
+        y = y_bar,
+        color = main_color
+    );
+
+    // Draw health bar border
+    rect!(
+        w = w_bar + 2.,
+        h = h_bar,
+        x = x_bar - 1.,
+        y = y_bar,
+        color = 0,
+        border_color = border_color,
+        border_width = 3,
+        border_radius = 2
+    );
+
+    //put team name in white over the bar
+    text!(team_name, x=x_bar, y=y_bar-10., font= Font::L);
+}
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 enum UnitState {
@@ -710,7 +829,7 @@ impl Animator {
         let frame_index = (self.anim_timer / self.cur_anim.loops_per_frame); // Calculate the frame index
         let sx = (frame_index * self.cur_anim.s_w)
             .clamp(0, self.cur_anim.s_w * (self.cur_anim.num_frames - 1)); // Calculate the sprite X coordinate
-        //patch for turbo bug, to be removed later, when bug is fixed
+                                                                           //patch for turbo bug, to be removed later, when bug is fixed
         let mut x_adj = 0.;
         if sx > 32 {
             x_adj = -self.cur_anim.s_w as f32;
@@ -787,7 +906,7 @@ struct Trap {
 
 impl Trap {
     // New trap with 4 parameters, timer always starts at 0
-    fn new(size: f32, pos: (f32,f32), damage: f32, on_dur: i32, off_dur: i32,) -> Self {
+    fn new(size: f32, pos: (f32, f32), damage: f32, on_dur: i32, off_dur: i32) -> Self {
         Trap {
             size,
             pos,
@@ -809,12 +928,17 @@ impl Trap {
     // Draw function: use the circ! macro to draw a red circle of size 'size'
     fn draw(&self) {
         if self.timer <= self.on_dur {
-            circ!(x=self.draw_pos().0, y=self.draw_pos().1, d = self.size, color = 0xFF0000ff );
+            circ!(
+                x = self.draw_pos().0,
+                y = self.draw_pos().1,
+                d = self.size,
+                color = 0xFF0000ff
+            );
         }
     }
-    
-    fn draw_pos(&self) -> (f32,f32){
-        (self.pos.0 - self.size/2., self.pos.1 - self.size/2.)
+
+    fn draw_pos(&self) -> (f32, f32) {
+        (self.pos.0 - self.size / 2., self.pos.1 - self.size / 2.)
     }
     // Helper function to check if the trap is currently active
     fn is_active(&self) -> bool {
@@ -896,11 +1020,10 @@ impl UnitDataStore {
     }
 
     pub fn load_from_csv(file_path: &[u8]) -> Result<Self, Box<dyn std::error::Error>> {
-
         let mut store = UnitDataStore::new();
         let mut reader = ReaderBuilder::new()
-        .has_headers(false)
-        .from_reader(file_path);
+            .has_headers(false)
+            .from_reader(file_path);
         for record in reader.records().skip(1) {
             let record = record?;
             let unit_type = record.get(0).ok_or("Missing damage")?.parse::<String>()?;
