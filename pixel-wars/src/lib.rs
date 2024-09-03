@@ -51,7 +51,6 @@ turbo::go!({
             match UnitDataStore::load_from_csv(UNIT_DATA_CSV) {
                 Ok(loaded_store) => {
                     state.data_store = Some(loaded_store);
-                    log("DATA LOADED");
                 }
                 Err(e) => {
                     eprintln!("Failed to load UnitDataStore: {}", e);
@@ -63,9 +62,9 @@ turbo::go!({
         let gp = gamepad(0);
         if gp.start.just_pressed() {
             //generate units
-            let row_height = 20.0;
+            let row_height = 16.0;
             let row_width = 20.0;
-            let max_y = 180.0;
+            let max_y = 200.0;
             let data_store = state
                 .data_store
                 .as_ref()
@@ -77,11 +76,11 @@ turbo::go!({
 
             for (team_index, team) in state.teams.iter().enumerate() {
                 let mut x_start = if team_index == 0 { 70.0 } else { 270.0 }; // Adjusted starting x for team 1
-                let mut y_pos = 20.0;
+                let mut y_pos = 50.0;
 
                 for (i, unit_type) in team.units.iter().enumerate() {
                     if y_pos > max_y {
-                        y_pos = 20.0;
+                        y_pos = 50.0;
 
                         if team_index == 0 {
                             x_start -= row_width;
@@ -223,7 +222,7 @@ turbo::go!({
         for &index in &indices {
             state.units[index].draw();
         }
-        
+
         //Draw team health bars
         // Initialize variables to store health totals for each team
         let mut team0_base_health = 0.0;
@@ -231,7 +230,6 @@ turbo::go!({
         let mut team1_base_health = 0.0;
         let mut team1_current_health = 0.0;
 
-        // Iterate through all units and sum up health values
         for unit in &state.units {
             if unit.team == 0 {
                 team0_base_health += unit.data.max_health as f32;
@@ -241,15 +239,14 @@ turbo::go!({
                 team1_current_health += unit.health as f32;
             }
         }
-        turbo::println!("Team 0 - Base Health: {}, Current Health: {}", team0_base_health, team0_current_health);
-        turbo::println!("Team 1 - Base Health: {}, Current Health: {}", team1_base_health, team1_current_health);
+
         // Draw health bar for team 0
         draw_team_health_bar(
             team0_base_health,
             team0_current_health,
             (20.0, 20.0),
             &state.teams[0].name,
-            0xc4f129ff  // Red color in hexadecimal
+            0xc4f129ff,
         );
 
         // Draw health bar for team 1
@@ -258,11 +255,9 @@ turbo::go!({
             team1_current_health,
             (250.0, 20.0),
             &state.teams[1].name,
-            0xa69e9aff  // Gray color in hexadecimal
+            0xa69e9aff,
         );
-
     }
-
 
     state.save();
 });
@@ -352,10 +347,23 @@ impl Unit {
             new_anim.name += "_death";
             new_anim.is_looping = false;
             self.animator.set_cur_anim(new_anim);
+            self.animator.next_anim = None;
         } else if self.state == UnitState::Attacking {
-            new_anim.name += "_attack";
-            new_anim.is_looping = false;
-            self.animator.set_cur_anim(new_anim);
+            //only set this once, when the attack starts.
+            //That way when attack ends, they will idle (could change to reload or something later)
+            if self.attack_timer == self.data.attack_time - 1 {
+                new_anim.name += "_attack";
+                new_anim.is_looping = false;
+                self.animator.set_cur_anim(new_anim);
+                let next_anim = Animation {
+                    name: self.unit_type.to_lowercase() + "_idle",
+                    s_w: self.data.sprite_width,
+                    num_frames: 4,
+                    loops_per_frame: 10,
+                    is_looping: true,
+                };
+                self.animator.set_next_anim(Some(next_anim));
+            }
         } else if self.state == UnitState::Idle {
             new_anim.name += "_idle";
             self.animator.set_cur_anim(new_anim);
@@ -414,11 +422,6 @@ impl Unit {
         //     border_radius = 2
         // )
     }
-
-    // fn move_toward_enemy(&mut self, enemy: Unit) {
-    //     //set tween position to be x units toward the enemy
-    //     self.new_target_tween_position(enemy.pos);
-    // }
 
     fn new_target_tween_position(&mut self, target: (f32, f32), rng: &mut RNG) {
         // Calculate the direction vector from self.pos to target
@@ -688,7 +691,7 @@ pub fn draw_team_health_bar(
     current_health: f32,
     pos: (f32, f32),
     team_name: &str,
-    team_color: u32
+    team_color: u32,
 ) {
     //normalized health bar width
     //colors
@@ -703,8 +706,7 @@ pub fn draw_team_health_bar(
     let main_color: u32 = team_color;
     let back_color: u32 = 0xb9451dff;
     let border_color: u32 = 0x000000ff;
-    let mut health_width =
-        (current_health / total_base_health* w_bar) as i32;
+    let mut health_width = (current_health / total_base_health * w_bar) as i32;
     health_width = health_width.max(0);
 
     // Draw health bar background
@@ -738,7 +740,7 @@ pub fn draw_team_health_bar(
     );
 
     //put team name in white over the bar
-    text!(team_name, x=x_bar, y=y_bar-10., font= Font::L);
+    text!(team_name, x = x_bar, y = y_bar - 10., font = Font::L);
 }
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
