@@ -122,7 +122,11 @@ turbo::go!({
             //go to Battle Phase
             state.phase = Phase::Battle;
         }
-        //we'll only use this for our "sandbox mode", which we are going to ignore for now.
+        if state.auto_assign_teams {
+            //draw each unit based on the teams
+            draw_assigned_team_info(&mut state);
+        }
+        //we'll only use this for our "sandbox mode".
         if !state.auto_assign_teams {
             draw_team_info_and_buttons(&mut state);
 
@@ -401,7 +405,7 @@ impl Unit {
         let y = d_p.1;
         let x_bar = x;
         let y_bar = y - 2.;
-        let w_bar = 0.25 * self.data.max_health;
+        let w_bar = 0.06 * self.data.max_health;
         let h_bar = 2;
         let mut main_color: u32 = 0xc4f129ff;
         if self.team == 1 {
@@ -628,6 +632,35 @@ fn has_some_team_won(units: &Vec<Unit>) -> Option<i32> {
     None
 }
 
+fn draw_assigned_team_info(state: &mut GameState) {
+    let pos_0 = 20;
+    let pos_1 = 200;
+    let y_start = 30;
+
+    for (team_index, pos) in [(0, pos_0), (1, pos_1)].iter() {
+        let team = &mut state.teams[*team_index].clone();
+        let mut y_pos = y_start;
+
+        // Draw team name
+        let name_text = format!("{}", team.name);
+        text!(name_text.as_str(), x = *pos, y = y_pos, font = Font::L, color = 0xADD8E6ff);
+        let team_summary = team.get_unit_summary();
+        for (unit_type, count) in team_summary {
+            let text = format!("{} {}s", count, unit_type);
+            y_pos += 30;
+            text!(text.as_str(), x = *pos, y = y_pos, font = Font::L);
+            //figure out which unit type is in each time and how many
+        }
+        text!("AND", x = *pos+24, y = y_start+45);
+        //enter text with [num_unit] + unit name
+        //do "AND"
+        //Do 2nd unit type
+        //do vs. in the middle
+        //do the other side on the right
+    }
+    text!("VS.", x = 150, y=y_start+45, font = Font::L, color = 0xADD8E6ff);
+}
+
 fn draw_team_info_and_buttons(state: &mut GameState) {
     let pos_0 = 20;
     let pos_1 = 200;
@@ -689,22 +722,6 @@ fn draw_team_info_and_buttons(state: &mut GameState) {
         }
     }
 }
-
-// //to create a new unit, add it here, then
-// #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone, Eq, Hash, Copy, PartialOrd)]
-// enum UnitType {
-//     Axeman,
-//     Blade,
-//     Hunter,
-//     Pyro,
-//     BigPound,
-// }
-
-// impl UnitType {
-//     fn to_lowercase_string(&self) -> String {
-//         format!("{:?}", self).to_lowercase()
-//     }
-// }
 
 pub fn draw_team_health_bar(
     total_base_health: f32,
@@ -802,6 +819,41 @@ impl Team {
         } else {
             false
         }
+    }
+
+    fn capitalize(s: &str) -> String {
+        let mut c = s.chars();
+        match c.next() {
+            None => String::new(),
+            Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
+        }
+    }
+
+    fn get_unit_summary(&self) -> Vec<(String, usize)> {
+        let mut sorted_units = self.units.clone();
+        sorted_units.sort();
+
+        let mut summary = Vec::new();
+        let mut current_unit = String::new();
+        let mut count = 0;
+
+        for unit in sorted_units {
+            if unit != current_unit {
+                if !current_unit.is_empty() {
+                    summary.push((Self::capitalize(&current_unit), count));
+                }
+                current_unit = unit;
+                count = 1;
+            } else {
+                count += 1;
+            }
+        }
+
+        if !current_unit.is_empty() {
+            summary.push((Self::capitalize(&current_unit), count));
+        }
+
+        summary
     }
 }
 
@@ -1040,7 +1092,7 @@ fn calculate_unit_power_level(data_store: &HashMap<String, UnitData>) -> HashMap
         .unwrap_or(1.0);
 
     for (unit_type, unit_data) in data_store {
-        let normalized_health = (unit_data.max_health / max_health) * 100.0;
+        let normalized_health = (unit_data.max_health / max_health) * 50.0;
         let dps = unit_data.damage / (unit_data.attack_time as f32 / 60.0);
         let normalized_dps = (dps / max_dps) * 100.0;
         let normalized_speed = (unit_data.speed / max_speed) * 10.0;
@@ -1048,7 +1100,7 @@ fn calculate_unit_power_level(data_store: &HashMap<String, UnitData>) -> HashMap
         let mut power_level = normalized_health + normalized_dps + normalized_speed;
 
         if unit_data.range > 20.0 {
-            power_level += 50.0;
+            power_level += 150.0;
         }
 
         if unit_data.splash_area > 0.0 {
@@ -1082,7 +1134,7 @@ fn generate_balanced_teams(power_levels: &HashMap<String, f32>, rng: &mut RNG) -
         units: Vec::new(),
     };
     let mut team2 = Team {
-        name: "Battle bois".to_string(),
+        name: "Battle Bois".to_string(),
         units: Vec::new(),
     };
 
