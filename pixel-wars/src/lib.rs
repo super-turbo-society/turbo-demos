@@ -117,6 +117,59 @@ turbo::go!({
             }
         }
     }
+    let gp = gamepad(0);
+    if gp.a.just_pressed(){
+        let data_store = state
+                    .data_store
+                    .as_ref()
+                    .expect("Data store should be loaded");
+        let power_levels = calculate_unit_power_level(&data_store.data);
+        let (team1, team2) = generate_balanced_teams(&power_levels, &mut state.rng);
+        state.teams = Vec::new();
+        state.teams.push(team1);
+        state.teams.push(team2);
+
+        let row_height = 16.0;
+        let row_width = 20.0;
+        let max_y = 200.0;
+        let data_store = state
+            .data_store
+            .as_ref()
+            .expect("Data store should be loaded");
+
+        for (team_index, team) in state.teams.iter().enumerate() {
+            let mut x_start = if team_index == 0 { 70.0 } else { 270.0 }; // Adjusted starting x for team 1
+            let mut y_pos = 50.0;
+
+            for (i, unit_type) in team.units.iter().enumerate() {
+                if y_pos > max_y {
+                    y_pos = 50.0;
+
+                    if team_index == 0 {
+                        x_start -= row_width;
+                    } else {
+                        x_start += row_width;
+                    }
+                }
+                let pos = (x_start, y_pos);
+                state.units.push(Unit::new(
+                    unit_type.clone(),
+                    pos,
+                    team_index as i32,
+                    &data_store,
+                ));
+                //let unit = Unit::new(UnitType::Axeman, (0.0, 0.0), 0, &unit_type_store);
+                y_pos += row_height;
+            }
+        }
+        //add a random trap for now
+        //state.traps.push(Trap::new(48., (160., 75.), 1., 120, 120));
+        //state.traps.push(Trap::new(48., (200., 120.), 1., 120, 120));
+        //go to Battle Phase
+        state.phase = Phase::Battle;
+        // turbo::println!("Team 1: {:?}", team1);
+        // turbo::println!("Team 2: {:?}", team2);
+    }
 
     if state.phase == Phase::Battle {
         clear!(0x8f8cacff);
@@ -994,6 +1047,100 @@ impl Button {
             x = (self.position.0) as i32,
             y = (self.position.1) as i32
         ); // Example button label
+    }
+}
+
+//POWER LEVEL AND TEAM CREATION
+
+fn calculate_unit_power_level(data_store: &HashMap<String, UnitData>) -> HashMap<String, f32> {
+    let mut power_levels = HashMap::new();
+    
+    // Find max values for normalization
+    let max_health = data_store.values().map(|u| u.max_health).max_by(|a, b| a.partial_cmp(b).unwrap()).unwrap_or(1.0);
+    let max_dps = data_store.values().map(|u| u.damage / (u.attack_time as f32 / 60.0)).max_by(|a, b| a.partial_cmp(b).unwrap()).unwrap_or(1.0);
+    let max_speed = data_store.values().map(|u| u.speed).max_by(|a, b| a.partial_cmp(b).unwrap()).unwrap_or(1.0);
+
+    for (unit_type, unit_data) in data_store {
+        let normalized_health = (unit_data.max_health / max_health) * 100.0;
+        let dps = unit_data.damage / (unit_data.attack_time as f32 / 60.0);
+        let normalized_dps = (dps / max_dps) * 100.0;
+        let normalized_speed = (unit_data.speed / max_speed) * 10.0;
+
+        let mut power_level = normalized_health + normalized_dps + normalized_speed;
+
+        if unit_data.range > 20.0 {
+            power_level += 50.0;
+        }
+
+        if unit_data.splash_area > 0.0 {
+            power_level += 100.0;
+        }
+
+        power_levels.insert(unit_type.clone(), power_level);
+    }
+
+    power_levels
+}
+
+fn generate_balanced_teams(
+    power_levels: &HashMap<String, f32>,
+    rng: &mut RNG,
+) -> (Team, Team) {
+    let average_power: f32 = power_levels.values().sum::<f32>() / power_levels.len() as f32;
+    let target_team_power = average_power * 25.0;
+
+    let unit_types: Vec<&String> = power_levels.keys().collect();
+    
+    // Select four different unit types
+    let mut selected_types = Vec::new();
+    while selected_types.len() < 4 {
+        let index = rng.next_in_range(0, unit_types.len() as u32 - 1) as usize;
+        let unit_type = unit_types[index];
+        if !selected_types.contains(&unit_type) {
+            selected_types.push(unit_type);
+        }
+    }
+
+    let mut team1 = Team {
+        name: "Pixel Peeps".to_string(),
+        units: Vec::new(),
+    };
+    let mut team2 = Team {
+        name: "Battle bois".to_string(),
+        units: Vec::new(),
+    };
+
+    create_team(&mut team1, &selected_types[0..2], power_levels, target_team_power, rng);
+    create_team(&mut team2, &selected_types[2..4], power_levels, target_team_power, rng);
+
+    (team1, team2)
+}
+
+fn create_team(
+    team: &mut Team,
+    unit_types: &[&String],
+    power_levels: &HashMap<String, f32>,
+    target_power: f32,
+    rng: &mut RNG,
+) {
+    let mut current_power = 0.0;
+    let power1 = power_levels[unit_types[0]];
+    let power2 = power_levels[unit_types[1]];
+
+    while current_power < target_power {
+        let remaining_power = target_power - current_power;
+        let use_first_type = rng.next() % 2 == 0;
+
+        if use_first_type && remaining_power >= power1 {
+            team.units.push(unit_types[0].clone());
+            current_power += power1;
+        } else if !use_first_type && remaining_power >= power2 {
+            team.units.push(unit_types[1].clone());
+            current_power += power2;
+        } else {
+            // If we can't add either unit without going over, stop adding units
+            break;
+        }
     }
 }
 
