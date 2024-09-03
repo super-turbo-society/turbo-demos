@@ -25,10 +25,9 @@ turbo::init! {
         rng: RNG,
         data_store: Option<UnitDataStore>,
         traps: Vec<Trap>,
+        auto_assign_teams: bool,
     } = {
-        let mut teams = Vec::new();
-        teams.push(Team::new("Battle Bois".to_string()));
-        teams.push(Team::new("Pixel Peeps".to_string()));
+        let teams = Vec::new();
         Self {
             phase: Phase::PreBattle,
             units: Vec::new(),
@@ -39,6 +38,7 @@ turbo::init! {
             //replace this number with a program number later
             rng: RNG::new(12345),
             data_store: None,
+            auto_assign_teams: true,
         }
     }
 }
@@ -58,7 +58,24 @@ turbo::go!({
                 }
             }
         }
-        //handle input
+        //if teams are not assigned, check if we should auto assign or not
+        if state.teams.len() == 0 {
+            if state.auto_assign_teams {
+                let data_store = state
+                    .data_store
+                    .as_ref()
+                    .expect("Data store should be loaded");
+                let power_levels = calculate_unit_power_level(&data_store.data);
+                let (team1, team2) = generate_balanced_teams(&power_levels, &mut state.rng);
+                state.teams = Vec::new();
+                state.teams.push(team1);
+                state.teams.push(team2);
+            } else {
+                //make two blank teams
+                state.teams.push(Team::new("Battle Bois".to_string()));
+                state.teams.push(Team::new("Pixel Peeps".to_string()));
+            }
+        }
         let gp = gamepad(0);
         if gp.start.just_pressed() {
             //generate units
@@ -105,72 +122,22 @@ turbo::go!({
             //go to Battle Phase
             state.phase = Phase::Battle;
         }
-        draw_team_info_and_buttons(&mut state);
-        while let Some(event) = state.event_queue.pop() {
-            match event {
-                GameEvent::AddUnitToTeam(team_index, unit_type) => {
-                    state.teams[team_index].add_unit(unit_type);
-                }
-                GameEvent::RemoveUnitFromTeam(team_index, unit_type) => {
-                    state.teams[team_index].remove_unit(unit_type);
-                }
-            }
-        }
-    }
-    let gp = gamepad(0);
-    if gp.a.just_pressed(){
-        let data_store = state
-                    .data_store
-                    .as_ref()
-                    .expect("Data store should be loaded");
-        let power_levels = calculate_unit_power_level(&data_store.data);
-        let (team1, team2) = generate_balanced_teams(&power_levels, &mut state.rng);
-        state.teams = Vec::new();
-        state.teams.push(team1);
-        state.teams.push(team2);
+        //we'll only use this for our "sandbox mode", which we are going to ignore for now.
+        if !state.auto_assign_teams {
+            draw_team_info_and_buttons(&mut state);
 
-        let row_height = 16.0;
-        let row_width = 20.0;
-        let max_y = 200.0;
-        let data_store = state
-            .data_store
-            .as_ref()
-            .expect("Data store should be loaded");
-
-        for (team_index, team) in state.teams.iter().enumerate() {
-            let mut x_start = if team_index == 0 { 70.0 } else { 270.0 }; // Adjusted starting x for team 1
-            let mut y_pos = 50.0;
-
-            for (i, unit_type) in team.units.iter().enumerate() {
-                if y_pos > max_y {
-                    y_pos = 50.0;
-
-                    if team_index == 0 {
-                        x_start -= row_width;
-                    } else {
-                        x_start += row_width;
+            while let Some(event) = state.event_queue.pop() {
+                match event {
+                    GameEvent::AddUnitToTeam(team_index, unit_type) => {
+                        state.teams[team_index].add_unit(unit_type);
+                    }
+                    GameEvent::RemoveUnitFromTeam(team_index, unit_type) => {
+                        state.teams[team_index].remove_unit(unit_type);
                     }
                 }
-                let pos = (x_start, y_pos);
-                state.units.push(Unit::new(
-                    unit_type.clone(),
-                    pos,
-                    team_index as i32,
-                    &data_store,
-                ));
-                //let unit = Unit::new(UnitType::Axeman, (0.0, 0.0), 0, &unit_type_store);
-                y_pos += row_height;
             }
         }
-        //add a random trap for now
-        //state.traps.push(Trap::new(48., (160., 75.), 1., 120, 120));
-        //state.traps.push(Trap::new(48., (200., 120.), 1., 120, 120));
-        //go to Battle Phase
-        state.phase = Phase::Battle;
-        // turbo::println!("Team 1: {:?}", team1);
-        // turbo::println!("Team 2: {:?}", team2);
     }
-
     if state.phase == Phase::Battle {
         clear!(0x8f8cacff);
         let units_clone = state.units.clone();
@@ -1054,11 +1021,23 @@ impl Button {
 
 fn calculate_unit_power_level(data_store: &HashMap<String, UnitData>) -> HashMap<String, f32> {
     let mut power_levels = HashMap::new();
-    
+
     // Find max values for normalization
-    let max_health = data_store.values().map(|u| u.max_health).max_by(|a, b| a.partial_cmp(b).unwrap()).unwrap_or(1.0);
-    let max_dps = data_store.values().map(|u| u.damage / (u.attack_time as f32 / 60.0)).max_by(|a, b| a.partial_cmp(b).unwrap()).unwrap_or(1.0);
-    let max_speed = data_store.values().map(|u| u.speed).max_by(|a, b| a.partial_cmp(b).unwrap()).unwrap_or(1.0);
+    let max_health = data_store
+        .values()
+        .map(|u| u.max_health)
+        .max_by(|a, b| a.partial_cmp(b).unwrap())
+        .unwrap_or(1.0);
+    let max_dps = data_store
+        .values()
+        .map(|u| u.damage / (u.attack_time as f32 / 60.0))
+        .max_by(|a, b| a.partial_cmp(b).unwrap())
+        .unwrap_or(1.0);
+    let max_speed = data_store
+        .values()
+        .map(|u| u.speed)
+        .max_by(|a, b| a.partial_cmp(b).unwrap())
+        .unwrap_or(1.0);
 
     for (unit_type, unit_data) in data_store {
         let normalized_health = (unit_data.max_health / max_health) * 100.0;
@@ -1082,15 +1061,12 @@ fn calculate_unit_power_level(data_store: &HashMap<String, UnitData>) -> HashMap
     power_levels
 }
 
-fn generate_balanced_teams(
-    power_levels: &HashMap<String, f32>,
-    rng: &mut RNG,
-) -> (Team, Team) {
+fn generate_balanced_teams(power_levels: &HashMap<String, f32>, rng: &mut RNG) -> (Team, Team) {
     let average_power: f32 = power_levels.values().sum::<f32>() / power_levels.len() as f32;
     let target_team_power = average_power * 25.0;
 
     let unit_types: Vec<&String> = power_levels.keys().collect();
-    
+
     // Select four different unit types
     let mut selected_types = Vec::new();
     while selected_types.len() < 4 {
@@ -1110,8 +1086,20 @@ fn generate_balanced_teams(
         units: Vec::new(),
     };
 
-    create_team(&mut team1, &selected_types[0..2], power_levels, target_team_power, rng);
-    create_team(&mut team2, &selected_types[2..4], power_levels, target_team_power, rng);
+    create_team(
+        &mut team1,
+        &selected_types[0..2],
+        power_levels,
+        target_team_power,
+        rng,
+    );
+    create_team(
+        &mut team2,
+        &selected_types[2..4],
+        power_levels,
+        target_team_power,
+        rng,
+    );
 
     (team1, team2)
 }
