@@ -20,6 +20,7 @@ turbo::init! {
         phase: Phase,
         units: Vec<Unit>,
         teams: Vec<Team>,
+        unit_previews: Vec<UnitPreview>,
         attacks: Vec<Attack>,
         event_queue: Vec<GameEvent>,
         rng: RNG,
@@ -35,6 +36,7 @@ turbo::init! {
             attacks: Vec::new(),
             event_queue: Vec::new(),
             traps: Vec::new(),
+            unit_previews: Vec::new(),
             //replace this number with a program number later
             rng: RNG::new(12345),
             data_store: None,
@@ -65,15 +67,50 @@ turbo::go!({
                     .data_store
                     .as_ref()
                     .expect("Data store should be loaded");
-                let power_levels = calculate_unit_power_level(&data_store.data);
-                let (team1, team2) = generate_balanced_teams(&power_levels, &mut state.rng);
+
+                let (team1, team2) = generate_balanced_teams(&data_store, &mut state.rng);
+                //now assign the previews to each team
+                // team1.create_unit_previews(false);
+                // team2.create_unit_previews(true);
+                // let team_summary = team1.get_unit_summary();
+                // //get team summary, set height 1 and height 2, and x 1 and x 2, create unit previews in correct positions
+
+                // let mut yPos = 50.;
+                // for (unit_type, _count) in team_summary {
+                //     let unit_type = unit_type.to_lowercase();
+                //     let s_w = data_store.get_sprite_width(&unit_type).unwrap();
+                //     let u_p = UnitPreview::new(unit_type, s_w, (120., yPos), false);
+                //     state.unit_previews.push(u_p);
+                //     yPos += 30.;
+                // }
+                // let team_summary = team2.get_unit_summary();
+                // yPos = 50.;
+                // for (unit_type, _count) in team_summary {
+                //     let unit_type = unit_type.to_lowercase();
+                //     let s_w = data_store.get_sprite_width(&unit_type).unwrap();
+                //     let u_p = UnitPreview::new(unit_type, s_w, (180., yPos), true);
+                //     state.unit_previews.push(u_p);
+                //     yPos += 30.;
+                // }
+                state.unit_previews.extend(create_unit_previews(&team1, false, data_store));
+                state.unit_previews.extend(create_unit_previews(&team2, true, data_store));
                 state.teams = Vec::new();
                 state.teams.push(team1);
                 state.teams.push(team2);
+                //create the unit previews
             } else {
                 //make two blank teams
-                state.teams.push(Team::new("Battle Bois".to_string()));
-                state.teams.push(Team::new("Pixel Peeps".to_string()));
+                let data_store = state
+                    .data_store
+                    .as_ref()
+                    .expect("Data store should be loaded");
+
+                state
+                    .teams
+                    .push(Team::new("Battle Bois".to_string(), data_store.clone()));
+                state
+                    .teams
+                    .push(Team::new("Pixel Peeps".to_string(), data_store.clone()));
             }
         }
         let gp = gamepad(0);
@@ -125,6 +162,10 @@ turbo::go!({
         if state.auto_assign_teams {
             //draw each unit based on the teams
             draw_assigned_team_info(&mut state);
+            for u in &mut state.unit_previews {
+                u.update();
+                u.draw();
+            }
         }
         //we'll only use this for our "sandbox mode".
         if !state.auto_assign_teams {
@@ -141,8 +182,7 @@ turbo::go!({
                 }
             }
         }
-    }
-    if state.phase == Phase::Battle {
+    } else if state.phase == Phase::Battle {
         clear!(0x8f8cacff);
         let units_clone = state.units.clone();
         //let mut damage_map = Vec::new();
@@ -325,7 +365,7 @@ impl Unit {
             attack_timer: 0,
             //placeholder, gets overwritten when they are drawn, but I can't figure out how to do it more logically than this
             animator: Animator::new(Animation {
-                name: "axeman_walk".to_string(),
+                name: "placeholder".to_string(),
                 s_w: data.sprite_width,
                 num_frames: 4,
                 loops_per_frame: 10,
@@ -643,7 +683,13 @@ fn draw_assigned_team_info(state: &mut GameState) {
 
         // Draw team name
         let name_text = format!("{}", team.name);
-        text!(name_text.as_str(), x = *pos, y = y_pos, font = Font::L, color = 0xADD8E6ff);
+        text!(
+            name_text.as_str(),
+            x = *pos,
+            y = y_pos,
+            font = Font::L,
+            color = 0xADD8E6ff
+        );
         let team_summary = team.get_unit_summary();
         for (unit_type, count) in team_summary {
             let text = format!("{} {}s", count, unit_type);
@@ -651,14 +697,20 @@ fn draw_assigned_team_info(state: &mut GameState) {
             text!(text.as_str(), x = *pos, y = y_pos, font = Font::L);
             //figure out which unit type is in each time and how many
         }
-        text!("AND", x = *pos+24, y = y_start+45);
+        text!("AND", x = *pos + 24, y = y_start + 45);
         //enter text with [num_unit] + unit name
         //do "AND"
         //Do 2nd unit type
         //do vs. in the middle
         //do the other side on the right
     }
-    text!("VS.", x = 150, y=y_start+45, font = Font::L, color = 0xADD8E6ff);
+    text!(
+        "VS.",
+        x = 150,
+        y = y_start + 45,
+        font = Font::L,
+        color = 0xADD8E6ff
+    );
 }
 
 fn draw_team_info_and_buttons(state: &mut GameState) {
@@ -787,18 +839,81 @@ enum UnitState {
     Idle,
     Dead,
 }
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
+struct UnitPreview {
+    //unit type as a string
+    unit_type: String,
+    //animator
+    animator: Animator,
+    s_w: i32,
+    pos: (f32, f32),
+    flip_x: bool,
+    state: UnitState,
+}
+
+impl UnitPreview {
+    fn new(unit_type: String, s_w: i32, pos: (f32, f32), flip_x: bool) -> Self {
+        Self {
+            unit_type, //placeholder, gets overwritten when they are drawn, but I can't figure out how to do it more logically than this
+            animator: Animator::new(Animation {
+                name: "placeholder".to_string(),
+                s_w: s_w,
+                num_frames: 0,
+                loops_per_frame: 0,
+                is_looping: true,
+            }),
+            s_w,
+            pos,
+            flip_x,
+            state: UnitState::Idle,
+        }
+    }
+    //add walk to animator, then if its done, add the other one
+    fn update(&mut self) {
+        self.animator.update();
+        let mut new_anim = Animation {
+            name: self.unit_type.to_lowercase(),
+            s_w: self.s_w,
+            num_frames: 4,
+            loops_per_frame: 10,
+            is_looping: false,
+        };
+        if self.state == UnitState::Idle {
+            self.state = UnitState::Moving;
+            new_anim.name += "_walk";
+            self.animator.set_cur_anim(new_anim);
+        } else if self.animator.is_done() {
+            if self.state == UnitState::Moving {
+                self.state = UnitState::Attacking;
+                new_anim.name += "_attack";
+                self.animator.set_cur_anim(new_anim);
+            } else if self.state == UnitState::Attacking {
+                self.state = UnitState::Moving;
+                new_anim.name += "_walk";
+                self.animator.set_cur_anim(new_anim);
+            }
+        }
+    }
+
+    fn draw(&self) {
+        self.animator.draw(self.pos, self.flip_x);
+    }
+    //draw from animator
+}
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 struct Team {
     name: String,
     units: Vec<String>,
+    data: UnitDataStore,
 }
 
 impl Team {
-    fn new(name: String) -> Self {
+    fn new(name: String, data: UnitDataStore) -> Self {
         Self {
             name,
             units: Vec::new(),
+            data,
         }
     }
 
@@ -888,7 +1003,7 @@ impl Animator {
 
     fn update(&mut self) {
         self.anim_timer += 1;
-        if self.anim_timer > self.cur_anim.total_animation_time() {
+        if self.is_done() {
             if self.cur_anim.is_looping {
                 self.anim_timer = 0;
             } else if let Some(next_anim) = self.next_anim.take() {
@@ -896,6 +1011,13 @@ impl Animator {
                 self.anim_timer = 0;
             }
         }
+    }
+
+    fn is_done(&self) -> bool {
+        if self.anim_timer > self.cur_anim.total_animation_time() {
+            return true;
+        }
+        false
     }
 
     fn draw(&self, pos: (f32, f32), flip_x: bool) {
@@ -1113,7 +1235,8 @@ fn calculate_unit_power_level(data_store: &HashMap<String, UnitData>) -> HashMap
     power_levels
 }
 
-fn generate_balanced_teams(power_levels: &HashMap<String, f32>, rng: &mut RNG) -> (Team, Team) {
+fn generate_balanced_teams(data: &UnitDataStore, rng: &mut RNG) -> (Team, Team) {
+    let power_levels = calculate_unit_power_level(&data.data);
     let average_power: f32 = power_levels.values().sum::<f32>() / power_levels.len() as f32;
     let target_team_power = average_power * 25.0;
 
@@ -1129,26 +1252,20 @@ fn generate_balanced_teams(power_levels: &HashMap<String, f32>, rng: &mut RNG) -
         }
     }
 
-    let mut team1 = Team {
-        name: "Pixel Peeps".to_string(),
-        units: Vec::new(),
-    };
-    let mut team2 = Team {
-        name: "Battle Bois".to_string(),
-        units: Vec::new(),
-    };
+    let mut team1 = Team::new("Pixel Peeps".to_string(), data.clone());
+    let mut team2 = Team::new("Battle Bois".to_string(), data.clone());
 
     create_team(
         &mut team1,
         &selected_types[0..2],
-        power_levels,
+        &power_levels,
         target_team_power,
         rng,
     );
     create_team(
         &mut team2,
         &selected_types[2..4],
-        power_levels,
+        &power_levels,
         target_team_power,
         rng,
     );
@@ -1184,6 +1301,28 @@ fn create_team(
     }
 }
 
+fn create_unit_previews(
+    team: &Team,
+    is_facing_left: bool,
+    data_store: &UnitDataStore,
+) -> Vec<UnitPreview> {
+    let team_summary = team.get_unit_summary();
+    let mut unit_previews = Vec::new();
+    let mut y_start = 50.;
+    let mut x = 120.;
+    if is_facing_left{
+        x+=60.;
+    }
+    for (unit_type, _count) in team_summary {
+        let unit_type = unit_type.to_lowercase();
+        let s_w = data_store.get_sprite_width(&unit_type).unwrap();
+        let u_p = UnitPreview::new(unit_type, s_w, (x, y_start), is_facing_left);
+        unit_previews.push(u_p);
+        y_start += 30.;
+    }
+    unit_previews
+}
+
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 struct UnitDataStore {
     data: HashMap<String, UnitData>,
@@ -1206,6 +1345,12 @@ impl UnitDataStore {
 
     pub fn get_all_unit_types(&self) -> Vec<String> {
         self.data.keys().cloned().collect()
+    }
+
+    pub fn get_sprite_width(&self, unit_type: &str) -> Option<i32> {
+        self.data
+            .get(unit_type)
+            .map(|unit_data| unit_data.sprite_width)
     }
 
     pub fn load_from_csv(file_path: &[u8]) -> Result<Self, Box<dyn std::error::Error>> {
