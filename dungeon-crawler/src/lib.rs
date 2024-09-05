@@ -1,18 +1,21 @@
 use borsh::{BorshDeserialize, BorshSerialize};
+use os::ReadFileError;
 
 turbo::cfg! {r#"
     name = "Dungeon Crawler"
     [settings]
     resolution = [384, 256]
     [turbo-os]
-    api-url = "http://localhost:8000"
+    api-url = "https://os.turbo.computer"
+    # api-url = "http://localhost:8000"
 "#}
 
 turbo::init! {
     struct LocalState {
         floor: Tween<u32>,
         turn: Tween<u32>,
-        last_exec_at: Tween<usize>,
+        last_exec_at: usize,
+        last_exec_turn: Option<u32>,
         player: struct Entity {
             x: Tween<i32>,
             y: Tween<i32>,
@@ -24,7 +27,8 @@ turbo::init! {
         Self {
             floor: Tween::new(0).duration(FLOOR_DUR),
             turn: Tween::new(0).duration(TURN_DUR),
-            last_exec_at: Tween::new(0).duration(EXEC_THROTTLE_DUR),
+            last_exec_at: 0,
+            last_exec_turn: None,
             player: Entity {
                 x: Tween::new(0).duration(MOVE_DUR).ease(Easing::EaseInOutQuad),
                 y: Tween::new(0).duration(MOVE_DUR).ease(Easing::EaseInOutQuad),
@@ -52,15 +56,41 @@ const FLOOR_DUR: usize = 32;
 const MOVE_DUR: usize = 8;
 const MOVE_Y_OFFSET: i32 = 4;
 const MOVE_X_OFFSET: i32 = 4;
-const EXEC_THROTTLE_DUR: usize = 16;
+const EXEC_TIMEOUT_DUR: usize = 32;
 const SHADOW_COLOR: u32 = 0x000000dd;
 
 turbo::go!({
     // Load the game state
     let mut state = LocalState::load();
 
+    // Clear the screen
+    clear(0x000000ff);
+    // clear(0x1b1126ff);
+
+    let [w, h] = canvas_size!();
+    sprite!(
+        "dotted_tile_border",
+        w = w,
+        h = h,
+        tx = (tick() / 4) % w as usize,
+        ty = (tick() / 4) % h as usize,
+        opacity = 0.001,
+        repeat = true,
+        absolute = true,
+    );
+
     // Load dungeon
-    if let Some(dungeon) = DungeonCrawlerProgram::fetch_player_dungeon(&os::user_id()) {
+    let user_id = os::user_id();
+    // log!("USER ID {:?}", user_id.clone());
+
+    let dungeon = user_id
+        .ok_or_else(|| "Not logged in".to_string())
+        .and_then(|user_id| {
+            DungeonCrawlerProgram::fetch_player_dungeon(&user_id).map_err(|err| err.to_string())
+        });
+    // log!("DUNGEON {:?}", dungeon);
+
+    if let Ok(dungeon) = &dungeon {
         state.turn.set(dungeon.turn);
 
         // Update player tweens
@@ -143,10 +173,11 @@ turbo::go!({
             }
         }
 
-        // let is_everyone_idle = is_player_idle && are_monsters_idle;
-        let is_movement_done = state.turn.done();
-        let is_exec_throttled = state.last_exec_at.done();
-        let is_ready_to_exec = is_movement_done && is_exec_throttled;
+        let did_turn_transition_end = state.turn.done();
+        let was_last_exec_on_diff_turn = state.last_exec_turn.map_or(true, |t| t != dungeon.turn);
+        let did_exec_timeout = (tick() - state.last_exec_at) >= EXEC_TIMEOUT_DUR;
+        let is_ready_to_exec =
+            did_turn_transition_end && (was_last_exec_on_diff_turn || did_exec_timeout);
 
         // Handle player input
         let gp = gamepad(0);
@@ -154,7 +185,8 @@ turbo::go!({
         // Hard reset game
         if gp.start.just_pressed() && gp.select.pressed() {
             DungeonCrawlerProgram::create_new_dungeon(CreateNewDungeonCommandInput { reset: true });
-            state.last_exec_at.set(tick());
+            state.last_exec_at = tick();
+            state.last_exec_turn = Some(dungeon.turn);
         }
         // Dungeon controls
         else if is_ready_to_exec {
@@ -163,49 +195,48 @@ turbo::go!({
                 DungeonCrawlerProgram::create_new_dungeon(CreateNewDungeonCommandInput {
                     reset: dungeon.player.health == 0,
                 });
-                state.last_exec_at.set(tick());
+                state.last_exec_at = tick();
+                state.last_exec_turn = Some(dungeon.turn);
             }
             // Move
-            if gp.up.pressed() {
+            else if gp.up.pressed() {
                 DungeonCrawlerProgram::move_player(MovePlayerCommandInput {
                     direction: Direction::Up,
                 });
-                state.last_exec_at.set(tick());
+                state.last_exec_at = tick();
+                state.last_exec_turn = Some(dungeon.turn);
                 if dungeon.is_position_blocked(dungeon.player.x, dungeon.player.y - 1) {
                     state.player.offset_y.set(-MOVE_Y_OFFSET);
                 }
-            }
-            if gp.down.pressed() {
+            } else if gp.down.pressed() {
                 DungeonCrawlerProgram::move_player(MovePlayerCommandInput {
                     direction: Direction::Down,
                 });
-                state.last_exec_at.set(tick());
+                state.last_exec_at = tick();
+                state.last_exec_turn = Some(dungeon.turn);
                 if dungeon.is_position_blocked(dungeon.player.x, dungeon.player.y + 1) {
                     state.player.offset_y.set(MOVE_Y_OFFSET);
                 }
-            }
-            if gp.left.pressed() {
+            } else if gp.left.pressed() {
                 DungeonCrawlerProgram::move_player(MovePlayerCommandInput {
                     direction: Direction::Left,
                 });
-                state.last_exec_at.set(tick());
+                state.last_exec_at = tick();
+                state.last_exec_turn = Some(dungeon.turn);
                 if dungeon.is_position_blocked(dungeon.player.x - 1, dungeon.player.y) {
                     state.player.offset_x.set(-MOVE_X_OFFSET);
                 }
-            }
-            if gp.right.pressed() {
+            } else if gp.right.pressed() {
                 DungeonCrawlerProgram::move_player(MovePlayerCommandInput {
                     direction: Direction::Right,
                 });
-                state.last_exec_at.set(tick());
+                state.last_exec_at = tick();
+                state.last_exec_turn = Some(dungeon.turn);
                 if dungeon.is_position_blocked(dungeon.player.x + 1, dungeon.player.y) {
                     state.player.offset_x.set(MOVE_X_OFFSET);
                 }
             }
         }
-
-        // Clear the screen
-        clear(0x000000ff);
 
         // Center camera on player
         set_cam!(
@@ -217,22 +248,44 @@ turbo::go!({
         let dungeon_h = dungeon.height * TILE_SIZE as u32;
 
         // Draw dungeon floor and border
+        rect!(
+            w = dungeon_w,
+            h = dungeon_h,
+            color = 0x000000ff,
+            border_radius = 4,
+        );
         sprite!(
             "floor",
             w = dungeon_w,
             h = dungeon_h,
             repeat = true,
-            opacity = 0.15,
+            opacity = 0.01,
             border_radius = 4,
         );
         rect!(
-            w = dungeon_w,
-            h = dungeon_h,
+            w = dungeon_w + 16,
+            h = dungeon_h + 16 + 4,
+            x = -8,
+            y = -4 - 4,
             // color = 0x83758bff,
-            color = 0,
-            border_color = 0x524c52ff,
+            color = 0x00000000,
+            border_color = 0x83758bff,
+            // border_color = 0xbd59deff,
             // border_color = 0x000000ff,
-            border_width = 2,
+            border_width = 8,
+            border_radius = 4,
+        );
+        rect!(
+            w = dungeon_w + 16,
+            h = dungeon_h + 16 + 4,
+            x = -8,
+            y = -8 - 4,
+            // color = 0x83758bff,
+            color = 0x00000000,
+            border_color = 0x524c52ff,
+            // border_color = 0x7b34bdff,
+            // border_color = 0x000000ff,
+            border_width = 8,
             border_radius = 4,
         );
 
@@ -421,47 +474,199 @@ turbo::go!({
         }
 
         // Draw UI
-        let (cx, cy, _) = cam!();
         let [w, h] = canvas_size!();
-        let x = cx - (w as i32 / 2);
-        let y = cy - (h as i32 / 2);
-        rect!(x = x, y = y, w = 256, h = 24, color = 0x000000fd);
+        rect!(absolute = true, w = 256, h = 28, color = 0x0000fd);
 
-        // Right panel
+        // // Left side
+        // rect!(
+        //     absolute = true,
+        //     x = 8,
+        //     y = 0,
+        //     w = 78,
+        //     h = h,
+        //     color = 0x000000ff,
+        //     border_color = 0x83758bff,
+        //     border_width = 2,
+        //     border_radius = 4,
+        // );
+
+        // // Top-left panel
+        // rect!(
+        //     absolute = true,
+        //     x = 8,
+        //     y = 16,
+        //     w = 78,
+        //     h = h - 78 - 16,
+        //     color = 0x000000ff,
+        //     border_color = 0x83758bff,
+        //     border_width = 2,
+        //     border_radius = 4,
+        // );
+        // let mut x = 8 + 5;
+        // let mut y = 140;
+        // text!(
+        //     "FLOOR",
+        //     absolute = true,
+        //     font = Font::S,
+        //     x = x,
+        //     y = y,
+        //     color = 0xff00ffff
+        // );
+        // text!("           {:0>3}", dungeon.floor; absolute = true, font = Font::S, x = x, y = y);
+        // y += 7;
+        // text!(
+        //     "GOLD",
+        //     absolute = true,
+        //     font = Font::S,
+        //     x = x,
+        //     y = y,
+        //     color = 0xffff00ff
+        // );
+        // text!("           {:0>3}", dungeon.player.gold; absolute = true, font = Font::S, x = x, y = y);
+        // y += 7;
+        // text!("HP", absolute = true, font = Font::S, x = x, y = y,);
+        // text!("         {:0>2}/{:0>2}", dungeon.player.health, dungeon.player.max_health; absolute = true, font = Font::S, x = x, y = y, color = match dungeon.player.health as f32 / dungeon.player.max_health as f32 {
+        //     0.75..=1.0 => 0x00ff00ff,
+        //     0.25..=0.75 => 0xffff00ff,
+        //     _ => 0xff0000ff,
+        // });
+        // y += 7;
+        // text!("ATK         {:0>2}", 1; absolute = true, font = Font::S, x = x, y = y);
+        // y += 7;
+        // text!("DEF         {:0>2}", 0; absolute = true, font = Font::S, x = x, y = y);
+
+        // // Bottom-left panel
+        // rect!(
+        //     absolute = true,
+        //     x = 8,
+        //     y = h - 78,
+        //     w = 78,
+        //     h = 78,
+        //     color = 0x000000ff,
+        //     border_color = 0x83758bff,
+        //     border_width = 2,
+        //     border_radius = 4,
+        // );
+        // let xy = (8., h as f32 - 78.);
+        // for i in 0..4 {
+        //     for j in 0..4 {
+        //         rect!(
+        //             absolute = true,
+        //             x = xy.0 + (i as f32 * 18.) + 4.,
+        //             y = xy.1 + (j as f32 * 18.) + 4.,
+        //             w = 16,
+        //             h = 16,
+        //             color = 0x00000000,
+        //             border_color = 0x524c52ff,
+        //             border_width = 1,
+        //             border_radius = 3,
+        //         );
+        //     }
+        // }
+        // circ!(
+        //     absolute = true,
+        //     d = 12,
+        //     x = 72,
+        //     y = h - 15,
+        //     color = 0xff00ff88
+        // );
+        // circ!(
+        //     absolute = true,
+        //     d = 12,
+        //     x = 72,
+        //     y = h - 16,
+        //     color = 0xff00ffff
+        // );
+        // text!("B", absolute = true, x = 72 + 4, y = h - 16 + 3,);
+
+        // Top-right panel
         rect!(
+            absolute = true,
+            x = 256,
+            y = 0,
             w = 128,
             h = h,
-            x = x + 256,
-            y = y,
             color = 0x000000ff,
-            border_color = 0xffffffff,
+            border_color = 0x83758bff,
             border_width = 2,
             border_radius = 4,
         );
         text!(
             "ADVENTURE LOG: FLOOR {0:<2}", dungeon.floor + 1;
-            x = x + 256 + 8,
-            y = y + 4,
+            absolute = true,
+            x = 256 + 8,
+            y = 4,
             font = Font::M,
             color = 0xffffffff
         );
         path!(
+            absolute = true,
+            color = 0x83758bff,
             width = 2,
-            start = (x + 256, y + 14),
-            end = (w as i32 + 128, y + 14)
+            start = (256, 14),
+            end = (w, 14)
         );
         let mut i = 2;
         for log in &dungeon.logs {
-            text!(&log, x = (x + 8) + 256, y = y + (i * 10));
+            text!(&log, absolute = true, x = 256 + 8, y = i * 10);
             i += 1;
         }
+
+        // Bottom-right panel
+        // rect!(
+        //     absolute = true,
+        //     x = 256,
+        //     y = h / 2,
+        //     w = 128,
+        //     h = h / 2,
+        //     color = 0x000000ff,
+        //     border_color = 0x83758bff,
+        //     border_width = 2,
+        //     border_radius = 4,
+        // );
+
+        // outer background
+        // let color = 0xde599cff;
+        // let color = 0x293c8bff;
+        // rect!(
+        //     absolute = true,
+        //     w = w,
+        //     h = 16,
+        //     x = 0,
+        //     y = 0,
+        //     // color = 0x293c8bff,
+        //     color = color
+        // );
+        // rect!(
+        //     absolute = true,
+        //     w = w,
+        //     h = h + 8,
+        //     x = 0,
+        //     y = 0,
+        //     color = 0x00000000,
+        //     border_color = color,
+        //     border_width = 8,
+        //     border_radius = 12,
+        // );
+        // rect!(
+        //     absolute = true,
+        //     w = w,
+        //     h = h + 8,
+        //     x = 0,
+        //     y = 8,
+        //     color = 0x00000000,
+        //     border_color = color,
+        //     border_width = 8,
+        //     border_radius = 12,
+        // );
 
         // Display text if player dies
         if dungeon.player.health == 0 {
             text!(
                 "YOU DIED. GAME OVER!",
-                x = x + 8,
-                y = y + 8,
+                absolute = true,
+                x = 8,
+                y = 8,
                 font = Font::L,
                 color = 0xff0000ff
             );
@@ -470,52 +675,114 @@ turbo::go!({
         else if dungeon.is_exit(dungeon.player.x, dungeon.player.y) {
             text!(
                 "GO TO NEXT FLOOR? PRESS START!",
-                x = x + 8,
-                y = y + 8,
+                absolute = true,
+                x = 8,
+                y = 8,
                 font = Font::L,
                 color = 0xffffffff
             );
         } else {
             // Draw Life
-            text!(
-                "- LIFE -",
-                x = x + 48,
-                y = y + 2,
-                font = Font::L,
-                color = 0x000000ff
-            );
-            text!("- LIFE -", x = x + 48, y = y + 1, font = Font::L);
+            text!("- LIFE -", absolute = true, x = 48, y = 4, font = Font::L);
             for i in 0..dungeon.player.max_health {
-                sprite!("empty_heart", x = x + (i as i32 * 16), y = y + 8)
-            }
-            for i in 0..dungeon.player.health {
-                sprite!("full_heart", x = x + (i as i32 * 16), y = y + 8)
+                if dungeon.player.health > i {
+                    sprite!("full_heart", absolute = true, x = i * 16, y = 12)
+                } else {
+                    sprite!("empty_heart", absolute = true, x = i * 16, y = 12)
+                }
             }
 
             // Draw Gold
-            text!("- GOLD -", x = x + 180, y = y + 1, font = Font::L);
-            text!("  ${:0>3}  ", dungeon.player.gold; x = x + 180, y = y + 12, font = Font::L);
+            text!("- GOLD -", absolute = true, x = 180, y = 4, font = Font::L);
+            text!("  ${:0>3}  ", dungeon.player.gold; absolute = true, x = 180, y = 16, font = Font::L);
         }
 
         // Swipe transition
         let p = state.floor.elapsed as f64 / FLOOR_DUR as f64;
         {
             let xo = p * w as f64;
-            rect!(x = x as f64 + xo, y = y, w = w, h = h, color = 0x000000ff);
-            rect!(x = x as f64 - xo, y = y, w = w, h = h, color = 0x000000ff);
+            rect!(absolute = true, x = xo, w = w, h = h, color = 0x000000ff);
+            rect!(absolute = true, x = -xo, w = w, h = h, color = 0x000000ff);
         }
+
+        // circ!(absolute=true, d = 32, x = 32, y = 32, color = if is_ready_to_exec { 0x00ff00ff } else { 0xff0000ff });
     }
+
     // If no existing dungeon, allow player to create one
-    else {
+    if let Err(err) = &dungeon {
         // Handle user input
         let gp = gamepad(0);
         if gp.start.just_pressed() {
             DungeonCrawlerProgram::create_new_dungeon(CreateNewDungeonCommandInput { reset: true });
         }
-        // Clear the screen
-        clear(0x000000ff);
 
-        text!("PRESS START");
+        let t = tick() as f32;
+        sprite!("night_sky", w = w, sw = w, tx = tick(), repeat = true);
+        // sprite!("night_sky");
+        if t % 2. == 0. {
+            sprite!(
+                "clouds_3",
+                y = ((t / 16.).cos() * 2.) + 1.,
+                w = w,
+                sw = w,
+                tx = tick() / 2,
+                repeat = true,
+                opacity = 0.5
+            );
+        }
+        sprite!(
+            "clouds_0",
+            y = ((t / 10.).cos() * 2.) + 1.,
+            w = w,
+            sw = w,
+            tx = tick() / 8,
+            repeat = true
+        );
+        sprite!("title_b", y = ((t / 32.).cos() * 2.) - 2., x = 64);
+        sprite!(
+            "clouds_1",
+            y = ((t / 24.).cos() * 2.) + 1.,
+            w = w,
+            sw = w,
+            tx = tick() / 4,
+            repeat = true
+        );
+        sprite!(
+            "clouds_2",
+            y = ((t / 8.).cos() * 2.) + 1.,
+            w = w,
+            sw = w,
+            tx = tick() / 2,
+            repeat = true
+        );
+        sprite!(
+            "title_text",
+            y = 114.,
+            x = 128 - 9,
+            w = 146,
+            h = 93,
+            color = 0x000000ff,
+            opacity = 0.75
+        );
+        sprite!("title_text", y = 112., x = 128 - 9, w = 146, h = 93);
+
+        // rect!(absolute = true, y = 232 + 15, w = w, h = 1, color = 0x000000ff);
+        if os::user_id().is_some() {
+            rect!(absolute = true, y = 232, w = w, h = 32, color = 0x222034ff);
+            if t / 2. % 32. < 16. {
+                text!(
+                    "PRESS START",
+                    x = 149,
+                    y = 240,
+                    color = 0xffffffff,
+                    font = Font::L
+                );
+            }
+        }
+
+        // text!("PRESS START {:?}", os::user_id(););
+        // text!("Reason: {}", err; y = 32);
+        // text!("PRESS START");
     }
 
     state.save();
@@ -547,6 +814,17 @@ enum MonsterKind {
     YellowBlob,
     BlueBlob,
     RedBlob,
+}
+impl MonsterKind {
+    pub fn abbrev<'a>(&self) -> &'a str {
+        match self {
+            Self::BlueBlob => "B. Blob",
+            Self::RedBlob => "R. Blob",
+            Self::YellowBlob => "Y. Blob",
+            Self::GreenGoblin => "G. Goblin",
+            Self::OrangeGoblin => "O. Goblin",
+        }
+    }
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, Clone)]
@@ -604,7 +882,7 @@ struct Dungeon {
 impl Dungeon {
     fn move_player(&mut self, direction: Direction, log: fn(&str)) -> bool {
         if self.player.health == 0 {
-            log("Player is dead.");
+            log("P1 is dead.");
             return false;
         }
 
@@ -617,31 +895,32 @@ impl Dungeon {
         };
 
         if self.is_out_of_bounds(new_x, new_y) {
-            log("Player cannot move out-of-bounds");
+            log("P1 cannot move out-of-bounds");
             return false;
         }
 
         if self.is_obstacle(new_x, new_y) {
-            log("Player cannot move through obstacle");
+            log("P1 cannot move through obstacle");
             return false;
         }
 
         if self.is_monster(new_x, new_y) {
-            let msg = "Player attacks!".to_string();
-            log(&msg);
-            self.logs.push(msg);
             if let Some(monster) = self
                 .monsters
                 .iter_mut()
                 .find(|m| m.x == new_x && m.y == new_y && m.health > 0)
             {
+                let monster_name = monster.kind.abbrev();
+                let msg = format!("P1 attacks {}!", monster_name);
+                log(&msg);
+                self.logs.push(msg);
                 let amount = self.player.strength;
-                let msg = format!("Player did {amount} damage.");
+                let msg = format!("P1 did {amount} damage.");
                 log(&msg);
                 self.logs.push(msg);
                 monster.health = monster.health.saturating_sub(amount);
                 if monster.health <= 0 {
-                    let msg = "Monster defeated!".to_string();
+                    let msg = format!("{} defeated!", monster_name);
                     log(&msg);
                     self.logs.push(msg);
                 }
@@ -650,9 +929,9 @@ impl Dungeon {
         }
 
         // Player moved
-        let msg = format!("Player moved {direction:?}.");
+        let msg = format!("P1 moved {direction:?}.");
         log(&msg);
-        self.logs.push(msg);
+        // self.logs.push(msg);
         self.player.x = new_x;
         self.player.y = new_y;
         self.player.direction = direction;
@@ -669,9 +948,11 @@ impl Dungeon {
                         self.logs.push(msg);
                     }
                     TreasureKind::Heal => {
+                        let prev_player_health = self.player.health;
                         self.player.health =
                             (self.player.health + amount).min(self.player.max_health);
-                        let msg = format!("Recovered {amount} HP!");
+                        let recovered_health = prev_player_health.abs_diff(self.player.health);
+                        let msg = format!("Recovered {} HP!", recovered_health);
                         log(&msg);
                         self.logs.push(msg);
                     }
@@ -721,7 +1002,8 @@ impl Dungeon {
             // If the monster is adjacent to the player, it attacks
             let (mx, my) = (monster.x, monster.y);
             if (mx - player.x).abs() + (my - player.y).abs() == 1 {
-                let msg = format!("Monster {i} attacks!");
+                let monster_name = monster.kind.abbrev();
+                let msg = format!("{} attacks!", monster_name);
                 log(&msg);
                 self.logs.push(msg);
                 if self.is_player(mx, my - 1) {
@@ -736,13 +1018,14 @@ impl Dungeon {
                 if self.is_player(mx + 1, my) {
                     monster.direction = Direction::Right;
                 }
-                let strength = monster.strength;
-                player.health = player.health.saturating_sub(strength);
-                let msg = format!("Monster {i} did {strength} damage.");
+                let prev_player_health = player.health;
+                player.health = player.health.saturating_sub(monster.strength);
+                let damage = prev_player_health.abs_diff(player.health);
+                let msg = format!("{} did {} damage.", monster_name, damage);
                 log(&msg);
                 self.logs.push(msg);
                 if player.health == 0 {
-                    let msg = "Player died.".to_string();
+                    let msg = "P1 died.".to_string();
                     log(&msg);
                     self.logs.push(msg);
                 }
@@ -838,14 +1121,11 @@ struct DungeonCrawlerProgram;
 impl DungeonCrawlerProgram {
     pub const PROGRAM_ID: &'static str = "dungeon_crawler";
     pub const VERSION: usize = 1;
-    pub fn fetch_player_dungeon(user_id: &str) -> Option<Dungeon> {
+    pub fn fetch_player_dungeon(user_id: &str) -> Result<Dungeon, os::ReadFileError> {
         let filepath = Self::get_dungeon_filepath(&user_id);
-        match os::read_file(Self::PROGRAM_ID, &filepath) {
-            os::ReadFileStatus::Success(file) => {
-                Dungeon::try_from_slice(&file.contents.clone()).ok()
-            }
-            _ => None,
-        }
+        let file = os::read_file(Self::PROGRAM_ID, &filepath)?;
+        Dungeon::try_from_slice(&file.contents)
+            .map_err(|err| ReadFileError::ParsingError(err.to_string()))
     }
     pub fn create_new_dungeon(input: CreateNewDungeonCommandInput) -> String {
         os::exec(
@@ -930,7 +1210,7 @@ impl DungeonCrawlerProgram {
             };
 
             if !dungeon.is_exit(dungeon.player.x, dungeon.player.y) {
-                program::log("Player has not reached the exit.");
+                program::log("P1 has not reached the exit.");
                 return program::CANCEL;
             }
 
@@ -1117,7 +1397,7 @@ impl DungeonCrawlerProgram {
         // Cancel command if player has already won or lost
         program::log("Checking game over conditions...");
         if dungeon.player.health == 0 {
-            program::log("Player has died. Game over.");
+            program::log("P1 has died. Game over.");
             return program::CANCEL;
         }
 
@@ -1132,7 +1412,7 @@ impl DungeonCrawlerProgram {
             program::log("Moving monsters...");
             dungeon.move_monsters(program::log);
         } else {
-            let msg = "Player reached exit.".to_string();
+            let msg = "P1 reached exit.".to_string();
             program::log(&msg);
             dungeon.logs.push(msg);
         }
