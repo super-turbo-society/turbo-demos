@@ -69,29 +69,6 @@ turbo::go!({
                     .expect("Data store should be loaded");
 
                 let (team1, team2) = generate_balanced_teams(&data_store, &mut state.rng);
-                //now assign the previews to each team
-                // team1.create_unit_previews(false);
-                // team2.create_unit_previews(true);
-                // let team_summary = team1.get_unit_summary();
-                // //get team summary, set height 1 and height 2, and x 1 and x 2, create unit previews in correct positions
-
-                // let mut yPos = 50.;
-                // for (unit_type, _count) in team_summary {
-                //     let unit_type = unit_type.to_lowercase();
-                //     let s_w = data_store.get_sprite_width(&unit_type).unwrap();
-                //     let u_p = UnitPreview::new(unit_type, s_w, (120., yPos), false);
-                //     state.unit_previews.push(u_p);
-                //     yPos += 30.;
-                // }
-                // let team_summary = team2.get_unit_summary();
-                // yPos = 50.;
-                // for (unit_type, _count) in team_summary {
-                //     let unit_type = unit_type.to_lowercase();
-                //     let s_w = data_store.get_sprite_width(&unit_type).unwrap();
-                //     let u_p = UnitPreview::new(unit_type, s_w, (180., yPos), true);
-                //     state.unit_previews.push(u_p);
-                //     yPos += 30.;
-                // }
                 state.unit_previews.extend(create_unit_previews(&team1, false, data_store));
                 state.unit_previews.extend(create_unit_previews(&team2, true, data_store));
                 state.teams = Vec::new();
@@ -896,7 +873,14 @@ impl UnitPreview {
     }
 
     fn draw(&self) {
-        self.animator.draw(self.pos, self.flip_x);
+        self.animator.draw(self.draw_pos(), self.flip_x);
+    }
+
+    fn draw_pos(&self) -> (f32,f32){
+        if self.flip_x{
+            return (self.pos.0 - (self.s_w as f32 - 16.), self.pos.1)
+        }
+        self.pos
     }
     //draw from animator
 }
@@ -1025,22 +1009,35 @@ impl Animator {
         let frame_index = (self.anim_timer / self.cur_anim.loops_per_frame); // Calculate the frame index
         let sx = (frame_index * self.cur_anim.s_w)
             .clamp(0, self.cur_anim.s_w * (self.cur_anim.num_frames - 1)); // Calculate the sprite X coordinate
-                                                                           //patch for turbo bug, to be removed later, when bug is fixed
+        //patch for turbo bug, to be removed later, when bug is fixed
         let mut x_adj = 0.;
-        if sx > 32 {
+        // if sx > 32 {
+        //     x_adj = -self.cur_anim.s_w as f32;
+        // }
+        if sx == 3 * self.cur_anim.s_w {
             x_adj = -self.cur_anim.s_w as f32;
         }
-        if sx > 64 {
-            x_adj = 2. * -self.cur_anim.s_w as f32;
-        }
+        
         sprite!(
             name,
             x = pos.0 + x_adj,
             y = pos.1,
             sx = sx,
             flip_x = flip_x,
-            sw = 16,
+            sw = self.cur_anim.s_w,
         );
+        // sprite!(
+        //     "flameboi_attack copy",
+        //     x = pos.0 + x_adj,
+        //     y = pos.1,
+        //     sx =sx,
+        //     flip_x = flip_x,
+        //     sw = 32,
+        //     w = 32,
+        // );
+        // let mut y = 10;
+        // if flip_x{y=20};
+        // text!("sx: {}", sx; x=10, y=y);
     }
 
     fn set_cur_anim(&mut self, new_anim: Animation) {
@@ -1284,9 +1281,15 @@ fn create_team(
     let power1 = power_levels[unit_types[0]];
     let power2 = power_levels[unit_types[1]];
 
+    // Generate random weights for each unit type
+    let weight1 = rng.next_f32();
+    let weight2 = 1.0 - weight1;
+
     while current_power < target_power {
         let remaining_power = target_power - current_power;
-        let use_first_type = rng.next() % 2 == 0;
+        
+        // Use weighted random selection
+        let use_first_type = rng.next_f32() < (weight1 / (weight1 + weight2));
 
         if use_first_type && remaining_power >= power1 {
             team.units.push(unit_types[0].clone());
@@ -1295,9 +1298,26 @@ fn create_team(
             team.units.push(unit_types[1].clone());
             current_power += power2;
         } else {
-            // If we can't add either unit without going over, stop adding units
-            break;
+            // If we can't add either unit without going over, try the other unit
+            if !use_first_type && remaining_power >= power1 {
+                team.units.push(unit_types[0].clone());
+                current_power += power1;
+            } else if use_first_type && remaining_power >= power2 {
+                team.units.push(unit_types[1].clone());
+                current_power += power2;
+            } else {
+                // If we still can't add either unit, stop adding units
+                break;
+            }
         }
+    }
+
+    // Ensure at least one of each unit type
+    if !team.units.contains(unit_types[0]) {
+        team.units.push(unit_types[0].clone());
+    }
+    if !team.units.contains(unit_types[1]) {
+        team.units.push(unit_types[1].clone());
     }
 }
 
@@ -1423,5 +1443,10 @@ impl RNG {
         }
 
         number % range + min
+    }
+    // generates an f32 between 0 and 1
+    fn next_f32(&mut self) -> f32 {
+        // Generate a random u32 and convert it to a float between 0 and 1
+        self.next() as f32 / u32::MAX as f32
     }
 }
