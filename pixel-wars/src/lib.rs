@@ -27,6 +27,7 @@ turbo::init! {
         data_store: Option<UnitDataStore>,
         traps: Vec<Trap>,
         auto_assign_teams: bool,
+        selected_team_index: i32,
     } = {
         let teams = Vec::new();
         Self {
@@ -41,6 +42,7 @@ turbo::init! {
             rng: RNG::new(12345),
             data_store: None,
             auto_assign_teams: true,
+            selected_team_index: 0,
         }
     }
 }
@@ -69,8 +71,12 @@ turbo::go!({
                     .expect("Data store should be loaded");
 
                 let (team1, team2) = generate_balanced_teams(&data_store, &mut state.rng);
-                state.unit_previews.extend(create_unit_previews(&team1, false, data_store));
-                state.unit_previews.extend(create_unit_previews(&team2, true, data_store));
+                state
+                    .unit_previews
+                    .extend(create_unit_previews(&team1, false, data_store));
+                state
+                    .unit_previews
+                    .extend(create_unit_previews(&team2, true, data_store));
                 state.teams = Vec::new();
                 state.teams.push(team1);
                 state.teams.push(team2);
@@ -147,15 +153,19 @@ turbo::go!({
         //we'll only use this for our "sandbox mode".
         if !state.auto_assign_teams {
             draw_team_info_and_buttons(&mut state);
-
-            while let Some(event) = state.event_queue.pop() {
-                match event {
-                    GameEvent::AddUnitToTeam(team_index, unit_type) => {
-                        state.teams[team_index].add_unit(unit_type);
-                    }
-                    GameEvent::RemoveUnitFromTeam(team_index, unit_type) => {
-                        state.teams[team_index].remove_unit(unit_type);
-                    }
+        }
+        while let Some(event) = state.event_queue.pop() {
+            match event {
+                GameEvent::AddUnitToTeam(team_index, unit_type) => {
+                    state.teams[team_index].add_unit(unit_type);
+                }
+                GameEvent::RemoveUnitFromTeam(team_index, unit_type) => {
+                    state.teams[team_index].remove_unit(unit_type);
+                }
+                GameEvent::ChooseTeam(team_num) => {
+                    state.selected_team_index = team_num;
+                    create_units_for_all_teams(&mut state);
+                    state.phase = Phase::Battle;
                 }
             }
         }
@@ -653,6 +663,8 @@ fn draw_assigned_team_info(state: &mut GameState) {
     let pos_0 = 20;
     let pos_1 = 200;
     let y_start = 30;
+    let button_width = 80;
+    let button_height = 20;
 
     for (team_index, pos) in [(0, pos_0), (1, pos_1)].iter() {
         let team = &mut state.teams[*team_index].clone();
@@ -675,11 +687,16 @@ fn draw_assigned_team_info(state: &mut GameState) {
             //figure out which unit type is in each time and how many
         }
         text!("AND", x = *pos + 24, y = y_start + 45);
-        //enter text with [num_unit] + unit name
-        //do "AND"
-        //Do 2nd unit type
-        //do vs. in the middle
-        //do the other side on the right
+
+        //Make a button for this team
+        let team_button = Button::new(
+            String::from("CHOOSE"),
+            (*pos as f32, y_pos as f32 + 20.),
+            (button_width as f32, button_height as f32),
+            GameEvent::ChooseTeam(*team_index as i32),
+        );
+        team_button.draw();
+        team_button.handle_click(state);
     }
     text!(
         "VS.",
@@ -876,9 +893,9 @@ impl UnitPreview {
         self.animator.draw(self.draw_pos(), self.flip_x);
     }
 
-    fn draw_pos(&self) -> (f32,f32){
-        if self.flip_x{
-            return (self.pos.0 - (self.s_w as f32 - 16.), self.pos.1)
+    fn draw_pos(&self) -> (f32, f32) {
+        if self.flip_x {
+            return (self.pos.0 - (self.s_w as f32 - 16.), self.pos.1);
         }
         self.pos
     }
@@ -960,6 +977,7 @@ impl Team {
 enum GameEvent {
     AddUnitToTeam(usize, String),
     RemoveUnitFromTeam(usize, String),
+    ChooseTeam(i32),
 }
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
@@ -1009,7 +1027,7 @@ impl Animator {
         let frame_index = (self.anim_timer / self.cur_anim.loops_per_frame); // Calculate the frame index
         let sx = (frame_index * self.cur_anim.s_w)
             .clamp(0, self.cur_anim.s_w * (self.cur_anim.num_frames - 1)); // Calculate the sprite X coordinate
-        //patch for turbo bug, to be removed later, when bug is fixed
+                                                                           //patch for turbo bug, to be removed later, when bug is fixed
         let mut x_adj = 0.;
         // if sx > 32 {
         //     x_adj = -self.cur_anim.s_w as f32;
@@ -1017,7 +1035,7 @@ impl Animator {
         if sx == 3 * self.cur_anim.s_w {
             x_adj = -self.cur_anim.s_w as f32;
         }
-        
+
         sprite!(
             name,
             x = pos.0 + x_adj,
@@ -1189,7 +1207,50 @@ impl Button {
 }
 
 //POWER LEVEL AND TEAM CREATION
+fn create_units_for_all_teams(state: &mut GameState){
+    //generate units
+    let row_height = 16.0;
+    let row_width = 20.0;
+    let max_y = 200.0;
+    let data_store = state
+        .data_store
+        .as_ref()
+        .expect("Data store should be loaded");
+    //shuffle the units in each team
+    for team in &mut state.teams {
+        shuffle(&mut state.rng, &mut team.units);
+    }
 
+    for (team_index, team) in state.teams.iter().enumerate() {
+        let mut x_start = if team_index == 0 { 70.0 } else { 270.0 }; // Adjusted starting x for team 1
+        let mut y_pos = 50.0;
+
+        for (i, unit_type) in team.units.iter().enumerate() {
+            if y_pos > max_y {
+                y_pos = 50.0;
+
+                if team_index == 0 {
+                    x_start -= row_width;
+                } else {
+                    x_start += row_width;
+                }
+            }
+            let pos = (x_start, y_pos);
+            state.units.push(Unit::new(
+                unit_type.clone(),
+                pos,
+                team_index as i32,
+                &data_store,
+            ));
+            //let unit = Unit::new(UnitType::Axeman, (0.0, 0.0), 0, &unit_type_store);
+            y_pos += row_height;
+        }
+    }
+    //add a random trap for now
+    //state.traps.push(Trap::new(48., (160., 75.), 1., 120, 120));
+    //state.traps.push(Trap::new(48., (200., 120.), 1., 120, 120));
+    //go to Battle Phase
+}
 fn calculate_unit_power_level(data_store: &HashMap<String, UnitData>) -> HashMap<String, f32> {
     let mut power_levels = HashMap::new();
 
@@ -1287,7 +1348,7 @@ fn create_team(
 
     while current_power < target_power {
         let remaining_power = target_power - current_power;
-        
+
         // Use weighted random selection
         let use_first_type = rng.next_f32() < (weight1 / (weight1 + weight2));
 
@@ -1330,8 +1391,8 @@ fn create_unit_previews(
     let mut unit_previews = Vec::new();
     let mut y_start = 50.;
     let mut x = 120.;
-    if is_facing_left{
-        x+=60.;
+    if is_facing_left {
+        x += 60.;
     }
     for (unit_type, _count) in team_summary {
         let unit_type = unit_type.to_lowercase();
