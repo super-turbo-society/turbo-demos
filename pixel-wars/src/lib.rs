@@ -41,7 +41,7 @@ turbo::init! {
             //replace this number with a program number later
             rng: RNG::new(12345),
             data_store: None,
-            auto_assign_teams: true,
+            auto_assign_teams: false,
             selected_team_index: 0,
         }
     }
@@ -49,6 +49,7 @@ turbo::init! {
 
 turbo::go!({
     let mut state = GameState::load();
+    clear!(0x8f8cacff);
     if state.phase == Phase::PreBattle {
         //initialize the data store if it is blank
         if state.data_store.is_none() {
@@ -114,9 +115,7 @@ turbo::go!({
         if !state.auto_assign_teams {
             draw_team_info_and_buttons(&mut state);
         }
-        
     } else if state.phase == Phase::Battle {
-        clear!(0x8f8cacff);
         let units_clone = state.units.clone();
         //let mut damage_map = Vec::new();
 
@@ -179,7 +178,6 @@ turbo::go!({
         //DRAW UNITS
         let mut indices: Vec<usize> = (0..state.units.len()).collect();
 
-        
         indices.sort_by(|&a, &b| {
             let unit_a = &state.units[a];
             let unit_b = &state.units[b];
@@ -215,18 +213,24 @@ turbo::go!({
         if winning_team.is_some() {
             let index: usize = winning_team.take().unwrap_or(-1) as usize;
             let mut text = "You Chose Incorrectly!";
-            if index == state.selected_team_index as usize{
+            if index == state.selected_team_index as usize {
                 text = "You Chose Correctly!";
             }
             //let text = format!("{} Win!", state.teams[index].name);
             //text!(text.as_str(), x = cam!().0,);
-            draw_text_box(text.to_string(), (150.,90.), (120.,20.), 0x333333ff, 0x87CEFAff);
+            draw_text_box(
+                text.to_string(),
+                (20., 150.),
+                (120., 20.),
+                0x333333ff,
+                0x87CEFAff,
+            );
             //add a restart game button here
             let restart_button = Button::new(
                 String::from("AGAIN!"),
-                (150., 120.),
-                (50.,25.),
-                GameEvent::RestartGame()
+                (20., 175.),
+                (50., 25.),
+                GameEvent::RestartGame(),
             );
             restart_button.draw();
             restart_button.handle_click(&mut state);
@@ -271,26 +275,26 @@ turbo::go!({
             0xa69e9aff,
         );
     }
-    
+
     //handle event queue
     while let Some(event) = state.event_queue.pop() {
-            match event {
-                GameEvent::AddUnitToTeam(team_index, unit_type) => {
-                    state.teams[team_index].add_unit(unit_type);
-                }
-                GameEvent::RemoveUnitFromTeam(team_index, unit_type) => {
-                    state.teams[team_index].remove_unit(unit_type);
-                }
-                GameEvent::ChooseTeam(team_num) => {
-                    state.selected_team_index = team_num;
-                    create_units_for_all_teams(&mut state);
-                    state.phase = Phase::Battle;
-                }
-                GameEvent::RestartGame() => {
-                    state = GameState::default();
-                }
+        match event {
+            GameEvent::AddUnitToTeam(team_index, unit_type) => {
+                state.teams[team_index].add_unit(unit_type);
+            }
+            GameEvent::RemoveUnitFromTeam(team_index, unit_type) => {
+                state.teams[team_index].remove_unit(unit_type);
+            }
+            GameEvent::ChooseTeam(team_num) => {
+                state.selected_team_index = team_num;
+                create_units_for_all_teams(&mut state);
+                state.phase = Phase::Battle;
+            }
+            GameEvent::RestartGame() => {
+                state = GameState::default();
             }
         }
+    }
     state.save();
 });
 
@@ -368,10 +372,6 @@ impl Unit {
             loops_per_frame: 10,
             is_looping: true,
         };
-        let mut flip_x = false;
-        if self.team == 1 {
-            flip_x = true;
-        }
         if self.state == UnitState::Moving {
             new_anim.name += "_walk";
             self.animator.set_cur_anim(new_anim);
@@ -397,14 +397,24 @@ impl Unit {
                 self.animator.set_next_anim(Some(next_anim));
             }
         } else if self.state == UnitState::Idle {
-            new_anim.name += "_idle";
-            self.animator.set_cur_anim(new_anim);
+            self.animator.cur_anim.is_looping = false;
+            let next_anim = Animation {
+                name: self.unit_type.to_lowercase() + "_idle",
+                s_w: self.data.sprite_width,
+                num_frames: 4,
+                loops_per_frame: 10,
+                is_looping: true,
+            };
+            self.animator.set_next_anim(Some(next_anim));
         }
-        self.animator.draw(self.draw_position(), flip_x);
+        self.animator.draw(self.draw_position(), self.flip_x());
+        circ!(x=self.pos.0, y=self.pos.1, d = 1, color = 0x000000ff);
         self.animator.update();
-        if self.state != UnitState::Dead {
-            self.draw_health_bar();
-        }
+
+        //TURN THIS ON TO SHOW HEALTH BARS
+        // if self.state == UnitState::Dead {
+        //     self.draw_health_bar();
+        // }
     }
 
     fn draw_health_bar(&self) {
@@ -507,14 +517,18 @@ impl Unit {
     }
 
     fn draw_position(&self) -> (f32, f32) {
-        //TODO: I think this might need some work - 
+        //TODO: I think this might need some work -
         //also might adjust so you can only attack if you are in-line, not up and down.
         //return position - half spr_width
-        let d_p = (
-            self.pos.0 - self.data.sprite_width as f32 / 2.,
-            self.pos.1 - 8.,
-        );
-        d_p
+        let mut d_x = -8.;
+        if self.flip_x(){
+            d_x = 8. - self.data.sprite_width as f32;
+        }
+        return (self.pos.0 + d_x, self.pos.1 - 8.);
+    }
+
+    fn flip_x(&self) -> bool{
+        self.team == 1
     }
 }
 
@@ -752,15 +766,35 @@ fn draw_team_info_and_buttons(state: &mut GameState) {
     }
 }
 
-fn draw_text_box(text: String, pos: (f32, f32), size: (f32, f32), background_color: i32, text_color: i32)
-{
+fn draw_text_box(
+    text: String,
+    pos: (f32, f32),
+    size: (f32, f32),
+    background_color: i32,
+    text_color: i32,
+) {
     //draw a border around the box with rect!
-    rect!(x = pos.0, y = pos.1, w = size.0, h = size.1, color = background_color, border_color = 0x000000ff, border_radius = 2, border_width = 2,);
-    //draw the box with rect!
-    //rect!(x = pos.0, y = pos.1, w = size.0, h = size.1, color = background_color);
-    //draw the text
-    text!(&text, x=pos.0, y=pos.1, color = text_color);
-}   
+    rect!(
+        x = pos.0,
+        y = pos.1,
+        w = size.0,
+        h = size.1,
+        color = background_color,
+        border_color = 0x000000ff,
+        border_radius = 2,
+        border_width = 2,
+    );
+    let text_width = text.len() * 5;
+    let text_height = 8; // Assuming 8 pixels high for the text
+
+    // Calculate centered position for text
+    let text_x = pos.0 as i32 + (size.0 as i32 - text_width as i32) / 2;
+    let text_y = pos.1 as i32 + (size.1 as i32 - text_height as i32) / 2;
+
+    // Draw centered text
+    text!(text.as_str(), x = text_x, y = text_y+1, color = text_color); // Centered button label
+    //text!(&text, x = pos.0, y = pos.1, color = text_color);
+}
 
 fn draw_team_health_bar(
     total_base_health: f32,
@@ -1190,18 +1224,26 @@ impl Button {
             y = self.position.1,
             w = self.size.0,
             h = self.size.1,
-            color = 0x808080ff
+            color = 0x808080ff,
+            border_radius = 2,
+            border_width = 2,
+            border_color = 0x000000ff,
         ); // Example button background
-        text!(
-            self.label.as_str(),
-            x = (self.position.0) as i32,
-            y = (self.position.1) as i32
-        ); // Example button label
+           // Calculate text dimensions
+        let text_width = self.label.len() * 5; // Assuming 4 pixels per character
+        let text_height = 8; // Assuming 8 pixels high for the text
+
+        // Calculate centered position for text
+        let text_x = self.position.0 as i32 + (self.size.0 as i32 - text_width as i32) / 2;
+        let text_y = self.position.1 as i32 + (self.size.1 as i32 - text_height as i32) / 2;
+
+        // Draw centered text
+        text!(self.label.as_str(), x = text_x, y = text_y+1); // Centered button label
     }
 }
 
 //POWER LEVEL AND TEAM CREATION
-fn create_units_for_all_teams(state: &mut GameState){
+fn create_units_for_all_teams(state: &mut GameState) {
     //generate units
     let row_height = 16.0;
     let row_width = 20.0;
