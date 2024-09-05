@@ -99,47 +99,7 @@ turbo::go!({
         let gp = gamepad(0);
         if gp.start.just_pressed() {
             //generate units
-            let row_height = 16.0;
-            let row_width = 20.0;
-            let max_y = 200.0;
-            let data_store = state
-                .data_store
-                .as_ref()
-                .expect("Data store should be loaded");
-            //shuffle the units in each team
-            for team in &mut state.teams {
-                shuffle(&mut state.rng, &mut team.units);
-            }
-
-            for (team_index, team) in state.teams.iter().enumerate() {
-                let mut x_start = if team_index == 0 { 70.0 } else { 270.0 }; // Adjusted starting x for team 1
-                let mut y_pos = 50.0;
-
-                for (i, unit_type) in team.units.iter().enumerate() {
-                    if y_pos > max_y {
-                        y_pos = 50.0;
-
-                        if team_index == 0 {
-                            x_start -= row_width;
-                        } else {
-                            x_start += row_width;
-                        }
-                    }
-                    let pos = (x_start, y_pos);
-                    state.units.push(Unit::new(
-                        unit_type.clone(),
-                        pos,
-                        team_index as i32,
-                        &data_store,
-                    ));
-                    //let unit = Unit::new(UnitType::Axeman, (0.0, 0.0), 0, &unit_type_store);
-                    y_pos += row_height;
-                }
-            }
-            //add a random trap for now
-            //state.traps.push(Trap::new(48., (160., 75.), 1., 120, 120));
-            //state.traps.push(Trap::new(48., (200., 120.), 1., 120, 120));
-            //go to Battle Phase
+            create_units_for_all_teams(&mut state);
             state.phase = Phase::Battle;
         }
         if state.auto_assign_teams {
@@ -154,21 +114,7 @@ turbo::go!({
         if !state.auto_assign_teams {
             draw_team_info_and_buttons(&mut state);
         }
-        while let Some(event) = state.event_queue.pop() {
-            match event {
-                GameEvent::AddUnitToTeam(team_index, unit_type) => {
-                    state.teams[team_index].add_unit(unit_type);
-                }
-                GameEvent::RemoveUnitFromTeam(team_index, unit_type) => {
-                    state.teams[team_index].remove_unit(unit_type);
-                }
-                GameEvent::ChooseTeam(team_num) => {
-                    state.selected_team_index = team_num;
-                    create_units_for_all_teams(&mut state);
-                    state.phase = Phase::Battle;
-                }
-            }
-        }
+        
     } else if state.phase == Phase::Battle {
         clear!(0x8f8cacff);
         let units_clone = state.units.clone();
@@ -229,20 +175,11 @@ turbo::go!({
 
         //check for game over
         let mut winning_team = has_some_team_won(&state.units);
-        if winning_team.is_some() {
-            let index: usize = winning_team.take().unwrap_or(-1) as usize;
-            let text = format!("{} Win!", state.teams[index].name);
-            text!(text.as_str(), x = cam!().0,);
-            for unit in &mut state.units {
-                if unit.state != UnitState::Dead {
-                    unit.state = UnitState::Idle;
-                }
-            }
-        }
+
         //DRAW UNITS
         let mut indices: Vec<usize> = (0..state.units.len()).collect();
 
-        // Sort the indices based on our criteria
+        
         indices.sort_by(|&a, &b| {
             let unit_a = &state.units[a];
             let unit_b = &state.units[b];
@@ -274,6 +211,31 @@ turbo::go!({
             state.units[index].draw();
         }
 
+        //draw text box
+        if winning_team.is_some() {
+            let index: usize = winning_team.take().unwrap_or(-1) as usize;
+            let mut text = "You Chose Incorrectly!";
+            if index == state.selected_team_index as usize{
+                text = "You Chose Correctly!";
+            }
+            //let text = format!("{} Win!", state.teams[index].name);
+            //text!(text.as_str(), x = cam!().0,);
+            draw_text_box(text.to_string(), (150.,90.), (120.,20.), 0x333333ff, 0x87CEFAff);
+            //add a restart game button here
+            let restart_button = Button::new(
+                String::from("AGAIN!"),
+                (150., 120.),
+                (50.,25.),
+                GameEvent::RestartGame()
+            );
+            restart_button.draw();
+            restart_button.handle_click(&mut state);
+            for unit in &mut state.units {
+                if unit.state != UnitState::Dead {
+                    unit.state = UnitState::Idle;
+                }
+            }
+        }
         //Draw team health bars
         // Initialize variables to store health totals for each team
         let mut team0_base_health = 0.0;
@@ -309,7 +271,26 @@ turbo::go!({
             0xa69e9aff,
         );
     }
-
+    
+    //handle event queue
+    while let Some(event) = state.event_queue.pop() {
+            match event {
+                GameEvent::AddUnitToTeam(team_index, unit_type) => {
+                    state.teams[team_index].add_unit(unit_type);
+                }
+                GameEvent::RemoveUnitFromTeam(team_index, unit_type) => {
+                    state.teams[team_index].remove_unit(unit_type);
+                }
+                GameEvent::ChooseTeam(team_num) => {
+                    state.selected_team_index = team_num;
+                    create_units_for_all_teams(&mut state);
+                    state.phase = Phase::Battle;
+                }
+                GameEvent::RestartGame() => {
+                    state = GameState::default();
+                }
+            }
+        }
     state.save();
 });
 
@@ -526,6 +507,8 @@ impl Unit {
     }
 
     fn draw_position(&self) -> (f32, f32) {
+        //TODO: I think this might need some work - 
+        //also might adjust so you can only attack if you are in-line, not up and down.
         //return position - half spr_width
         let d_p = (
             self.pos.0 - self.data.sprite_width as f32 / 2.,
@@ -769,7 +752,17 @@ fn draw_team_info_and_buttons(state: &mut GameState) {
     }
 }
 
-pub fn draw_team_health_bar(
+fn draw_text_box(text: String, pos: (f32, f32), size: (f32, f32), background_color: i32, text_color: i32)
+{
+    //draw a border around the box with rect!
+    rect!(x = pos.0, y = pos.1, w = size.0, h = size.1, color = background_color, border_color = 0x000000ff, border_radius = 2, border_width = 2,);
+    //draw the box with rect!
+    //rect!(x = pos.0, y = pos.1, w = size.0, h = size.1, color = background_color);
+    //draw the text
+    text!(&text, x=pos.0, y=pos.1, color = text_color);
+}   
+
+fn draw_team_health_bar(
     total_base_health: f32,
     current_health: f32,
     pos: (f32, f32),
@@ -978,6 +971,7 @@ enum GameEvent {
     AddUnitToTeam(usize, String),
     RemoveUnitFromTeam(usize, String),
     ChooseTeam(i32),
+    RestartGame(),
 }
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
