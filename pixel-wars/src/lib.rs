@@ -41,7 +41,7 @@ turbo::init! {
             //replace this number with a program number later
             rng: RNG::new(12345),
             data_store: None,
-            auto_assign_teams: false,
+            auto_assign_teams: true,
             selected_team_index: 0,
         }
     }
@@ -62,6 +62,12 @@ turbo::go!({
                     state.data_store = Some(UnitDataStore::new());
                 }
             }
+            // for i in 0..10{
+            //     let a = state.rng.next_in_range(0, 10);
+            //     turbo::println!("A: {}", a);
+            // }
+            //set the seed for the rng as a random number. TODO: get this from turbo os
+            state.rng = RNG::new(rand());
         }
         //if teams are not assigned, check if we should auto assign or not
         if state.teams.len() == 0 {
@@ -81,7 +87,6 @@ turbo::go!({
                 state.teams = Vec::new();
                 state.teams.push(team1);
                 state.teams.push(team2);
-                //create the unit previews
             } else {
                 //make two blank teams
                 let data_store = state
@@ -103,6 +108,7 @@ turbo::go!({
             create_units_for_all_teams(&mut state);
             state.phase = Phase::Battle;
         }
+
         if state.auto_assign_teams {
             //draw each unit based on the teams
             draw_assigned_team_info(&mut state);
@@ -111,13 +117,15 @@ turbo::go!({
                 u.draw();
             }
         }
-        //we'll only use this for our "sandbox mode".
+        
         if !state.auto_assign_teams {
             draw_team_info_and_buttons(&mut state);
         }
-    } else if state.phase == Phase::Battle {
+    } 
+    else if state.phase == Phase::Battle {
+        //using this for some comparisons, but might be able to remove it eventually
         let units_clone = state.units.clone();
-        //let mut damage_map = Vec::new();
+       
 
         //go through each unit, see what it wants to do, and handle all actions from here
         for unit in &mut state.units {
@@ -129,7 +137,7 @@ turbo::go!({
                     } else {
                         if unit.state == UnitState::Idle {
                             unit.new_target_tween_position(
-                                units_clone[index].clone().pos,
+                                &units_clone[index].pos,
                                 &mut state.rng,
                             );
                         }
@@ -139,7 +147,7 @@ turbo::go!({
             unit.update();
             //check for traps
             for trap in &state.traps {
-                if distance_between(unit.pos, trap.pos) < trap.size / 2. && trap.is_active() {
+                if distance_between(unit.pos, trap.pos) < (trap.size / 2.) && trap.is_active() {
                     unit.take_damage(trap.damage);
                 }
             }
@@ -294,6 +302,15 @@ turbo::go!({
                 state = GameState::default();
             }
         }
+    }
+    let gp = gamepad(0);
+    if gp.right.just_pressed(){
+        state = GameState::default();
+        state.auto_assign_teams=false;
+    }
+    if gp.left.just_pressed(){
+        state = GameState::default();
+        state.auto_assign_teams=true;
     }
     state.save();
 });
@@ -465,7 +482,7 @@ impl Unit {
         // )
     }
 
-    fn new_target_tween_position(&mut self, target: (f32, f32), rng: &mut RNG) {
+    fn new_target_tween_position(&mut self, target: &(f32, f32), rng: &mut RNG) {
         // Calculate the direction vector from self.pos to target
         let dir_x = target.0 - self.pos.0;
         let dir_y = target.1 - self.pos.1;
@@ -517,9 +534,9 @@ impl Unit {
     }
 
     fn draw_position(&self) -> (f32, f32) {
-        //TODO: I think this might need some work -
-        //also might adjust so you can only attack if you are in-line, not up and down.
-        //return position - half spr_width
+        //TODO: I think this might need some work - we probably need to define an 'anchor' point
+        //in the csv. I am trying to 'guess' about how far the body is from where the sprite is drawing
+        //and since theres a lot of empty space on some sprites, when you flip_x you get a lot of empty space.
         let mut d_x = -8.;
         if self.flip_x(){
             d_x = 8. - self.data.sprite_width as f32;
@@ -1334,12 +1351,14 @@ fn generate_balanced_teams(data: &UnitDataStore, rng: &mut RNG) -> (Team, Team) 
     let average_power: f32 = power_levels.values().sum::<f32>() / power_levels.len() as f32;
     let target_team_power = average_power * 25.0;
 
-    let unit_types: Vec<&String> = power_levels.keys().collect();
+    let mut unit_types: Vec<&String> = power_levels.keys().collect();
+    unit_types.sort();
 
     // Select four different unit types
     let mut selected_types = Vec::new();
     while selected_types.len() < 4 {
         let index = rng.next_in_range(0, unit_types.len() as u32 - 1) as usize;
+        turbo::println!("Index: {}", index);
         let unit_type = unit_types[index];
         if !selected_types.contains(&unit_type) {
             selected_types.push(unit_type);
