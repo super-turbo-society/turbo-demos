@@ -5,6 +5,10 @@ use std::error::Error;
 use std::fmt::{format, Display};
 
 const UNIT_DATA_CSV: &[u8] = include_bytes!("../resources/unit-data.csv");
+const DAMAGE_EFFECT_TIME: u32 = 12;
+const DAMAGE_TINT_COLOR: usize = 0xb9451dff;
+const COLOR_WHITE: usize = 0xffffffff;
+const UNIT_ANIM_SPEED: i32 = 8;
 
 turbo::cfg! {r#"
     name = "Pixel Wars"
@@ -334,6 +338,8 @@ struct Unit {
     move_tween_y: Tween<f32>,
     attack_timer: i32,
     animator: Animator,
+    damage_effect_timer: u32,
+    blood_splatter: Option<BloodSplatter>,
 }
 
 impl Unit {
@@ -352,12 +358,14 @@ impl Unit {
             move_tween_x: Tween::new(0.),
             move_tween_y: Tween::new(0.),
             attack_timer: 0,
+            damage_effect_timer: 0,
+            blood_splatter: None,
             //placeholder, gets overwritten when they are drawn, but I can't figure out how to do it more logically than this
             animator: Animator::new(Animation {
                 name: "placeholder".to_string(),
                 s_w: data.sprite_width,
                 num_frames: 4,
-                loops_per_frame: 10,
+                loops_per_frame: UNIT_ANIM_SPEED,
                 is_looping: true,
             }),
         }
@@ -386,7 +394,7 @@ impl Unit {
             name: self.unit_type.to_lowercase(),
             s_w: self.data.sprite_width,
             num_frames: 4,
-            loops_per_frame: 10,
+            loops_per_frame: UNIT_ANIM_SPEED,
             is_looping: true,
         };
         if self.state == UnitState::Moving {
@@ -408,7 +416,7 @@ impl Unit {
                     name: self.unit_type.to_lowercase() + "_idle",
                     s_w: self.data.sprite_width,
                     num_frames: 4,
-                    loops_per_frame: 10,
+                    loops_per_frame: UNIT_ANIM_SPEED,
                     is_looping: true,
                 };
                 self.animator.set_next_anim(Some(next_anim));
@@ -419,14 +427,32 @@ impl Unit {
                 name: self.unit_type.to_lowercase() + "_idle",
                 s_w: self.data.sprite_width,
                 num_frames: 4,
-                loops_per_frame: 10,
+                loops_per_frame: UNIT_ANIM_SPEED,
                 is_looping: true,
             };
             self.animator.set_next_anim(Some(next_anim));
         }
-        self.animator.draw(self.draw_position(), self.flip_x());
-        circ!(x=self.pos.0, y=self.pos.1, d = 1, color = 0x000000ff);
+        if self.damage_effect_timer > 0{
+            self.animator.change_tint_color(DAMAGE_TINT_COLOR);
+            self.damage_effect_timer -= 1;
+        }
+        else{
+            self.animator.change_tint_color(COLOR_WHITE);
+        }
         self.animator.update();
+        self.animator.draw(self.draw_position(), self.flip_x());
+        if let Some(ref mut splatter) = self.blood_splatter {
+            splatter.update();
+            if splatter.animator.is_done(){
+                self.blood_splatter=None;
+            }
+            else{
+                splatter.draw();
+            }
+        }
+        //TESTING FOR center position
+        //circ!(x=self.pos.0, y=self.pos.1, d = 1, color = 0x000000ff);
+        //draw blood splatter
 
         //TURN THIS ON TO SHOW HEALTH BARS
         // if self.state == UnitState::Dead {
@@ -510,6 +536,12 @@ impl Unit {
     fn take_damage(&mut self, damage: f32) {
         self.health -= damage;
         self.health = self.health.max(0.);
+        self.damage_effect_timer = DAMAGE_EFFECT_TIME;
+        if self.blood_splatter.is_none(){
+            let mut new_splatter = BloodSplatter::new(self.pos);
+            new_splatter.set_anim(1);
+            self.blood_splatter = Some(new_splatter);
+        }
     }
 
     fn start_attack(&mut self, target_index: usize) -> Attack {
@@ -559,6 +591,51 @@ struct UnitData {
     attack_time: i32,
     splash_area: f32,
     sprite_width: i32,
+}
+
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
+struct BloodSplatter {
+    animator: Animator,
+    pos: (f32, f32),
+
+}
+
+impl BloodSplatter{
+
+    fn new(pos: (f32, f32)) -> Self {
+        Self {
+            //placeholder animation
+            animator: Animator::new(Animation {
+                name: "placeholder".to_string(),
+                s_w: 16,
+                num_frames: 0,
+                loops_per_frame: 0,
+                is_looping: true,
+            }),
+            pos,
+        }
+    }
+
+    fn set_anim(&mut self, num: usize){
+        //pick a random blood splatter
+        //let index = (rng.next() & 8) + 1;
+        let spr_name = format!("blood_16px_{}", num);
+        self.animator.set_cur_anim(Animation{
+            name: spr_name.to_string(),
+            s_w: 16,
+            num_frames: 4,
+            loops_per_frame: 50,
+            is_looping: false,
+        });
+        //set the animation as that blood splatter
+    }
+    fn update(&mut self){
+        self.animator.update();
+    }
+
+    fn draw(&self){
+        self.animator.draw(self.pos, true)
+    }
 }
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
@@ -913,7 +990,7 @@ impl UnitPreview {
             name: self.unit_type.to_lowercase(),
             s_w: self.s_w,
             num_frames: 4,
-            loops_per_frame: 10,
+            loops_per_frame: UNIT_ANIM_SPEED,
             is_looping: false,
         };
         if self.state == UnitState::Idle {
@@ -1037,6 +1114,7 @@ struct Animator {
     cur_anim: Animation,
     anim_timer: i32,
     next_anim: Option<Animation>,
+    tint_color: usize
 }
 
 impl Animator {
@@ -1045,6 +1123,7 @@ impl Animator {
             cur_anim,
             anim_timer: 0,
             next_anim: None,
+            tint_color: COLOR_WHITE,
         }
     }
 
@@ -1065,6 +1144,10 @@ impl Animator {
             return true;
         }
         false
+    }
+
+    fn change_tint_color(&mut self, color: usize){
+        self.tint_color = color;
     }
 
     fn draw(&self, pos: (f32, f32), flip_x: bool) {
@@ -1088,6 +1171,7 @@ impl Animator {
             sx = sx,
             flip_x = flip_x,
             sw = self.cur_anim.s_w,
+            color = self.tint_color,
         );
         // sprite!(
         //     "flameboi_attack copy",
