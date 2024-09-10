@@ -166,16 +166,18 @@ turbo::go!({
                 //if it has splash area, then look for all enemy units within range
                 if attack.splash_area > 0. {
                     for unit in &mut state.units {
-                        if distance_between(attack.pos, unit.pos) <= attack.splash_area {
+                        if distance_between(attack.pos, unit.pos) <= attack.splash_area && unit.state != UnitState::Dead {
                             unit.take_damage(attack.damage);
                         }
                     }
-                    //create explosion
-                    let explosion_offset = (-16., -12.);
-                    let explosion_pos = (attack.pos.0 + explosion_offset.0, attack.pos.1 + explosion_offset.1);
-                    let mut explosion = AnimatedSprite::new(explosion_pos, false);
-                    explosion.set_anim("explosion".to_string(), 32, 15, 5, false);
-                    state.explosions.push(explosion);
+                }
+                if attack.is_explosive{
+                     //create explosion
+                     let explosion_offset = (-16., -16.);
+                     let explosion_pos = (attack.pos.0 + explosion_offset.0, attack.pos.1 + explosion_offset.1);
+                     let mut explosion = AnimatedSprite::new(explosion_pos, false);
+                     explosion.set_anim("explosion".to_string(), 32, 15, 5, false);
+                     state.explosions.push(explosion);
                 }
             }
 
@@ -569,14 +571,18 @@ impl Unit {
         self.state = UnitState::Attacking;
         //create the actual attack
         let size = 1;
-        Attack::new(
+        let mut attack = Attack::new(
             target_index,
             2.,
             self.pos,
             self.data.damage,
             self.data.splash_area,
             size,
-        )
+        );
+        if self.unit_type == "bazooka"{
+            attack.is_explosive = true;
+        }
+        attack
     }
 
     fn distance_to(&self, other: &Unit) -> f32 {
