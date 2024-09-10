@@ -444,14 +444,17 @@ impl Unit {
         if let Some(ref mut splatter) = self.blood_splatter {
             splatter.update();
             if splatter.animator.is_done(){
+                log!("Splatter Done");
                 self.blood_splatter=None;
             }
             else{
                 splatter.draw();
+                log("Splatter Drawing");
             }
         }
         //TESTING FOR center position
-        //circ!(x=self.pos.0, y=self.pos.1, d = 1, color = 0x000000ff);
+        // circ!(x=self.pos.0, y=self.pos.1, d = 2, color = 0x000000ff);
+        // sprite!("blood_16px_01", x=self.pos.0, y=self.pos.1);
         //draw blood splatter
 
         //TURN THIS ON TO SHOW HEALTH BARS
@@ -538,8 +541,19 @@ impl Unit {
         self.health = self.health.max(0.);
         self.damage_effect_timer = DAMAGE_EFFECT_TIME;
         if self.blood_splatter.is_none(){
-            let mut new_splatter = BloodSplatter::new(self.pos);
-            new_splatter.set_anim(1);
+            //make the splatter position the top-middle of the sprite
+            let mut splat_pos = self.pos;
+            //TODO: Figure out something better to do with these numbers, they do sort of just work for now
+            if self.flip_x(){
+                splat_pos.0 -= 8.;
+            }
+            else{
+                splat_pos.0 -= 12.;
+            }
+            splat_pos.1 -= 12.;
+            let mut new_splatter = BloodSplatter::new(splat_pos);
+            let num = rand() % 8 + 1;
+            new_splatter.set_anim(num as usize);
             self.blood_splatter = Some(new_splatter);
         }
     }
@@ -593,6 +607,7 @@ struct UnitData {
     sprite_width: i32,
 }
 
+//TODO: Make this generic as an AnimationOneShot, and update accordingly
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 struct BloodSplatter {
     animator: Animator,
@@ -617,17 +632,14 @@ impl BloodSplatter{
     }
 
     fn set_anim(&mut self, num: usize){
-        //pick a random blood splatter
-        //let index = (rng.next() & 8) + 1;
-        let spr_name = format!("blood_16px_{}", num);
+        let spr_name = format!("blood_16px_0{}", num);
         self.animator.set_cur_anim(Animation{
             name: spr_name.to_string(),
             s_w: 16,
             num_frames: 4,
-            loops_per_frame: 50,
+            loops_per_frame: UNIT_ANIM_SPEED,
             is_looping: false,
         });
-        //set the animation as that blood splatter
     }
     fn update(&mut self){
         self.animator.update();
@@ -646,6 +658,7 @@ struct Attack {
     damage: f32,
     splash_area: f32,
     size: i32,
+    is_explosive: bool,
 }
 
 impl Attack {
@@ -665,6 +678,7 @@ impl Attack {
             damage,
             splash_area,
             size,
+            is_explosive: false,
         }
     }
     fn update(&mut self, units: &Vec<Unit>) -> bool {
@@ -1265,7 +1279,6 @@ impl Trap {
         }
     }
 
-    // Draw function: use the circ! macro to draw a red circle of size 'size'
     fn draw(&self) {
         if self.timer <= self.on_dur {
             circ!(
