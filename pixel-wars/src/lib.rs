@@ -32,6 +32,7 @@ turbo::init! {
         traps: Vec<Trap>,
         auto_assign_teams: bool,
         selected_team_index: i32,
+        explosions: Vec<AnimatedSprite>,
     } = {
         let teams = Vec::new();
         Self {
@@ -42,6 +43,7 @@ turbo::init! {
             event_queue: Vec::new(),
             traps: Vec::new(),
             unit_previews: Vec::new(),
+            explosions: Vec::new(),
             //replace this number with a program number later
             rng: RNG::new(12345),
             data_store: None,
@@ -121,15 +123,13 @@ turbo::go!({
                 u.draw();
             }
         }
-        
+
         if !state.auto_assign_teams {
             draw_team_info_and_buttons(&mut state);
         }
-    } 
-    else if state.phase == Phase::Battle {
+    } else if state.phase == Phase::Battle {
         //using this for some comparisons, but might be able to remove it eventually
         let units_clone = state.units.clone();
-       
 
         //go through each unit, see what it wants to do, and handle all actions from here
         for unit in &mut state.units {
@@ -140,10 +140,7 @@ turbo::go!({
                         state.attacks.push(unit.start_attack(index));
                     } else {
                         if unit.state == UnitState::Idle {
-                            unit.new_target_tween_position(
-                                &units_clone[index].pos,
-                                &mut state.rng,
-                            );
+                            unit.new_target_tween_position(&units_clone[index].pos, &mut state.rng);
                         }
                     }
                 }
@@ -173,6 +170,12 @@ turbo::go!({
                             unit.take_damage(attack.damage);
                         }
                     }
+                    //create explosion
+                    let explosion_offset = (-16., -12.);
+                    let explosion_pos = (attack.pos.0 + explosion_offset.0, attack.pos.1 + explosion_offset.1);
+                    let mut explosion = AnimatedSprite::new(explosion_pos, false);
+                    explosion.set_anim("explosion".to_string(), 32, 15, 5, false);
+                    state.explosions.push(explosion);
                 }
             }
 
@@ -220,7 +223,13 @@ turbo::go!({
         for &index in &indices {
             state.units[index].draw();
         }
-
+        state.explosions.retain_mut(|explosion| {
+            explosion.update();
+            !explosion.animator.is_done()
+        });
+        for explosion in &mut state.explosions{
+            explosion.draw();
+        }
         //draw text box
         if winning_team.is_some() {
             let index: usize = winning_team.take().unwrap_or(-1) as usize;
@@ -308,13 +317,13 @@ turbo::go!({
         }
     }
     let gp = gamepad(0);
-    if gp.right.just_pressed(){
+    if gp.right.just_pressed() {
         state = GameState::default();
-        state.auto_assign_teams=false;
+        state.auto_assign_teams = false;
     }
-    if gp.left.just_pressed(){
+    if gp.left.just_pressed() {
         state = GameState::default();
-        state.auto_assign_teams=true;
+        state.auto_assign_teams = true;
     }
     state.save();
 });
@@ -339,7 +348,7 @@ struct Unit {
     attack_timer: i32,
     animator: Animator,
     damage_effect_timer: u32,
-    blood_splatter: Option<BloodSplatter>,
+    blood_splatter: Option<AnimatedSprite>,
 }
 
 impl Unit {
@@ -432,22 +441,20 @@ impl Unit {
             };
             self.animator.set_next_anim(Some(next_anim));
         }
-        if self.damage_effect_timer > 0{
+        if self.damage_effect_timer > 0 {
             self.animator.change_tint_color(DAMAGE_TINT_COLOR);
             self.damage_effect_timer -= 1;
-        }
-        else{
+        } else {
             self.animator.change_tint_color(COLOR_WHITE);
         }
         self.animator.update();
         self.animator.draw(self.draw_position(), self.flip_x());
         if let Some(ref mut splatter) = self.blood_splatter {
             splatter.update();
-            if splatter.animator.is_done(){
+            if splatter.animator.is_done() {
                 log!("Splatter Done");
-                self.blood_splatter=None;
-            }
-            else{
+                self.blood_splatter = None;
+            } else {
                 splatter.draw();
                 log("Splatter Drawing");
             }
@@ -455,7 +462,6 @@ impl Unit {
         //TESTING FOR center position
         // circ!(x=self.pos.0, y=self.pos.1, d = 2, color = 0x000000ff);
         // sprite!("blood_16px_01", x=self.pos.0, y=self.pos.1);
-        //draw blood splatter
 
         //TURN THIS ON TO SHOW HEALTH BARS
         // if self.state == UnitState::Dead {
@@ -540,20 +546,20 @@ impl Unit {
         self.health -= damage;
         self.health = self.health.max(0.);
         self.damage_effect_timer = DAMAGE_EFFECT_TIME;
-        if self.blood_splatter.is_none(){
+        if self.blood_splatter.is_none() {
             //make the splatter position the top-middle of the sprite
             let mut splat_pos = self.pos;
             //TODO: Figure out something better to do with these numbers, they do sort of just work for now
-            if self.flip_x(){
+            if self.flip_x() {
                 splat_pos.0 -= 8.;
-            }
-            else{
+            } else {
                 splat_pos.0 -= 12.;
             }
             splat_pos.1 -= 12.;
-            let mut new_splatter = BloodSplatter::new(splat_pos);
+            let mut new_splatter = AnimatedSprite::new(splat_pos, self.flip_x());
             let num = rand() % 8 + 1;
-            new_splatter.set_anim(num as usize);
+            let name = format!("blood_16px_0{}", num);
+            new_splatter.set_anim(name, self.data.sprite_width, 4, UNIT_ANIM_SPEED, false);
             self.blood_splatter = Some(new_splatter);
         }
     }
@@ -584,13 +590,13 @@ impl Unit {
         //in the csv. I am trying to 'guess' about how far the body is from where the sprite is drawing
         //and since theres a lot of empty space on some sprites, when you flip_x you get a lot of empty space.
         let mut d_x = -8.;
-        if self.flip_x(){
+        if self.flip_x() {
             d_x = 8. - self.data.sprite_width as f32;
         }
         return (self.pos.0 + d_x, self.pos.1 - 8.);
     }
 
-    fn flip_x(&self) -> bool{
+    fn flip_x(&self) -> bool {
         self.team == 1
     }
 }
@@ -607,17 +613,18 @@ struct UnitData {
     sprite_width: i32,
 }
 
-//TODO: Make this generic as an AnimationOneShot, and update accordingly
+//TODO: Make this generic as an AnimatedSprite, and update accordingly
+//then use it for explosions
+//should also have a flip_x that gets set when it is created and use that for the animation
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
-struct BloodSplatter {
+struct AnimatedSprite {
     animator: Animator,
     pos: (f32, f32),
-
+    flip_x: bool,
 }
 
-impl BloodSplatter{
-
-    fn new(pos: (f32, f32)) -> Self {
+impl AnimatedSprite {
+    fn new(pos: (f32, f32), flip_x: bool) -> Self {
         Self {
             //placeholder animation
             animator: Animator::new(Animation {
@@ -628,24 +635,31 @@ impl BloodSplatter{
                 is_looping: true,
             }),
             pos,
+            flip_x,
         }
     }
 
-    fn set_anim(&mut self, num: usize){
-        let spr_name = format!("blood_16px_0{}", num);
-        self.animator.set_cur_anim(Animation{
-            name: spr_name.to_string(),
-            s_w: 16,
-            num_frames: 4,
-            loops_per_frame: UNIT_ANIM_SPEED,
-            is_looping: false,
+    fn set_anim(
+        &mut self,
+        name: String,
+        s_w: i32,
+        num_frames: i32,
+        loops_per_frame: i32,
+        is_looping: bool,
+    ) {
+        self.animator.set_cur_anim(Animation {
+            name,
+            s_w,
+            num_frames,
+            loops_per_frame,
+            is_looping,
         });
     }
-    fn update(&mut self){
+    fn update(&mut self) {
         self.animator.update();
     }
 
-    fn draw(&self){
+    fn draw(&self) {
         self.animator.draw(self.pos, true)
     }
 }
@@ -900,8 +914,13 @@ fn draw_text_box(
     let text_y = pos.1 as i32 + (size.1 as i32 - text_height as i32) / 2;
 
     // Draw centered text
-    text!(text.as_str(), x = text_x, y = text_y+1, color = text_color); // Centered button label
-    //text!(&text, x = pos.0, y = pos.1, color = text_color);
+    text!(
+        text.as_str(),
+        x = text_x,
+        y = text_y + 1,
+        color = text_color
+    ); // Centered button label
+       //text!(&text, x = pos.0, y = pos.1, color = text_color);
 }
 
 fn draw_team_health_bar(
@@ -1128,7 +1147,7 @@ struct Animator {
     cur_anim: Animation,
     anim_timer: i32,
     next_anim: Option<Animation>,
-    tint_color: usize
+    tint_color: usize,
 }
 
 impl Animator {
@@ -1142,6 +1161,9 @@ impl Animator {
     }
 
     fn update(&mut self) {
+        // if !self.is_done(){
+        //     self.anim_timer += 1;
+        // }
         self.anim_timer += 1;
         if self.is_done() {
             if self.cur_anim.is_looping {
@@ -1154,28 +1176,29 @@ impl Animator {
     }
 
     fn is_done(&self) -> bool {
-        if self.anim_timer > self.cur_anim.total_animation_time() {
+        if self.anim_timer >= self.cur_anim.total_animation_time() {
             return true;
         }
         false
     }
 
-    fn change_tint_color(&mut self, color: usize){
+    fn change_tint_color(&mut self, color: usize) {
         self.tint_color = color;
     }
 
     fn draw(&self, pos: (f32, f32), flip_x: bool) {
         let name = self.cur_anim.name.as_str();
-        let frame_index = (self.anim_timer / self.cur_anim.loops_per_frame); // Calculate the frame index
+        let mut frame_index = self.anim_timer / self.cur_anim.loops_per_frame; // Calculate the frame index
+        frame_index = frame_index.clamp(0, self.cur_anim.num_frames-1);
         let sx = (frame_index * self.cur_anim.s_w)
             .clamp(0, self.cur_anim.s_w * (self.cur_anim.num_frames - 1)); // Calculate the sprite X coordinate
-                                                                           //patch for turbo bug, to be removed later, when bug is fixed
         let mut x_adj = 0.;
         // if sx > 32 {
         //     x_adj = -self.cur_anim.s_w as f32;
         // }
-        if sx == 3 * self.cur_anim.s_w {
-            x_adj = -self.cur_anim.s_w as f32;
+        //log!("FI: {}", frame_index);
+        if frame_index >= 3 {//* self.cur_anim.s_w {
+            x_adj = (-self.cur_anim.s_w * (frame_index - 2)) as f32;
         }
 
         sprite!(
@@ -1352,7 +1375,7 @@ impl Button {
         let text_y = self.position.1 as i32 + (self.size.1 as i32 - text_height as i32) / 2;
 
         // Draw centered text
-        text!(self.label.as_str(), x = text_x, y = text_y+1); // Centered button label
+        text!(self.label.as_str(), x = text_x, y = text_y + 1); // Centered button label
     }
 }
 
