@@ -532,8 +532,10 @@ impl Unit {
     }
 
     fn new_target_tween_position(&mut self, target: &(f32, f32), rng: &mut RNG) {
-        // Calculate the direction vector from self.pos to target
-        let mut adj_target = *target;
+       
+        //**This was an attempt to make the ranged units kite away from their target
+        //but it never really worked right**
+        //let mut adj_target = *target;
         // if self.data.range > 40.{
         //     //adjust this so your target X is more like where you will attack from (target - range)
         //     if adj_target.0 > self.pos.0{
@@ -543,8 +545,9 @@ impl Unit {
         //         adj_target.0 += self.data.range - 10.;
         //     }
         // }
-        let dir_x = adj_target.0 - self.pos.0;
-        let dir_y = adj_target.1 - self.pos.1;
+        // Calculate the direction vector from self.pos to target
+        let dir_x = target.0 - self.pos.0;
+        let dir_y = target.1 - self.pos.1;
 
         if dir_x > 0.{
             self.is_facing_left = false;
@@ -562,7 +565,7 @@ impl Unit {
         let rand_x = rng.next_in_range(0, 5) as f32 * norm_dir_x.signum();
         //turbo::println!("rand_x: {}", rand_x);
 
-        let rand_y = rng.next_in_range(0, 5) as f32 * norm_dir_y.signum();
+        let rand_y = rng.next_in_range(0, 8) as f32 * norm_dir_y.signum();
         //turbo::println!("rand_y: {}", rand_x);
 
         let new_x = self.pos.0 + norm_dir_x * self.data.speed + rand_x;
@@ -614,9 +617,10 @@ impl Unit {
             }
             splat_pos.1 -= 12.;
             let mut new_splatter = AnimatedSprite::new(splat_pos, self.flip_x());
-            let num = rand() % 8 + 1;
+            //let num = rand() % 8 + 1;
+            let num = 8;
             let name = format!("blood_16px_0{}", num);
-            new_splatter.set_anim(name, self.data.sprite_width, 4, UNIT_ANIM_SPEED, false);
+            new_splatter.set_anim(name, 16, 4, UNIT_ANIM_SPEED, false);
             self.blood_splatter = Some(new_splatter);
         }
     }
