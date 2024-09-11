@@ -139,6 +139,12 @@ turbo::go!({
                 if let Some(index) = closest_enemy_index(&unit, &units_clone) {
                     if unit.is_unit_in_range(&units_clone[index]) {
                         state.attacks.push(unit.start_attack(index));
+                        if unit.pos.0 > units_clone[index].pos.0{
+                            unit.is_facing_left = true;
+                        }
+                        else{
+                            unit.is_facing_left = false;
+                        }
                     } else {
                         if unit.state == UnitState::Idle {
                             unit.new_target_tween_position(&units_clone[index].pos, &mut state.rng);
@@ -528,15 +534,15 @@ impl Unit {
     fn new_target_tween_position(&mut self, target: &(f32, f32), rng: &mut RNG) {
         // Calculate the direction vector from self.pos to target
         let mut adj_target = *target;
-        if self.data.range > 40.{
-            //adjust this so your target X is more like where you will attack from (target - range)
-            if adj_target.0 > self.pos.0{
-                adj_target.0 -= self.data.range - 10.;
-            }
-            else{
-                adj_target.0 += self.data.range - 10.;
-            }
-        }
+        // if self.data.range > 40.{
+        //     //adjust this so your target X is more like where you will attack from (target - range)
+        //     if adj_target.0 > self.pos.0{
+        //         adj_target.0 -= self.data.range - 10.;
+        //     }
+        //     else{
+        //         adj_target.0 += self.data.range - 10.;
+        //     }
+        // }
         let dir_x = adj_target.0 - self.pos.0;
         let dir_y = adj_target.1 - self.pos.1;
 
