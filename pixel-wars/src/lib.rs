@@ -348,10 +348,12 @@ struct Unit {
     state: UnitState,
     move_tween_x: Tween<f32>,
     move_tween_y: Tween<f32>,
+    target_pos: (f32, f32),
     attack_timer: i32,
     animator: Animator,
     damage_effect_timer: u32,
     blood_splatter: Option<AnimatedSprite>,
+    is_facing_left: bool,
 }
 
 impl Unit {
@@ -364,6 +366,7 @@ impl Unit {
             data: data.clone(),
             unit_type,
             team,
+
             health: data.max_health,
             pos,
             state: UnitState::Idle,
@@ -372,6 +375,8 @@ impl Unit {
             attack_timer: 0,
             damage_effect_timer: 0,
             blood_splatter: None,
+            is_facing_left: false,
+            target_pos: (0.,0.),
             //placeholder, gets overwritten when they are drawn, but I can't figure out how to do it more logically than this
             animator: Animator::new(Animation {
                 name: "placeholder".to_string(),
@@ -522,9 +527,25 @@ impl Unit {
 
     fn new_target_tween_position(&mut self, target: &(f32, f32), rng: &mut RNG) {
         // Calculate the direction vector from self.pos to target
-        let dir_x = target.0 - self.pos.0;
-        let dir_y = target.1 - self.pos.1;
+        let mut adj_target = *target;
+        if self.data.range > 40.{
+            //adjust this so your target X is more like where you will attack from (target - range)
+            if adj_target.0 > self.pos.0{
+                adj_target.0 -= self.data.range - 10.;
+            }
+            else{
+                adj_target.0 += self.data.range - 10.;
+            }
+        }
+        let dir_x = adj_target.0 - self.pos.0;
+        let dir_y = adj_target.1 - self.pos.1;
 
+        if dir_x > 0.{
+            self.is_facing_left = false;
+        }
+        else if dir_x < 0.{
+            self.is_facing_left = true;
+        }
         // Calculate the length (magnitude) of the direction vector
         let length = (dir_x * dir_x + dir_y * dir_y).sqrt();
 
@@ -543,6 +564,33 @@ impl Unit {
         self.move_tween_x = Tween::new(self.pos.0).set(new_x).duration(20);
         self.move_tween_y = Tween::new(self.pos.1).set(new_y).duration(20);
         self.state = UnitState::Moving;
+    }
+
+    //Not using this for now - but if we need some more control over movement we can
+    fn new_target_position(&mut self, target:&(f32, f32), rng: &mut RNG){
+        //Move toward the target xunits + some randomness
+         // Calculate the direction vector from self.pos to target
+         let dir_x = target.0 - self.pos.0;
+         let dir_y = target.1 - self.pos.1;
+ 
+         // Calculate the length (magnitude) of the direction vector
+         let length = (dir_x * dir_x + dir_y * dir_y).sqrt();
+ 
+         // Normalize the direction vector
+         let norm_dir_x = dir_x / length;
+         let norm_dir_y = dir_y / length;
+ 
+         let rand_x = rng.next_f32() * norm_dir_x.signum() * 10.;
+         //turbo::println!("rand_x: {}", rand_x);
+ 
+         let rand_y = rng.next_f32() * norm_dir_y.signum() * 10.;
+         //turbo::println!("rand_y: {}", rand_x);
+        
+         let new_x = self.pos.0 + norm_dir_x * (self.data.speed / 50.) + rand_x;
+         let new_y = self.pos.1 + norm_dir_y * (self.data.speed / 50.) + rand_y;
+         self.target_pos = (new_x, new_y);
+         self.state = UnitState::Moving;
+
     }
 
     fn take_damage(&mut self, damage: f32) {
@@ -614,7 +662,8 @@ impl Unit {
     }
 
     fn flip_x(&self) -> bool {
-        self.team == 1
+        //self.team == 1
+        self.is_facing_left
     }
 }
 
