@@ -168,7 +168,17 @@ turbo::go!({
             if !should_keep {
                 //deal the actual damage here
                 if attack.splash_area == 0. {
-                    state.units[attack.target_unit_index].take_damage(attack.damage);
+                    let unit = &mut state.units[attack.target_unit_index];
+                    unit.take_damage(attack.damage);
+                    if unit.health <= 0.{
+                        if unit.unit_type == "explosionunit"{
+                            let explosion_offset = (-24., -24.);
+                            let explosion_pos = (unit.pos.0 + explosion_offset.0, unit.pos.1 + explosion_offset.1);
+                            let mut explosion = AnimatedSprite::new(explosion_pos, false);
+                            explosion.set_anim("explosion".to_string(), 32, 15, 5, false);
+                            state.explosions.push(explosion);  
+                        }
+                    }
                 }
                 //if it has splash area, then look for all enemy units within range
                 if attack.splash_area > 0. {
@@ -409,6 +419,7 @@ impl Unit {
         }
         if self.health <= 0. {
             self.state = UnitState::Dead;
+
         }
     }
 
@@ -602,7 +613,7 @@ impl Unit {
 
     }
 
-    fn take_damage(&mut self, damage: f32) {
+    fn take_damage(&mut self, damage: f32){
         self.health -= damage;
         self.health = self.health.max(0.);
         self.damage_effect_timer = DAMAGE_EFFECT_TIME;
@@ -617,8 +628,7 @@ impl Unit {
             }
             splat_pos.1 -= 12.;
             let mut new_splatter = AnimatedSprite::new(splat_pos, self.flip_x());
-            //let num = rand() % 8 + 1;
-            let num = 8;
+            let num = rand() % 8 + 1;
             let name = format!("blood_16px_0{}", num);
             new_splatter.set_anim(name, 16, 4, UNIT_ANIM_SPEED, false);
             self.blood_splatter = Some(new_splatter);
