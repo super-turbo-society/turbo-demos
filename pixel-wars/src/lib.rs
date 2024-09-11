@@ -9,6 +9,7 @@ const DAMAGE_EFFECT_TIME: u32 = 12;
 const DAMAGE_TINT_COLOR: usize = 0xb9451dff;
 const COLOR_WHITE: usize = 0xffffffff;
 const UNIT_ANIM_SPEED: i32 = 8;
+const MAX_Y_ATTACK_DISTANCE: f32 = 10.;
 
 turbo::cfg! {r#"
     name = "Pixel Wars"
@@ -136,7 +137,7 @@ turbo::go!({
             //check if unit is moving or not
             if unit.state == UnitState::Idle {
                 if let Some(index) = closest_enemy_index(&unit, &units_clone) {
-                    if unit.distance_to(&units_clone[index]) < unit.data.range {
+                    if unit.is_unit_in_range(&units_clone[index]) {
                         state.attacks.push(unit.start_attack(index));
                     } else {
                         if unit.state == UnitState::Idle {
@@ -585,10 +586,20 @@ impl Unit {
         attack
     }
 
-    fn distance_to(&self, other: &Unit) -> f32 {
-        let dx = self.pos.0 - other.pos.0;
-        let dy = self.pos.1 - other.pos.1;
+    fn distance_to(&self, pos: &(f32, f32)) -> f32 {
+        let dx = self.pos.0 - pos.0;
+        let dy = self.pos.1 - pos.1;
         (dx * dx + dy * dy).sqrt()
+    }
+
+    fn is_unit_in_range(&self, other: &Unit) -> bool{
+        let other_pos = other.pos;
+        let dx = (self.pos.0 - other_pos.0).abs();
+        let dy = (self.pos.1 - other_pos.1).abs();
+        if dx < self.data.range && dy < MAX_Y_ATTACK_DISTANCE{
+            return true;
+        }
+        false
     }
 
     fn draw_position(&self) -> (f32, f32) {
