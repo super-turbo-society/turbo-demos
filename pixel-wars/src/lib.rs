@@ -557,7 +557,7 @@ impl Unit {
         //     }
         // }
         // Calculate the direction vector from self.pos to target
-        let dir_x = target.0 - self.pos.0;
+        let mut dir_x = target.0 - self.pos.0;
         let dir_y = target.1 - self.pos.1;
 
         if dir_x > 0.{
@@ -565,6 +565,10 @@ impl Unit {
         }
         else if dir_x < 0.{
             self.is_facing_left = true;
+        }
+        //if you are already in range on the x access, only move on the y access
+        if dir_x.abs() < self.data.range{
+            dir_x = 0.;
         }
         // Calculate the length (magnitude) of the direction vector
         let length = (dir_x * dir_x + dir_y * dir_y).sqrt();
