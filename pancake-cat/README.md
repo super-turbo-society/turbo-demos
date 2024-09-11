@@ -184,6 +184,7 @@ for col in 0..9 {
         sprite!("heart", x = x, y = y);
     }
 }
+state.frame += 1;
 ```
 
 #### Drawing Speech Bubbles
