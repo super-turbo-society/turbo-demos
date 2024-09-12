@@ -679,14 +679,15 @@ impl Unit {
         //in the csv. I am trying to 'guess' about how far the body is from where the sprite is drawing
         //and since theres a lot of empty space on some sprites, when you flip_x you get a lot of empty space.
         let mut d_x = -8.;
-        let mut d_y = -8.;
-        if self.data.sprite_width == 32{
-            d_y += -16.;
-        }
+        let d_y = self.data.sprite_width /2 * -1;
+        // let mut d_y = -8.;
+        // if self.data.sprite_width == 32{
+        //     d_y += -16.;
+        // }
         if self.flip_x() {
             d_x = 8. - self.data.sprite_width as f32;
         }
-        return (self.pos.0 + d_x, self.pos.1 + d_y);
+        return (self.pos.0 + d_x, self.pos.1 + d_y as f32);
     }
 
     fn flip_x(&self) -> bool {
@@ -1144,9 +1145,7 @@ impl UnitPreview {
     fn draw_position(&self) -> (f32, f32) {
         let mut d_y = 0.;
         let mut d_x = 0.;
-        if self.s_w == 32{
-            d_y = -16.
-        }
+        d_y = 16. - self.s_w as f32;
         if self.flip_x {
           d_x = 16. - self.s_w as f32;
         }
