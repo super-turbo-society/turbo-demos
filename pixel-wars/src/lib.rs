@@ -114,8 +114,16 @@ turbo::go!({
             //generate units
             create_units_for_all_teams(&mut state);
             state.phase = Phase::Battle;
+            //reset camera here
+            set_cam!(x = 192, y=108);
         }
-
+        //move camera if you press up and down
+        if gp.down.pressed(){
+            set_cam!(y = cam!().1 + 3);
+        }
+        else if gp.up.pressed(){
+            set_cam!(y = cam!().1 -3);
+        }
         if state.auto_assign_teams {
             //draw each unit based on the teams
             draw_assigned_team_info(&mut state);
@@ -171,12 +179,16 @@ turbo::go!({
                     let unit = &mut state.units[attack.target_unit_index];
                     unit.take_damage(attack.damage);
                     if unit.health <= 0.{
-                        if unit.unit_type == "explosionunit"{
-                            let explosion_offset = (-24., -24.);
+                        if unit.data.explode_on_death{
+                            //log!("SHOULD EXPLODE");
+                            let mut explosion_offset = (0., -4.);
+                            if unit.flip_x(){
+                                explosion_offset.0 = -16.;
+                            }
                             let explosion_pos = (unit.pos.0 + explosion_offset.0, unit.pos.1 + explosion_offset.1);
                             let mut explosion = AnimatedSprite::new(explosion_pos, false);
                             explosion.set_anim("explosion".to_string(), 32, 15, 5, false);
-                            state.explosions.push(explosion);  
+                            state.explosions.push(explosion);
                         }
                     }
                 }
@@ -242,6 +254,7 @@ turbo::go!({
         for &index in &indices {
             state.units[index].draw();
         }
+        //draw explosions
         state.explosions.retain_mut(|explosion| {
             explosion.update();
             !explosion.animator.is_done()
@@ -249,6 +262,7 @@ turbo::go!({
         for explosion in &mut state.explosions{
             explosion.draw();
         }
+
         //draw text box
         if winning_team.is_some() {
             let index: usize = winning_team.take().unwrap_or(-1) as usize;
@@ -652,7 +666,7 @@ impl Unit {
             self.data.splash_area,
             size,
         );
-        if self.unit_type == "bazooka"{
+        if self.unit_type == "bazooka" || self.unit_type == "tanker"{
             attack.is_explosive = true;
         }
         attack
@@ -706,6 +720,7 @@ struct UnitData {
     attack_time: i32,
     splash_area: f32,
     sprite_width: i32,
+    explode_on_death: bool,
 }
 
 //TODO: Make this generic as an AnimatedSprite, and update accordingly
@@ -1726,6 +1741,14 @@ impl UnitDataStore {
                 .ok_or("Missing sprite width")?
                 .parse::<i32>()?;
 
+            let explode_on_death = match record.get(8).map(|s| s.trim()) {
+                Some("true") => true,
+                Some("TRUE") => true,
+                Some("1") => true,
+                Some("yes") => true,
+                Some("y") => true,
+                _ => false,
+            };
             let unit_data = UnitData {
                 unit_type,
                 damage,
@@ -1735,6 +1758,7 @@ impl UnitDataStore {
                 attack_time,
                 splash_area,
                 sprite_width,
+                explode_on_death,
             };
             store.add_unit_data(unit_data);
         }
