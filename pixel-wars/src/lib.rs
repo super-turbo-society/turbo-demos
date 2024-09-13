@@ -31,9 +31,12 @@ turbo::init! {
         rng: RNG,
         data_store: Option<UnitDataStore>,
         traps: Vec<Trap>,
-        auto_assign_teams: bool,
-        selected_team_index: i32,
         explosions: Vec<AnimatedSprite>,
+        selected_team_index: i32,
+        sr : SimulationResult,
+        //test variables
+        auto_assign_teams: bool,
+
     } = {
         let teams = Vec::new();
         Self {
@@ -50,6 +53,7 @@ turbo::init! {
             data_store: None,
             auto_assign_teams: true,
             selected_team_index: 0,
+            sr: SimulationResult{living_units: Vec::new()},
         }
     }
 }
@@ -137,89 +141,28 @@ turbo::go!({
             draw_team_info_and_buttons(&mut state);
         }
     } else if state.phase == Phase::Battle {
-        //using this for some comparisons, but might be able to remove it eventually
-        let units_clone = state.units.clone();
+        //run the simulation once
+        if state.sr.living_units.len() == 0 {
+            //store the state somehow
+            let stored_state = state.clone();
+            let mut winning_team = has_some_team_won(&state.units);
+  
+            while winning_team.is_none(){
+                step_through_battle(&mut state);
+                winning_team = has_some_team_won(&state.units);
+            }
 
-        //go through each unit, see what it wants to do, and handle all actions from here
-        for unit in &mut state.units {
-            //check if unit is moving or not
-            if unit.state == UnitState::Idle {
-                if let Some(index) = closest_enemy_index(&unit, &units_clone) {
-                    if unit.is_unit_in_range(&units_clone[index]) {
-                        state.attacks.push(unit.start_attack(index));
-                        if unit.pos.0 > units_clone[index].pos.0{
-                            unit.is_facing_left = true;
-                        }
-                        else{
-                            unit.is_facing_left = false;
-                        }
-                    } else {
-                        if unit.state == UnitState::Idle {
-                            unit.new_target_tween_position(&units_clone[index].pos, &mut state.rng);
-                        }
-                    }
-                }
-            }
-            unit.update();
-            //check for traps
-            for trap in &state.traps {
-                if distance_between(unit.pos, trap.pos) < (trap.size / 2.) && trap.is_active() {
-                    unit.take_damage(trap.damage);
-                }
-            }
+            let simulation_result = SimulationResult{living_units: all_living_units(&state.units)};
+            //reset the state here
+            state = stored_state;
+            //and assign the simulation result. Then we'll do the actual simulation
+            state.sr = simulation_result;
         }
-        //go through attacks and update, then draw
-        state.attacks.retain_mut(|attack| {
-            let should_keep = !attack.update(&units_clone);
-            //attack.draw();
-
-            if !should_keep {
-                //deal the actual damage here
-                if attack.splash_area == 0. {
-                    let unit = &mut state.units[attack.target_unit_index];
-                    unit.take_damage(attack.damage);
-                    if unit.health <= 0.{
-                        if unit.data.explode_on_death{
-                            //log!("SHOULD EXPLODE");
-                            let mut explosion_offset = (0., -4.);
-                            if unit.flip_x(){
-                                explosion_offset.0 = -16.;
-                            }
-                            let explosion_pos = (unit.pos.0 + explosion_offset.0, unit.pos.1 + explosion_offset.1);
-                            let mut explosion = AnimatedSprite::new(explosion_pos, false);
-                            explosion.set_anim("explosion".to_string(), 32, 15, 5, false);
-                            state.explosions.push(explosion);
-                        }
-                    }
-                }
-                //if it has splash area, then look for all enemy units within range
-                if attack.splash_area > 0. {
-                    for unit in &mut state.units {
-                        if distance_between(attack.pos, unit.pos) <= attack.splash_area && unit.state != UnitState::Dead {
-                            unit.take_damage(attack.damage);
-                        }
-                    }
-                }
-                if attack.is_explosive{
-                     //create explosion
-                     let explosion_offset = (-16., -16.);
-                     let explosion_pos = (attack.pos.0 + explosion_offset.0, attack.pos.1 + explosion_offset.1);
-                     let mut explosion = AnimatedSprite::new(explosion_pos, false);
-                     explosion.set_anim("explosion".to_string(), 32, 15, 5, false);
-                     state.explosions.push(explosion);
-                }
-            }
-
-            should_keep
-        });
-        //go through traps, update and draw
-        for trap in &mut state.traps {
-            trap.update();
-            trap.draw();
+        else{
+            //after we did the simulation, step through one frame at a time until it's over
+            step_through_battle(&mut state);
         }
-
-        //check for game over
-        let mut winning_team = has_some_team_won(&state.units);
+        //log("AFTER STEP THROUGH");
 
         //DRAW UNITS
         let mut indices: Vec<usize> = (0..state.units.len()).collect();
@@ -263,7 +206,8 @@ turbo::go!({
             explosion.draw();
         }
 
-        //draw text box
+        //draw end game text
+        let mut winning_team = has_some_team_won(&state.units);
         if winning_team.is_some() {
             let index: usize = winning_team.take().unwrap_or(-1) as usize;
             let mut text = "You Chose Incorrectly!";
@@ -293,9 +237,15 @@ turbo::go!({
                     unit.state = UnitState::Idle;
                 }
             }
+            let living_units = all_living_units(&state.units);
+            if living_units.len() == state.sr.living_units.len(){
+                text!(" Simulation matches regular game", x=50, y=50);
+            }
+            else{
+                text!("SIMULATION DOES NOT MATCH", x=50, y=50); 
+            }
         }
         //Draw team health bars
-        // Initialize variables to store health totals for each team
         let mut team0_base_health = 0.0;
         let mut team0_current_health = 0.0;
         let mut team1_base_health = 0.0;
@@ -361,6 +311,89 @@ turbo::go!({
     state.save();
 });
 
+fn step_through_battle(state: &mut GameState)
+{
+    let units_clone = state.units.clone();
+
+    //go through each unit, see what it wants to do, and handle all actions from here
+    for unit in &mut state.units {
+        //check if unit is moving or not
+        if unit.state == UnitState::Idle {
+            if let Some(index) = closest_enemy_index(&unit, &units_clone) {
+                if unit.is_unit_in_range(&units_clone[index]) {
+                    state.attacks.push(unit.start_attack(index));
+                    if unit.pos.0 > units_clone[index].pos.0{
+                        unit.is_facing_left = true;
+                    }
+                    else{
+                        unit.is_facing_left = false;
+                    }
+                } else {
+                    if unit.state == UnitState::Idle {
+                        unit.new_target_tween_position(&units_clone[index].pos, &mut state.rng);
+                    }
+                }
+            }
+        }
+        unit.update();
+        //check for traps
+        for trap in &state.traps {
+            if distance_between(unit.pos, trap.pos) < (trap.size / 2.) && trap.is_active() {
+                unit.take_damage(trap.damage);
+            }
+        }
+    }
+    //go through attacks and update, then draw
+    state.attacks.retain_mut(|attack| {
+        let should_keep = !attack.update(&units_clone);
+        //attack.draw();
+
+        if !should_keep {
+            //deal the actual damage here
+            if attack.splash_area == 0. {
+                let unit = &mut state.units[attack.target_unit_index];
+                unit.take_damage(attack.damage);
+                if unit.health <= 0.{
+                    if unit.data.explode_on_death{
+                        //log!("SHOULD EXPLODE");
+                        let mut explosion_offset = (0., -4.);
+                        if unit.flip_x(){
+                            explosion_offset.0 = -16.;
+                        }
+                        let explosion_pos = (unit.pos.0 + explosion_offset.0, unit.pos.1 + explosion_offset.1);
+                        let mut explosion = AnimatedSprite::new(explosion_pos, false);
+                        explosion.set_anim("explosion".to_string(), 32, 15, 5, false);
+                        state.explosions.push(explosion);
+                    }
+                }
+            }
+            //if it has splash area, then look for all enemy units within range
+            if attack.splash_area > 0. {
+                for unit in &mut state.units {
+                    if distance_between(attack.pos, unit.pos) <= attack.splash_area && unit.state != UnitState::Dead {
+                        unit.take_damage(attack.damage);
+                    }
+                }
+            }
+            if attack.is_explosive{
+                //create explosion
+                let explosion_offset = (-16., -16.);
+                let explosion_pos = (attack.pos.0 + explosion_offset.0, attack.pos.1 + explosion_offset.1);
+                let mut explosion = AnimatedSprite::new(explosion_pos, false);
+                explosion.set_anim("explosion".to_string(), 32, 15, 5, false);
+                state.explosions.push(explosion);
+            }
+        }
+
+        should_keep
+    });
+    //go through traps, update and draw
+    for trap in &mut state.traps {
+        trap.update();
+        trap.draw();
+    }
+}
+
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 enum Phase {
     PreBattle,
@@ -419,11 +452,17 @@ impl Unit {
     }
     fn update(&mut self) {
         if self.state == UnitState::Moving {
-            self.pos.0 = self.move_tween_x.get();
-            self.pos.1 = self.move_tween_y.get();
-            if self.move_tween_x.done() {
+            //move toward taget pos at some speed
+            //check if you
+            self.pos = self.move_towards_target();
+            if self.reached_target(){
                 self.state = UnitState::Idle;
-            }
+            } 
+            // self.pos.0 = self.move_tween_x.get();
+            // self.pos.1 = self.move_tween_y.get();
+            // if self.move_tween_x.done() {
+            //     self.state = UnitState::Idle;
+            // }
         }
         if self.state == UnitState::Attacking {
             self.attack_timer -= 1;
@@ -558,19 +597,6 @@ impl Unit {
 
     fn new_target_tween_position(&mut self, target: &(f32, f32), rng: &mut RNG) {
        
-        //**This was an attempt to make the ranged units kite away from their target
-        //but it never really worked right**
-        //let mut adj_target = *target;
-        // if self.data.range > 40.{
-        //     //adjust this so your target X is more like where you will attack from (target - range)
-        //     if adj_target.0 > self.pos.0{
-        //         adj_target.0 -= self.data.range - 10.;
-        //     }
-        //     else{
-        //         adj_target.0 += self.data.range - 10.;
-        //     }
-        // }
-        // Calculate the direction vector from self.pos to target
         let mut dir_x = target.0 - self.pos.0;
         let dir_y = target.1 - self.pos.1;
 
@@ -581,6 +607,7 @@ impl Unit {
             self.is_facing_left = true;
         }
         //if you are already in range on the x access, only move on the y access
+        //This looks better, especially for ranged units
         if dir_x.abs() < self.data.range{
             dir_x = 0.;
         }
@@ -601,9 +628,28 @@ impl Unit {
         let new_y = self.pos.1 + norm_dir_y * self.data.speed + rand_y;
         self.move_tween_x = Tween::new(self.pos.0).set(new_x).duration(20);
         self.move_tween_y = Tween::new(self.pos.1).set(new_y).duration(20);
+        self.target_pos = (new_x,new_y);
         self.state = UnitState::Moving;
     }
 
+    fn move_towards_target(&self) -> (f32, f32){
+        let dir_x = self.target_pos.0- self.pos.0;
+        let dir_y = self.target_pos.1 - self.pos.1;
+        let length = (dir_x * dir_x + dir_y * dir_y).sqrt();
+        let norm_dir_x = dir_x / length;
+        let norm_dir_y = dir_y / length;
+        let new_x = self.pos.0 + norm_dir_x * self.data.speed/20.;
+        let new_y = self.pos.1 + norm_dir_y * self.data.speed/20.;
+        (new_x,new_y)
+    }
+
+    fn reached_target(&self) -> bool {
+        let mut reached_target = false;
+        if distance_between(self.pos, self.target_pos) < self.data.speed / 20.{
+            reached_target = true;
+        }
+        reached_target
+    }
     //Not using this for now - but if we need some more control over movement we can
     fn new_target_position(&mut self, target:&(f32, f32), rng: &mut RNG){
         //Move toward the target xunits + some randomness
@@ -886,6 +932,16 @@ fn has_some_team_won(units: &Vec<Unit>) -> Option<i32> {
         return Some(0);
     }
     None
+}
+
+fn all_living_units(units: &Vec<Unit>) -> Vec<String> {
+    let mut living_units: Vec<String> = Vec::new();
+    for u in units{
+        if u.state != UnitState::Dead{
+            living_units.push(u.unit_type.to_string());
+        }
+    }
+    living_units
 }
 
 fn draw_assigned_team_info(state: &mut GameState) {
@@ -1765,6 +1821,11 @@ impl UnitDataStore {
 
         Ok(store)
     }
+}
+
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
+struct SimulationResult {
+    living_units: Vec<String>,
 }
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
