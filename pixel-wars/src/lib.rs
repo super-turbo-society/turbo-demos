@@ -33,7 +33,7 @@ turbo::init! {
         traps: Vec<Trap>,
         explosions: Vec<AnimatedSprite>,
         selected_team_index: i32,
-        sr : SimulationResult,
+        simulation_result: SimulationResult,
         //test variables
         auto_assign_teams: bool,
 
@@ -53,7 +53,7 @@ turbo::init! {
             data_store: None,
             auto_assign_teams: true,
             selected_team_index: 0,
-            sr: SimulationResult{living_units: Vec::new()},
+            simulation_result: SimulationResult{living_units: Vec::new()},
         }
     }
 }
@@ -142,7 +142,7 @@ turbo::go!({
         }
     } else if state.phase == Phase::Battle {
         //run the simulation once
-        if state.sr.living_units.len() == 0 {
+        if state.simulation_result.living_units.len() == 0 {
             //store the state somehow
             let stored_state = state.clone();
             let mut winning_team = has_some_team_won(&state.units);
@@ -156,7 +156,7 @@ turbo::go!({
             //reset the state here
             state = stored_state;
             //and assign the simulation result. Then we'll do the actual simulation
-            state.sr = simulation_result;
+            state.simulation_result = simulation_result;
         }
         else{
             //after we did the simulation, step through one frame at a time until it's over
@@ -234,11 +234,11 @@ turbo::go!({
             restart_button.handle_click(&mut state);
             for unit in &mut state.units {
                 if unit.state != UnitState::Dead {
-                    unit.state = UnitState::Idle;
+                    unit.start_cheering();
                 }
             }
             let living_units = all_living_units(&state.units);
-            if living_units.len() == state.sr.living_units.len(){
+            if living_units.len() == state.simulation_result.living_units.len(){
                 text!(" Simulation matches regular game", x=50, y=50);
             }
             else{
@@ -519,6 +519,17 @@ impl Unit {
             };
             self.animator.set_next_anim(Some(next_anim));
         }
+        else if self.state == UnitState::Cheer{
+            self.animator.cur_anim.is_looping = false;
+            let next_anim = Animation {
+                name: self.unit_type.to_lowercase() + "_cheer",
+                s_w: self.data.sprite_width,
+                num_frames: 4,
+                loops_per_frame: UNIT_ANIM_SPEED,
+                is_looping: true,
+            };
+            self.animator.set_next_anim(Some(next_anim));
+        }
         if self.damage_effect_timer > 0 {
             self.animator.change_tint_color(DAMAGE_TINT_COLOR);
             self.damage_effect_timer -= 1;
@@ -530,11 +541,9 @@ impl Unit {
         if let Some(ref mut splatter) = self.blood_splatter {
             splatter.update();
             if splatter.animator.is_done() {
-                log!("Splatter Done");
                 self.blood_splatter = None;
             } else {
                 splatter.draw();
-                log("Splatter Drawing");
             }
         }
         //TESTING FOR center position
@@ -545,6 +554,10 @@ impl Unit {
         // if self.state == UnitState::Dead {
         //     self.draw_health_bar();
         // }
+    }
+
+    fn start_cheering(&mut self){
+        self.state = UnitState::Cheer;
     }
 
     fn draw_health_bar(&self) {
@@ -1152,6 +1165,7 @@ enum UnitState {
     Attacking,
     Idle,
     Dead,
+    Cheer,
 }
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 struct UnitPreview {
@@ -1366,7 +1380,7 @@ impl Animator {
         //     x_adj = -self.cur_anim.s_w as f32;
         // }
         //log!("FI: {}", frame_index);
-        if frame_index >= 3 {//* self.cur_anim.s_w {
+        if frame_index >= 3 {
             x_adj = (-self.cur_anim.s_w * (frame_index - 2)) as f32;
         }
 
