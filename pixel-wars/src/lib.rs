@@ -53,7 +53,7 @@ turbo::init! {
             data_store: None,
             auto_assign_teams: true,
             selected_team_index: 0,
-            simulation_result: SimulationResult{living_units: Vec::new()},
+            simulation_result: SimulationResult{living_units: Vec::new(), seed: 0},
         }
     }
 }
@@ -73,10 +73,6 @@ turbo::go!({
                     state.data_store = Some(UnitDataStore::new());
                 }
             }
-            // for i in 0..10{
-            //     let a = state.rng.next_in_range(0, 10);
-            //     turbo::println!("A: {}", a);
-            // }
             //set the seed for the rng as a random number. TODO: get this from turbo os
             state.rng = RNG::new(rand());
         }
@@ -146,17 +142,20 @@ turbo::go!({
             //store the state somehow
             let stored_state = state.clone();
             let mut winning_team = has_some_team_won(&state.units);
-  
+            //TODO: get this from turbo OS
+            let seed: u32 = rand();
+            state.rng = RNG::new(seed);
             while winning_team.is_none(){
                 step_through_battle(&mut state);
                 winning_team = has_some_team_won(&state.units);
             }
-
-            let simulation_result = SimulationResult{living_units: all_living_units(&state.units)};
+            let simulation_result = SimulationResult{living_units: all_living_units(&state.units), seed};
             //reset the state here
             state = stored_state;
             //and assign the simulation result. Then we'll do the actual simulation
             state.simulation_result = simulation_result;
+            //assign the rng to the same seed you used for the simulation, so it matches
+            state.rng = RNG::new(seed);
         }
         else{
             //after we did the simulation, step through one frame at a time until it's over
@@ -362,7 +361,7 @@ fn step_through_battle(state: &mut GameState)
                         }
                         let explosion_pos = (unit.pos.0 + explosion_offset.0, unit.pos.1 + explosion_offset.1);
                         let mut explosion = AnimatedSprite::new(explosion_pos, false);
-                        explosion.set_anim("explosion".to_string(), 32, 15, 5, false);
+                        explosion.set_anim("explosion".to_string(), 32, 14, 5, false);
                         state.explosions.push(explosion);
                     }
                 }
@@ -380,7 +379,7 @@ fn step_through_battle(state: &mut GameState)
                 let explosion_offset = (-16., -16.);
                 let explosion_pos = (attack.pos.0 + explosion_offset.0, attack.pos.1 + explosion_offset.1);
                 let mut explosion = AnimatedSprite::new(explosion_pos, false);
-                explosion.set_anim("explosion".to_string(), 32, 15, 5, false);
+                explosion.set_anim("explosion".to_string(), 32, 14, 5, false);
                 state.explosions.push(explosion);
             }
         }
@@ -1661,7 +1660,6 @@ fn generate_balanced_teams(data: &UnitDataStore, rng: &mut RNG) -> (Team, Team) 
     let mut selected_types = Vec::new();
     while selected_types.len() < 4 {
         let index = rng.next_in_range(0, unit_types.len() as u32 - 1) as usize;
-        turbo::println!("Index: {}", index);
         let unit_type = unit_types[index];
         if !selected_types.contains(&unit_type) {
             selected_types.push(unit_type);
@@ -1839,6 +1837,7 @@ impl UnitDataStore {
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 struct SimulationResult {
+    seed: u32,
     living_units: Vec<String>,
 }
 
