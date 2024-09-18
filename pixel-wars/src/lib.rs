@@ -18,6 +18,10 @@ const COLOR_WHITE: usize = 0xffffffff;
 const UNIT_ANIM_SPEED: i32 = 8;
 const MAX_Y_ATTACK_DISTANCE: f32 = 10.;
 
+//colors
+const POO_BROWN: u32 = 0x654321FF;
+const ACID_GREEN: u32 = 0x32CD32FF;
+
 turbo::cfg! {r#"
     name = "Pixel Wars"
     version = "1.0.0"
@@ -120,6 +124,13 @@ turbo::go!({
         if gp.start.just_pressed() {
             //generate units
             create_units_for_all_teams(&mut state);
+            //generate any traps 
+            //TODO: figure this out later
+            // state.traps.push(create_trap(&mut state.rng));
+            // state.traps.push(create_trap(&mut state.rng));
+            // state.traps.push(create_trap(&mut state.rng));
+            // state.traps.push(create_trap(&mut state.rng));
+            // state.traps.push(create_trap(&mut state.rng));
             state.phase = Phase::Battle;
             //reset camera here
             set_cam!(x = 192, y=108);
@@ -144,12 +155,13 @@ turbo::go!({
             draw_team_info_and_buttons(&mut state);
         }
     } else if state.phase == Phase::Battle {
-        //run the simulation once
+        //run the simulation once. 
+        //TODO: This might explode if there's a tie so lets run a better way to do this
         if state.simulation_result.living_units.len() == 0 {
             //store the state somehow
             let stored_state = state.clone();
             let mut winning_team = has_some_team_won(&state.units);
-            //TODO: get this from turbo OS
+            //TODO: get this random from turbo OS
             let seed: u32 = rand();
             state.rng = RNG::new(seed);
             while winning_team.is_none(){
@@ -168,7 +180,31 @@ turbo::go!({
             //after we did the simulation, step through one frame at a time until it's over
             step_through_battle(&mut state);
         }
-        //log("AFTER STEP THROUGH");
+        
+        //temp code to create traps
+        let gp = gamepad(0);
+        if gp.a.just_pressed(){
+            state.traps.push(create_trap(&mut state.rng));
+        }
+        if gp.b.just_pressed(){
+            state.traps.push(create_trap(&mut state.rng));
+            state.traps.push(create_trap(&mut state.rng));
+            state.traps.push(create_trap(&mut state.rng));
+            state.traps.push(create_trap(&mut state.rng));
+            state.traps.push(create_trap(&mut state.rng));
+            state.traps.push(create_trap(&mut state.rng));
+            state.traps.push(create_trap(&mut state.rng));
+            state.traps.push(create_trap(&mut state.rng));
+            state.traps.push(create_trap(&mut state.rng));
+            state.traps.push(create_trap(&mut state.rng));
+        }
+        ///////////////DRAW CODE//////////////
+        //Draw footprints beneath units
+        for u in &state.units{
+            for fp in &u.footprints{
+                fp.draw();
+            }
+        }
 
         //DRAW UNITS
         let mut indices: Vec<usize> = (0..state.units.len()).collect();
@@ -243,14 +279,15 @@ turbo::go!({
                     unit.start_cheering();
                 }
             }
-            let living_units = all_living_units(&state.units);
-            if living_units.len() == state.simulation_result.living_units.len(){
-                text!(" Simulation matches regular game", x=50, y=50);
-            }
-            else{
-                text!("SIMULATION DOES NOT MATCH", x=50, y=50); 
-            }
+            // let living_units = all_living_units(&state.units);
+            // if living_units.len() == state.simulation_result.living_units.len(){
+            //     text!(" Simulation matches regular game", x=50, y=50);
+            // }
+            // else{
+            //     text!("SIMULATION DOES NOT MATCH", x=50, y=50); 
+            // }
         }
+        //TODO: clean this up
         //Draw team health bars
         let mut team0_base_health = 0.0;
         let mut team0_current_health = 0.0;
@@ -344,8 +381,17 @@ fn step_through_battle(state: &mut GameState)
         unit.update();
         //check for traps
         for trap in &state.traps {
-            if distance_between(unit.pos, trap.pos) < (trap.size / 2.) && trap.is_active() {
-                unit.take_damage(trap.damage);
+            if distance_between(unit.foot_position(), trap.pos) < (trap.size / 2.) && trap.is_active() {
+                //update this so it changes for each trap type
+                //TODO: make trap types into an enum
+                if trap.trap_type == TrapType::Poop{
+                    unit.footprint_status = FootprintStatus::Poopy;
+                }
+                else if trap.trap_type == TrapType::Acidleak{
+                    unit.take_damage(trap.damage);
+                    unit.footprint_status = FootprintStatus::Acid;
+                }
+                //unit.take_damage(trap.damage);
             }
         }
     }
@@ -1131,7 +1177,7 @@ fn calculate_unit_power_level(data_store: &HashMap<String, UnitData>) -> HashMap
         }
 
         if unit_data.splash_area > 0.0 {
-            power_level += 100.0;
+            power_level = power_level*3.;
         }
 
         power_levels.insert(unit_type.clone(), power_level);
@@ -1250,6 +1296,27 @@ fn create_unit_previews(
         y_start += 30.;
     }
     unit_previews
+}
+
+fn create_trap(rng: &mut RNG) -> Trap{
+    //choose a random trap and a random position within some bounds
+    let random_number = rng.next_in_range(0, 1);
+        
+    let trap_type = match random_number {
+        0 => TrapType::Poop,
+        1 => TrapType::Acidleak,
+        2 => TrapType::Healing,
+        3 => TrapType::Landmine,
+        4 => TrapType::Spikes,
+        _ => unreachable!(), // This should never happen due to the range we specified
+    };
+    let x_bounds = (100,284);
+    let y_bounds = (40, 176);
+    let x = rng.next_in_range(x_bounds.0, x_bounds.1);
+    let y = rng.next_in_range(y_bounds.0, y_bounds.1);
+    let trap = Trap::new((x as f32,y as f32), trap_type);
+    trap
+
 }
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]

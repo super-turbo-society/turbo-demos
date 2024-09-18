@@ -16,6 +16,10 @@ pub struct Unit {
     pub damage_effect_timer: u32,
     pub blood_splatter: Option<AnimatedSprite>,
     pub is_facing_left: bool,
+    //foot print status
+    pub footprints: Vec<Footprint>,
+    pub footprint_status: FootprintStatus,
+    pub footprint_timer: i32,
 }
 
 impl Unit {
@@ -37,6 +41,9 @@ impl Unit {
             attack_timer: 0,
             damage_effect_timer: 0,
             blood_splatter: None,
+            footprints: Vec::new(),
+            footprint_status: FootprintStatus::Clean,
+            footprint_timer: 20,
             is_facing_left: false,
             target_pos: (0.,0.),
             //placeholder, gets overwritten when they are drawn, but I can't figure out how to do it more logically than this
@@ -72,6 +79,16 @@ impl Unit {
         if self.health <= 0. {
             self.state = UnitState::Dead;
 
+        }
+
+        if self.state != UnitState::Dead{
+            if self.footprint_status != FootprintStatus::Clean{
+                self.footprint_timer -= 1;
+                if self.footprint_timer == 0{
+                    self.create_footprint();
+                    self.footprint_timer = 20;
+                }
+            }
         }
     }
 
@@ -145,6 +162,7 @@ impl Unit {
                 splatter.draw();
             }
         }
+        //circ!(x=self.foot_position().0, y=self.foot_position().1, d=2,);
         //TESTING FOR center position
         // circ!(x=self.pos.0, y=self.pos.1, d = 2, color = 0x000000ff);
         // sprite!("blood_16px_01", x=self.pos.0, y=self.pos.1);
@@ -330,6 +348,23 @@ impl Unit {
         attack
     }
 
+    pub fn create_footprint(&mut self){
+        let mut color = POO_BROWN;
+        match self.footprint_status {
+            FootprintStatus::Clean => {
+               //do nothing
+            },
+            FootprintStatus::Poopy => {
+                color = POO_BROWN;
+            },
+            FootprintStatus::Acid => {
+               color =  ACID_GREEN;
+            },
+        }
+        let fp = Footprint{pos: self.foot_position(), color: color};
+        self.footprints.push(fp);
+    }
+
     pub fn distance_to(&self, pos: &(f32, f32)) -> f32 {
         let dx = self.pos.0 - pos.0;
         let dy = self.pos.1 - pos.1;
@@ -360,6 +395,11 @@ impl Unit {
             d_x = 8. - self.data.sprite_width as f32;
         }
         return (self.pos.0 + d_x, self.pos.1 + d_y as f32);
+    }
+
+    pub fn foot_position(&self) -> (f32, f32){
+        let d_y = self.data.sprite_width / 2 -1;
+        return (self.pos.0, self.pos.1+d_y as f32);
     }
 
     pub fn flip_x(&self) -> bool {
@@ -463,3 +503,23 @@ impl UnitPreview {
     }
     //draw from animator
 }
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
+pub struct Footprint{
+    pub pos: (f32, f32),
+    pub color: u32,
+}
+
+impl Footprint{
+    pub fn draw(&self)
+    {
+        //make a 1 px square at the position
+        rect!(x = self.pos.0, y = self.pos.1, color = self.color, w = 1, h = 1);
+    }
+}
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
+pub enum FootprintStatus{
+    Clean,
+    Poopy,
+    Acid,
+}
+
