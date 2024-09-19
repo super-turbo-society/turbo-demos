@@ -361,7 +361,7 @@ impl Unit {
                color =  ACID_GREEN;
             },
         }
-        let fp = Footprint{pos: self.foot_position(), color: color};
+        let fp = Footprint{pos: self.foot_position(), color: color, lifetime: FOOTPRINT_LIFETIME};
         self.footprints.push(fp);
     }
 
@@ -507,13 +507,22 @@ impl UnitPreview {
 pub struct Footprint{
     pub pos: (f32, f32),
     pub color: u32,
+    pub lifetime: u32,
 }
 
 impl Footprint{
-    pub fn draw(&self)
+    pub fn update(&mut self){
+       
+        //if fade is 0 we can kill it in Unit
+    }
+
+    pub fn draw(&mut self)
     {
-        //make a 1 px square at the position
-        rect!(x = self.pos.0, y = self.pos.1, color = self.color, w = 1, h = 1);
+        self.lifetime -= 1;
+        let progress = self.lifetime as f32 / FOOTPRINT_LIFETIME as f32;
+        let opacity = ((progress) * 255.) as u32;
+        let draw_color = (self.color & 0xffffff00) | opacity;
+        rect!(x = self.pos.0, y = self.pos.1, color = draw_color, w = 1, h = 1);
     }
 }
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]

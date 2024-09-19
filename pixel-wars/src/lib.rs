@@ -17,6 +17,7 @@ const DAMAGE_TINT_COLOR: usize = 0xb9451dff;
 const COLOR_WHITE: usize = 0xffffffff;
 const UNIT_ANIM_SPEED: i32 = 8;
 const MAX_Y_ATTACK_DISTANCE: f32 = 10.;
+const FOOTPRINT_LIFETIME: u32 = 240;
 
 //colors
 const POO_BROWN: u32 = 0x654321FF;
@@ -209,9 +210,11 @@ turbo::go!({
         }
         //sprite!("crater_01", x=100, y=100, color = 0xFFFFFF80);
         //Draw footprints beneath units
-        for u in &state.units{
-            for fp in &u.footprints{
+        for u in &mut state.units{
+            let mut y = 50;
+            for fp in &mut u.footprints{
                 fp.draw();
+                //format!()
             }
         }
 
