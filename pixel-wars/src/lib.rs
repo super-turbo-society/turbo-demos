@@ -43,6 +43,7 @@ turbo::init! {
         data_store: Option<UnitDataStore>,
         traps: Vec<Trap>,
         explosions: Vec<AnimatedSprite>,
+        craters: Vec<AnimatedSprite>,
         selected_team_index: i32,
         simulation_result: SimulationResult,
         //test variables
@@ -59,6 +60,7 @@ turbo::init! {
             traps: Vec::new(),
             unit_previews: Vec::new(),
             explosions: Vec::new(),
+            craters: Vec::new(),
             //replace this number with a program number later
             rng: RNG::new(12345),
             data_store: None,
@@ -199,6 +201,13 @@ turbo::go!({
             state.traps.push(create_trap(&mut state.rng));
         }
         ///////////////DRAW CODE//////////////
+        
+        //Draw craters beneath everything
+        for c in &state.craters{
+            c.draw();
+            
+        }
+        //sprite!("crater_01", x=100, y=100, color = 0xFFFFFF80);
         //Draw footprints beneath units
         for u in &state.units{
             for fp in &u.footprints{
@@ -434,6 +443,13 @@ fn step_through_battle(state: &mut GameState)
                 let mut explosion = AnimatedSprite::new(explosion_pos, false);
                 explosion.set_anim("explosion".to_string(), 32, 14, 5, false);
                 state.explosions.push(explosion);
+                //make a crater
+                let crater_pos = (explosion_pos.0 + 16., explosion_pos.1 + 16.);
+                let mut crater = AnimatedSprite::new(crater_pos, false);
+                
+                crater.set_anim("crater_01".to_string(), 16, 1, 1, true);
+                crater.animator.change_tint_color(0xFFFFFF80);
+                state.craters.push(crater);
             }
         }
 
@@ -1082,7 +1098,7 @@ impl Button {
             w = self.size.0,
             h = self.size.1,
             color = 0x808080ff,
-            border_radius = 2,
+            border_radius = 5,
             border_width = 2,
             border_color = 0x000000ff,
         ); // Example button background
@@ -1139,10 +1155,7 @@ fn create_units_for_all_teams(state: &mut GameState) {
             y_pos += row_height;
         }
     }
-    //add a random trap for now
-    //state.traps.push(Trap::new(48., (160., 75.), 1., 120, 120));
-    //state.traps.push(Trap::new(48., (200., 120.), 1., 120, 120));
-    //go to Battle Phase
+
 }
 fn calculate_unit_power_level(data_store: &HashMap<String, UnitData>) -> HashMap<String, f32> {
     let mut power_levels = HashMap::new();
