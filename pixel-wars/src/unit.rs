@@ -308,24 +308,26 @@ impl Unit {
     }
 
     pub fn take_damage(&mut self, damage: f32){
-        self.health -= damage;
-        self.health = self.health.max(0.);
-        self.damage_effect_timer = DAMAGE_EFFECT_TIME;
-        if self.blood_splatter.is_none() {
-            //make the splatter position the top-middle of the sprite
-            let mut splat_pos = self.pos;
-            //TODO: Figure out something better to do with these numbers, they do sort of just work for now
-            if self.flip_x() {
-                splat_pos.0 -= 8.;
-            } else {
-                splat_pos.0 -= 12.;
+        if self.state != UnitState::Dead{
+            self.health -= damage;
+            self.health = self.health.max(0.);
+            self.damage_effect_timer = DAMAGE_EFFECT_TIME;
+            if self.blood_splatter.is_none() {
+                //make the splatter position the top-middle of the sprite
+                let mut splat_pos = self.pos;
+                //TODO: Figure out something better to do with these numbers, they do sort of just work for now
+                if self.flip_x() {
+                    splat_pos.0 -= 8.;
+                } else {
+                    splat_pos.0 -= 12.;
+                }
+                splat_pos.1 -= 12.;
+                let mut new_splatter = AnimatedSprite::new(splat_pos, self.flip_x());
+                let num = rand() % 8 + 1;
+                let name = format!("blood_16px_0{}", num);
+                new_splatter.set_anim(name, 16, 4, UNIT_ANIM_SPEED, false);
+                self.blood_splatter = Some(new_splatter);
             }
-            splat_pos.1 -= 12.;
-            let mut new_splatter = AnimatedSprite::new(splat_pos, self.flip_x());
-            let num = rand() % 8 + 1;
-            let name = format!("blood_16px_0{}", num);
-            new_splatter.set_anim(name, 16, 4, UNIT_ANIM_SPEED, false);
-            self.blood_splatter = Some(new_splatter);
         }
     }
 
@@ -511,18 +513,26 @@ pub struct Footprint{
 }
 
 impl Footprint{
-    pub fn update(&mut self){
-       
-        //if fade is 0 we can kill it in Unit
-    }
 
     pub fn draw(&mut self)
     {
-        self.lifetime -= 1;
-        let progress = self.lifetime as f32 / FOOTPRINT_LIFETIME as f32;
-        let opacity = ((progress) * 255.) as u32;
-        let draw_color = (self.color & 0xffffff00) | opacity;
-        rect!(x = self.pos.0, y = self.pos.1, color = draw_color, w = 1, h = 1);
+
+        if self.lifetime != 0{
+            self.lifetime -= 1;
+
+            let opacity = if self.lifetime > FOOTPRINT_LIFETIME - 100 {
+                // Fully opaque for the first 100 seconds
+                255
+            } else {
+                // Start fading after 100 seconds
+                let fade_duration = FOOTPRINT_LIFETIME - 100;
+                let fade_progress = self.lifetime as f32 / fade_duration as f32;
+                (fade_progress * 255.0) as u32
+            };
+            
+            let draw_color = (self.color & 0xffffff00) | opacity;
+            rect!(x = self.pos.0, y = self.pos.1, color = draw_color, w = 1, h = 1);
+        }
     }
 }
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
