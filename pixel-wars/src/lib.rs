@@ -316,18 +316,18 @@ turbo::go!({
         draw_team_health_bar(
             team0_base_health,
             team0_current_health,
-            (20.0, 20.0),
-            &state.teams[0].name,
-            0xc4f129ff,
+            (24.0, 20.0),
+            &state.teams[0].name.to_uppercase(),
+            true,
         );
 
         // Draw health bar for team 1
         draw_team_health_bar(
             team1_base_health,
             team1_current_health,
-            (250.0, 20.0),
-            &state.teams[1].name,
-            0xa69e9aff,
+            (232.0, 20.0),
+            &state.teams[1].name.to_uppercase(),
+            false,
         );
     }
 
@@ -817,7 +817,7 @@ fn draw_team_health_bar(
     current_health: f32,
     pos: (f32, f32),
     team_name: &str,
-    team_color: u32,
+    right_allign: bool,
 ) {
     //normalized health bar width
     //colors
@@ -827,46 +827,99 @@ fn draw_team_health_bar(
     let y = pos.1;
     let x_bar = x;
     let y_bar = y;
-    let w_bar = 120.;
-    let h_bar = 15;
-    let main_color: u32 = team_color;
-    let back_color: u32 = 0xb9451dff;
-    let border_color: u32 = 0x000000ff;
+    let w_bar = 128.;
+    let h_bar = 10;
+    let main_color: u32 = 0xd5dc1dff;
+    let back_color: u32 = 0xFca570ff;
+    let inner_border_color: u32 = 0x7f8e44ff;
+    let outer_border_color: u32 = 0x333c24ff;
     let mut health_width = (current_health / total_base_health * w_bar) as i32;
     health_width = health_width.max(0);
 
-    // Draw health bar background
-    rect!(
-        w = w_bar,
-        h = h_bar,
-        x = x_bar,
-        y = y_bar,
-        color = back_color
-    );
 
-    // Draw current health bar
-    rect!(
-        w = health_width,
-        h = h_bar,
-        x = x_bar,
-        y = y_bar,
-        color = main_color
-    );
+    let checker_size = 1; // Size of each checker square
+    let rows = (h_bar as f32 / checker_size as f32).ceil() as i32;
+    let cols = (w_bar as f32 / checker_size as f32).ceil() as i32;
+
+    // Colors for the checkerboard pattern
+    let main_color_dark: u32 = 0xadb834ff;
+    let main_color_light: u32 = 0xd5dc1dff;
+    let back_color_dark: u32 = 0xf1641fff;
+    let back_color_light: u32 = 0xfca570ff;
+
+    // Draw checkerboard pattern
+    for row in 0..rows {
+        for col in 0..cols {
+            let checker_x = x_bar + (col * checker_size) as f32;
+            let checker_y = y_bar + (row * checker_size) as f32;
+            let is_light = (row + col) % 2 == 0;
+            let is_health = (col * checker_size) < health_width;
+
+            let color = if is_health {
+                if is_light { main_color_light } else { main_color_dark }
+            } else {
+                if is_light { back_color_light } else { back_color_dark }
+            };
+
+            rect!(
+                x = checker_x,
+                y = checker_y,
+                w = checker_size as f32,
+                h = checker_size as f32,
+                color = color
+            );
+        }
+    }
+    // // Draw health bar background
+    // rect!(
+    //     w = w_bar,
+    //     h = h_bar,
+    //     x = x_bar,
+    //     y = y_bar,
+    //     color = back_color,        
+    // );
+
+    // // Draw current health bar
+    // rect!(
+    //     w = health_width,
+    //     h = h_bar,
+    //     x = x_bar,
+    //     y = y_bar,
+    //     color = main_color
+    // );
 
     // Draw health bar border
     rect!(
         w = w_bar + 2.,
-        h = h_bar,
+        h = h_bar+ 2,
         x = x_bar - 1.,
-        y = y_bar,
+        y = y_bar -1.,
         color = 0,
-        border_color = border_color,
-        border_width = 3,
-        border_radius = 2
+        border_color = inner_border_color,
+        border_width = 2,
+        border_radius = 5
     );
 
-    //put team name in white over the bar
-    text!(team_name, x = x_bar, y = y_bar - 10., font = Font::L);
+    //draw outer border
+    rect!(
+        w = w_bar + 4.,
+        h = h_bar+5,
+        x = x_bar - 2.,
+        y = y_bar-2.,
+        color = 0,
+        border_color = outer_border_color,
+        border_width = 2,
+        border_radius = 5
+    );
+    let mut text_adj = 0.;
+    if right_allign{
+        text_adj = (128 - team_name.len() * 5) as f32;
+    }
+    //put team name in white below the bar
+    text!(team_name, x = x_bar +1. + text_adj, y = y_bar + h_bar as f32 + 5., font = Font::M, color = 0x000000ff);
+    text!(team_name, x = x_bar + text_adj, y = y_bar + h_bar as f32 + 4., font = Font::M, color = WHITE);
+
+
 }
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
