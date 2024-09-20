@@ -13,8 +13,8 @@ use trap::*;
 
 const UNIT_DATA_CSV: &[u8] = include_bytes!("../resources/unit-data.csv");
 const DAMAGE_EFFECT_TIME: u32 = 12;
-const DAMAGE_TINT_COLOR: usize = 0xb9451dff;
-const COLOR_WHITE: usize = 0xffffffff;
+
+
 const UNIT_ANIM_SPEED: i32 = 8;
 const MAX_Y_ATTACK_DISTANCE: f32 = 10.;
 const FOOTPRINT_LIFETIME: u32 = 240;
@@ -22,6 +22,8 @@ const FOOTPRINT_LIFETIME: u32 = 240;
 //colors
 const POO_BROWN: u32 = 0x654321FF;
 const ACID_GREEN: u32 = 0x32CD32FF;
+const WHITE: usize = 0xffffffff;
+const DAMAGE_TINT_RED: usize = 0xb9451dff;
 
 turbo::cfg! {r#"
     name = "Pixel Wars"
@@ -51,11 +53,10 @@ turbo::init! {
         auto_assign_teams: bool,
 
     } = {
-        let teams = Vec::new();
         Self {
             phase: Phase::PreBattle,
             units: Vec::new(),
-            teams,
+            teams: Vec::new(),
             attacks: Vec::new(),
             event_queue: Vec::new(),
             traps: Vec::new(),
@@ -392,10 +393,8 @@ fn step_through_battle(state: &mut GameState)
         }
         unit.update();
         //check for traps
-        for trap in &state.traps {
+        for trap in &mut state.traps {
             if distance_between(unit.foot_position(), trap.pos) < (trap.size / 2.) && trap.is_active() {
-                //update this so it changes for each trap type
-                //TODO: make trap types into an enum
                 if trap.trap_type == TrapType::Poop{
                     unit.footprint_status = FootprintStatus::Poopy;
                 }
@@ -403,7 +402,17 @@ fn step_through_battle(state: &mut GameState)
                     unit.take_damage(trap.damage);
                     unit.footprint_status = FootprintStatus::Acid;
                 }
-                //unit.take_damage(trap.damage);
+                else if trap.trap_type == TrapType::Landmine{
+                    if let Some(closest_unit_index) = closest_unit_to_position(trap.pos, &units_clone) {
+                        let mut attack = Attack::new(closest_unit_index, 1., trap.pos, trap.damage, 8., 1);
+                        attack.is_explosive = true;
+                        //attack.instant_trigger = true;
+                        state.attacks.push(attack);
+                        trap.set_inactive();
+                        turbo::println!("TRAP POS {}, {}",trap.pos.0, trap.pos.1);
+                    }
+                }
+                
             }
         }
     }
@@ -441,7 +450,9 @@ fn step_through_battle(state: &mut GameState)
             }
             if attack.is_explosive{
                 //create explosion
-                let explosion_offset = (-16., -16.);
+                let explosion_offset = (-24., -24.);
+                //let explosion_offset= (0.,0.);
+                turbo::println!("ATTACK POS {}, {}", attack.pos.0, attack.pos.1);
                 let explosion_pos = (attack.pos.0 + explosion_offset.0, attack.pos.1 + explosion_offset.1);
                 let mut explosion = AnimatedSprite::new(explosion_pos, false);
                 explosion.set_anim("explosion".to_string(), 32, 14, 5, false);
@@ -552,6 +563,8 @@ impl Attack {
         }
     }
     fn update(&mut self, units: &Vec<Unit>) -> bool {
+        let distance = 0.;
+
         // Get the target unit's position
         let target_position = units[self.target_unit_index].pos;
 
@@ -567,6 +580,7 @@ impl Attack {
             self.pos.0 += self.speed * (direction_x / distance);
             self.pos.1 += self.speed * (direction_y / distance);
         }
+
         //if distance is less than speed, we want to remove the attack and deal the damage
         distance <= self.speed
     }
@@ -603,6 +617,23 @@ fn closest_enemy_index(unit: &Unit, units: &Vec<Unit>) -> Option<usize> {
         .min_by(|(_, a), (_, b)| {
             let dist_a = distance_between(unit.pos, a.pos);
             let dist_b = distance_between(unit.pos, b.pos);
+            dist_a
+                .partial_cmp(&dist_b)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
+        .map(|(index, _)| index)
+}
+
+fn closest_unit_to_position(position: (f32, f32), units: &Vec<Unit>) -> Option<usize> {
+    units
+        .iter()
+        .enumerate()
+        .filter(|(_, unit)| {
+            unit.health > 0.0 // Filter out dead units
+        })
+        .min_by(|(_, a), (_, b)| {
+            let dist_a = distance_between(position, a.pos);
+            let dist_b = distance_between(position, b.pos);
             dist_a
                 .partial_cmp(&dist_b)
                 .unwrap_or(std::cmp::Ordering::Equal)
@@ -946,7 +977,7 @@ impl Animator {
             cur_anim,
             anim_timer: 0,
             next_anim: None,
-            tint_color: COLOR_WHITE,
+            tint_color: WHITE,
         }
     }
 
@@ -1316,13 +1347,13 @@ fn create_unit_previews(
 
 fn create_trap(rng: &mut RNG) -> Trap{
     //choose a random trap and a random position within some bounds
-    let random_number = rng.next_in_range(0, 1);
+    let random_number = rng.next_in_range(2, 2);
         
     let trap_type = match random_number {
         0 => TrapType::Poop,
         1 => TrapType::Acidleak,
-        2 => TrapType::Healing,
-        3 => TrapType::Landmine,
+        2 => TrapType::Landmine,
+        3 => TrapType::Healing,
         4 => TrapType::Spikes,
         _ => unreachable!(), // This should never happen due to the range we specified
     };

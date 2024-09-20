@@ -48,9 +48,9 @@ impl Trap {
             ),
             TrapType::Landmine => (
                 8.0,           // size
-                50.0,           // damage
+                100.0,           // damage
                 1,              // on_dur (instant explosion)
-                300,            // off_dur (long cooldown)
+                0,            // off_dur (long cooldown)
                 "landmine".to_string(),  // sprite_name
             ),
             TrapType::Spikes => (
@@ -83,7 +83,7 @@ impl Trap {
     }
 
     pub fn draw(&self) {
-        if self.timer <= self.on_dur {
+        if self.is_active() {
             // circ!(
             //     x = self.draw_pos().0,
             //     y = self.draw_pos().1,
@@ -98,6 +98,9 @@ impl Trap {
         (self.pos.0 - self.size / 2., self.pos.1 - self.size / 2.)
     }
 
+    pub fn set_inactive(&mut self){
+        self.on_dur = -1;
+    }
     //this might need to be dependent on trap type, we'll see
     pub fn sprite_draw_pos(&self) -> (f32,f32){
         (self.pos.0 - self.size as f32, self.pos.1 - self.size) 

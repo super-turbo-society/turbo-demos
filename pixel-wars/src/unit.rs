@@ -147,10 +147,10 @@ impl Unit {
             self.animator.set_next_anim(Some(next_anim));
         }
         if self.damage_effect_timer > 0 {
-            self.animator.change_tint_color(DAMAGE_TINT_COLOR);
+            self.animator.change_tint_color(DAMAGE_TINT_RED);
             self.damage_effect_timer -= 1;
         } else {
-            self.animator.change_tint_color(COLOR_WHITE);
+            self.animator.change_tint_color(WHITE);
         }
         self.animator.update();
         self.animator.draw(self.draw_position(), self.flip_x());
