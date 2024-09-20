@@ -129,12 +129,7 @@ turbo::go!({
             //generate units
             create_units_for_all_teams(&mut state);
             //generate any traps 
-            //TODO: figure this out later
-            // state.traps.push(create_trap(&mut state.rng));
-            // state.traps.push(create_trap(&mut state.rng));
-            // state.traps.push(create_trap(&mut state.rng));
-            // state.traps.push(create_trap(&mut state.rng));
-            // state.traps.push(create_trap(&mut state.rng));
+
             state.phase = Phase::Battle;
             //reset camera here
             set_cam!(x = 192, y=108);
@@ -428,10 +423,9 @@ fn step_through_battle(state: &mut GameState)
                 unit.take_damage(attack.damage);
                 if unit.health <= 0.{
                     if unit.data.explode_on_death{
-                        //log!("SHOULD EXPLODE");
-                        let mut explosion_offset = (0., -4.);
+                        let mut explosion_offset = (-24., -24.);
                         if unit.flip_x(){
-                            explosion_offset.0 = -16.;
+                            explosion_offset.0 = -24.;
                         }
                         let explosion_pos = (unit.pos.0 + explosion_offset.0, unit.pos.1 + explosion_offset.1);
                         let mut explosion = AnimatedSprite::new(explosion_pos, false);
@@ -451,8 +445,6 @@ fn step_through_battle(state: &mut GameState)
             if attack.is_explosive{
                 //create explosion
                 let explosion_offset = (-24., -24.);
-                //let explosion_offset= (0.,0.);
-                turbo::println!("ATTACK POS {}, {}", attack.pos.0, attack.pos.1);
                 let explosion_pos = (attack.pos.0 + explosion_offset.0, attack.pos.1 + explosion_offset.1);
                 let mut explosion = AnimatedSprite::new(explosion_pos, false);
                 explosion.set_anim("explosion".to_string(), 32, 14, 5, false);
@@ -1154,7 +1146,7 @@ fn create_units_for_all_teams(state: &mut GameState) {
     //generate units
     let row_height = 16.0;
     let row_width = 20.0;
-    let max_y = 200.0;
+    let max_y = 180.0;
     let data_store = state
         .data_store
         .as_ref()
@@ -1166,7 +1158,7 @@ fn create_units_for_all_teams(state: &mut GameState) {
 
     for (team_index, team) in state.teams.iter().enumerate() {
         let mut x_start = if team_index == 0 { 70.0 } else { 270.0 }; // Adjusted starting x for team 1
-        let mut y_pos = 50.0;
+        let mut y_pos = 30.0;
 
         for (i, unit_type) in team.units.iter().enumerate() {
             if y_pos > max_y {
@@ -1330,15 +1322,16 @@ fn create_unit_previews(
 ) -> Vec<UnitPreview> {
     let team_summary = team.get_unit_summary();
     let mut unit_previews = Vec::new();
-    let mut y_start = 50.;
-    let mut x = 120.;
+    let mut y_start = 60.;
+    let mut x = 124.;
     if is_facing_left {
         x += 60.;
     }
     for (unit_type, _count) in team_summary {
         let unit_type = unit_type.to_lowercase();
-        let s_w = data_store.get_sprite_width(&unit_type).unwrap();
-        let u_p = UnitPreview::new(unit_type, s_w, (x, y_start), is_facing_left);
+        //let s_w = data_store.get_sprite_width(&unit_type).unwrap();
+        let data = data_store.get_unit_data(&unit_type).unwrap();
+        let u_p = UnitPreview::new(unit_type, data.clone(), (x, y_start), is_facing_left);
         unit_previews.push(u_p);
         y_start += 30.;
     }
@@ -1347,7 +1340,7 @@ fn create_unit_previews(
 
 fn create_trap(rng: &mut RNG) -> Trap{
     //choose a random trap and a random position within some bounds
-    let random_number = rng.next_in_range(2, 2);
+    let random_number = rng.next_in_range(0, 2);
         
     let trap_type = match random_number {
         0 => TrapType::Poop,
@@ -1400,6 +1393,7 @@ impl UnitDataStore {
         let mut store = UnitDataStore::new();
         let mut reader = ReaderBuilder::new()
             .has_headers(false)
+            .flexible(true)
             .from_reader(file_path);
         for record in reader.records().skip(1) {
             let record = record?;
@@ -1414,8 +1408,12 @@ impl UnitDataStore {
                 .get(7)
                 .ok_or("Missing sprite width")?
                 .parse::<i32>()?;
-
-            let explode_on_death = match record.get(8).map(|s| s.trim()) {
+            let box_x = record.get(8).ok_or("Missing box_x")?.parse::<i32>()?;
+            let box_y = record.get(9).ok_or("Missing box_y")?.parse::<i32>()?;
+            let box_w = record.get(10).ok_or("Missing box_w")?.parse::<i32>()?;
+            let box_h = record.get(11).ok_or("Missing box_h")?.parse::<i32>()?;
+            let bounding_box = (box_x, box_y, box_w, box_h);
+            let explode_on_death = match record.get(12).map(|s| s.trim()) {
                 Some("true") => true,
                 Some("TRUE") => true,
                 Some("1") => true,
@@ -1432,11 +1430,11 @@ impl UnitDataStore {
                 attack_time,
                 splash_area,
                 sprite_width,
+                bounding_box,
                 explode_on_death,
             };
             store.add_unit_data(unit_data);
         }
-
         Ok(store)
     }
 }

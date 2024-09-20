@@ -1,14 +1,14 @@
-unit type,damage,max_health,speed,range,attack_time,splash_area,sprite_width,explode_on_death
-axeman,15,100,4,8,40,0,16,
-blade,5,80,10,8,40,0,16,
-hunter,15,50,5,120,80,0,32,
-pyro,30,40,6,12,40,0,16,
-bigpound,5,300,2,16,120,4,32,
-sabre,22,50,6,12,80,8,16,
-flameboi,20,40,7,32,40,5,32,
-deathray,20,35,10,32,40,0,32,
-bazooka,40,20,4,120,120,12,32,
-cosmo,10,35,6,120,60,0,32,
-draco,30,100,8,32,80,5,48,
-saucer,20,120,3,16,40,16,48,TRUE
-tanker,60,200,4,60,120,12,48,TRUE
+unit type,damage,max_health,speed,range,attack_time,splash_area,sprite_width,box_x,box_y,box_w,box_h,explode_on_death
+axeman,15,100,4,8,40,0,16,3,5,5,9
+blade,5,80,10,8,40,0,16,3,5,5,9
+hunter,15,50,5,120,80,0,32,3,20,5,9
+pyro,30,40,6,12,40,0,16,3,5,5,9
+bigpound,5,300,2,16,120,4,32,3,19,5,10
+sabre,22,50,6,12,80,8,16,3,4,5,10
+flameboi,20,40,7,32,40,5,32,3,19,5,10
+deathray,20,35,10,32,40,0,32,3,20,5,10
+bazooka,40,20,4,120,120,12,32,3,20,5,10
+cosmo,10,35,6,120,60,0,32,3,20,5,10
+draco,30,100,8,32,80,5,48,4,34,16,14
+saucer,20,120,3,16,40,16,48,14,34,20,14,TRUE
+tanker,60,200,4,60,120,12,48,1,28,22,20,TRUE

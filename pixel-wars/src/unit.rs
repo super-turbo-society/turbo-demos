@@ -162,9 +162,9 @@ impl Unit {
                 splatter.draw();
             }
         }
-        //circ!(x=self.foot_position().0, y=self.foot_position().1, d=2,);
+        circ!(x=self.foot_position().0, y=self.foot_position().1, d=1,);
         //TESTING FOR center position
-        // circ!(x=self.pos.0, y=self.pos.1, d = 2, color = 0x000000ff);
+        //circ!(x=self.pos.0, y=self.pos.1, d = 1, color = 0x000000ff);
         // sprite!("blood_16px_01", x=self.pos.0, y=self.pos.1);
 
         //TURN THIS ON TO SHOW HEALTH BARS
@@ -384,23 +384,16 @@ impl Unit {
     }
 
     pub fn draw_position(&self) -> (f32, f32) {
-        //TODO: I think this might need some work - we probably need to define an 'anchor' point
-        //in the csv. I am trying to 'guess' about how far the body is from where the sprite is drawing
-        //and since theres a lot of empty space on some sprites, when you flip_x you get a lot of empty space.
-        let mut d_x = -8.;
-        let d_y = self.data.sprite_width /2 * -1;
-        // let mut d_y = -8.;
-        // if self.data.sprite_width == 32{
-        //     d_y += -16.;
-        // }
-        if self.flip_x() {
-            d_x = 8. - self.data.sprite_width as f32;
+        let mut d_x = -0.5 * self.data.bounding_box.2 as f32 - self.data.bounding_box.0 as f32;
+        if self.flip_x(){
+            d_x = -d_x - self.data.sprite_width as f32 + 0.5 * self.data.bounding_box.0 as f32;
         }
-        return (self.pos.0 + d_x, self.pos.1 + d_y as f32);
+        let d_y = -0.5 * self.data.bounding_box.3 as f32 - self.data.bounding_box.1 as f32;
+        (self.pos.0 + d_x, self.pos.1 + d_y)
     }
 
     pub fn foot_position(&self) -> (f32, f32){
-        let d_y = self.data.sprite_width / 2 -1;
+        let d_y = self.data.bounding_box.3 as f32 / 3.;
         return (self.pos.0, self.pos.1+d_y as f32);
     }
 
@@ -420,6 +413,7 @@ pub struct UnitData {
     pub attack_time: i32,
     pub splash_area: f32,
     pub sprite_width: i32,
+    pub bounding_box: (i32,i32,i32,i32),
     pub explode_on_death: bool,
 }
 
@@ -440,24 +434,25 @@ pub struct UnitPreview {
     pub unit_type: String,
     //animator
     pub animator: Animator,
-    pub s_w: i32,
+    pub data: UnitData,
     pub pos: (f32, f32),
     pub flip_x: bool,
+    //pub bounding_box: (i32, i32, i32, i32),
     pub state: UnitState,
 }
 
 impl UnitPreview {
-    pub fn new(unit_type: String, s_w: i32, pos: (f32, f32), flip_x: bool) -> Self {
+    pub fn new(unit_type: String, data: UnitData, pos: (f32, f32), flip_x: bool) -> Self {
         Self {
             unit_type, //placeholder, gets overwritten when they are drawn, but I can't figure out how to do it more logically than this
             animator: Animator::new(Animation {
                 name: "placeholder".to_string(),
-                s_w: s_w,
+                s_w: 16,
                 num_frames: 0,
                 loops_per_frame: 0,
                 is_looping: true,
             }),
-            s_w,
+            data,
             pos,
             flip_x,
             state: UnitState::Idle,
@@ -468,7 +463,7 @@ impl UnitPreview {
         self.animator.update();
         let mut new_anim = Animation {
             name: self.unit_type.to_lowercase(),
-            s_w: self.s_w,
+            s_w: self.data.sprite_width,
             num_frames: 4,
             loops_per_frame: UNIT_ANIM_SPEED,
             is_looping: false,
@@ -495,15 +490,13 @@ impl UnitPreview {
     }
 
     pub fn draw_position(&self) -> (f32, f32) {
-        let mut d_y = 0.;
-        let mut d_x = 0.;
-        d_y = 16. - self.s_w as f32;
-        if self.flip_x {
-          d_x = 16. - self.s_w as f32;
+        let mut d_x = -0.5 * self.data.bounding_box.2 as f32 - self.data.bounding_box.0 as f32;
+        if self.flip_x{
+            d_x = -d_x - self.data.sprite_width as f32 + 0.5 * self.data.bounding_box.0 as f32;
         }
+        let d_y = -0.5 * self.data.bounding_box.3 as f32 - self.data.bounding_box.1 as f32;
         (self.pos.0 + d_x, self.pos.1 + d_y)
     }
-    //draw from animator
 }
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 pub struct Footprint{
