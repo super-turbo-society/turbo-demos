@@ -1,8 +1,9 @@
-![itch_cover](https://github.com/user-attachments/assets/11e8a510-ec2d-4ceb-98cf-732a5f37452c)
+<p align="center"><img width="550" src="screenshot.PNG" /></p>
+
 # Description
 Lull a sleepy town to dreamland. Using the mouse, hover over awake dreamers to see their feelings, fill vials of sand with matching feelings and give them to dreamers to put them to bed before daybreak. 7 consecutive rounds of increasing difficulty.
 
-![gif_dreamer](https://github.com/user-attachments/assets/25a6c273-8d81-494b-a8a3-0e60904a66d5) ![gif_vial](https://github.com/user-attachments/assets/c59614a9-b368-4e38-957b-28fd32de5d64)
+<p align="center"><img width="216" src="gif_dreamer.gif" /> <img width="216" src="gif_vial.gif" /></p>
 
 # Overview
 Dreamland is state-driven, using the enum ``PlayState``. Most states are static menus; ``MainMenu``, ``Prelude``, ``GameMenu``, ``Scoring`` and `Paused`. `PlayState::Game` runs the core game loop of dreamland. This loop persists until either the night timer has elapsed or all ``Dreamers`` are asleep.
