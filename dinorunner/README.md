@@ -1,6 +1,6 @@
 # Rectrunner
 
-![screenshot](./Screenshot.png)
+![screenshot](./Screenshot.jpg)
 
 ## Description
 
