@@ -1,0 +1,554 @@
+# Chapter 1: Introduction
+
+<< start
+! WAIT / 2
+MYLAN: Too sweet. C Tier.
+NOAH: Well, what about salted caramel?
+MYLAN: That's worse. It's regular caramel dropped in ocean water. D Tier.
+NOAH: That's a bit harsh. How about mint chocolate chip?
+MYLAN: You mean toothpaste on a cone? F Tier.
+]> You're being unfair.       ]> I guess you're right.
+>> 001a                       >> 001b
+-- end
+
+
+
+<< 001a
+NOAH: You're being unfair. You can't go wrong with a fresh aftertaste.
+MYLAN: You can. It's called mint chocolate chip.
+NOAH: Still as opinionated as ever.
+MYLAN: Did you expect any different?
+NOAH: I hoped that a year of college would have softened you around the edges.
+MYLAN: Hah, yeah right. College here is basically high school all over again.
+MYLAN: ...My commute just takes 20 minutes longer now.
+! WAIT / 3
+MYLAN: Nothing like how you've been living, city boy.
+! WAIT / 3
+NOAH: Hm? Oh. Yeah.
+! WAIT / 4
+>> 002
+-- end
+
+
+
+<< 001b
+NOAH: I guess you're right. Mint flavor does not make for dessert material.
+MYLAN: Now you're speaking my language.
+MYLAN: Nice to know you still have good taste like the rest of us here.
+MYLAN: Well, good taste like I have, at least.
+NOAH: Why wouldn't I have good taste anymore?
+MYLAN: You're kidding right, city boy?
+MYLAN: Everyone knows good taste goes out the window in the city.
+MYLAN: It gets replaced with plant bases and vitamins.
+NOAH: Gluten free plant bases.
+MYLAN: Don't you agree?
+! WAIT / 3
+NOAH: Hm? Oh. Yeah.
+! WAIT / 4
+>> 002
+-- end
+
+
+
+<< 002
+MYLAN: I'm just joking, Noah. Relax. It's cool.
+MYLAN: It's my turn anyway. Let me think...
+! WAIT / 4
+MYLAN: Got it! Best way to travel tier list.
+MYLAN: How do we feel about cars?
+]> A Tier.        ]> B Tier.        ]> C Tier.      ]> D Tier.
+>> 003a           >> 003b           >> 003c         >> 003d
+-- end
+
+
+
+# Chapter 2: Cars
+
+<< 003a
+NOAH: A Tier. You can't beat the road, for sure.
+NOAH: Being comfy in your own ride...
+NOAH: Listening to the music you like...
+MYLAN: Passing those "Jesus Loves You, Sinner" billboards on major highways...
+MYLAN: Getting sandwiched between two 18 wheelers...
+MYLAN: Needing to pee the second you pass the rest stop...
+MYLAN: And the next rest stop isn't for 200 miles...
+MYLAN: Agreed, definitely A Tier.
+NOAH: ...I see what you're saying, but I like driv-
+MYLAN: Sure, sure. Whatever you say. Now trains - go!
+]> A Tier.        ]> B Tier.        ]> C Tier.      ]> D Tier.
+>> 004a           >> 004b           >> 004c         >> 004d
+-- end
+
+
+
+<< 003b
+NOAH: B Tier. I enjoy a good road trip now and then, probably.
+NOAH: It can get a little boring after a few hours.
+NOAH: But if I have some music, and the sites along the way are good...
+NOAH: Then I can't complain too much, right?
+MYLAN: A 12 hour slog saved by some music.
+MYLAN: Way to be convincing.
+NOAH: I didn't realize I was supposed to convin-
+MYLAN: Sure, sure. Whatever you say. Now trains - go!
+]> A Tier.        ]> B Tier.        ]> C Tier.      ]> D Tier.
+>> 004a           >> 004b           >> 004c         >> 004d
+-- end
+
+
+
+<< 003c
+NOAH: C Tier. I don't really like to drive that much.
+NOAH: But it's probably the comfiest way to get places.
+NOAH: So there's that...I guess.
+MYLAN: That's all you got? You don't like it, but it's comfy?
+MYLAN: Boring take alert.
+NOAH: Well, sometimes the billboards can be fun-
+MYLAN: Sure, sure. Whatever you say. Now trains - go!
+]> A Tier.        ]> B Tier.        ]> C Tier.      ]> D Tier.
+>> 004a           >> 004b           >> 004c         >> 004d
+-- end
+
+
+
+<< 003d
+NOAH: D Tier. Car rides are the worst.
+MYLAN: Okay, but why?
+NOAH: Well, I don't like driving.
+NOAH: I guess they can get boring...
+! WAIT / 4
+MYLAN: Good thing you aren't going to school to become a lawyer.
+NOAH: I mean, I guess I think there are better opt-
+MYLAN: Sure, sure. Whatever you say. Now trains - go!
+]> A Tier.        ]> B Tier.        ]> C Tier.      ]> D Tier.
+>> 004a           >> 004b           >> 004c         >> 004d
+-- end
+
+
+
+# Chapter 3: Trains
+
+<< 004a
+NOAH: A Tier.
+MYLAN: Why?
+NOAH: Well, don't you like a good train?
+MYLAN: Not really, but I'm asking you.
+NOAH: You get to relax and enjoy the trip...
+NOAH: I mean, imagine sitting on a train while it goes by water.
+NOAH: Don't you think that's nice?
+MYLAN: I guess it's alright...
+MYLAN: If I was tied down and forced to look out the window.
+NOAH: Come on, Mylan. You're saying that just to disagree with me.
+MYLAN: So what if I am? You used to be able to defend your takes.
+MYLAN: Confidently.
+NOAH: Hey, I can still - I can still defend my takes confidently!
+MYLAN: Doesn't seem like it.
+MYLAN: But fine. Prove it. Give me your strongest argument for rollerskates.
+NOAH: Rollerskates? Seriously?
+MYLAN: Yup.
+NOAH: Okay...
+]> Um...          ]> Uh...          ]> I guess...   ]> Well...
+>> 005a           >> 005b           >> 005c         >> 005d
+-- end
+
+
+
+<< 004b
+NOAH: B Tier. Trains are okay, I suppose.
+MYLAN: Why?
+NOAH: They're pretty comfortable, I guess...
+NOAH: But I don't love riding alone and getting stuck with a stranger...
+MYLAN: Do you have something against strangers?
+NOAH: No, but...well...what if they talk to me?
+MYLAN: Don't you like meeting new people? You used to.
+! WAIT / 3
+MYLAN: What, did the city take the charisma out of the old Noah?
+NOAH: What do you mean?
+MYLAN: I don't know...you used to have so much more conviction.
+NOAH: Hey, I can still - I can still have conviction!
+MYLAN: Doesn't seem like it.
+MYLAN: But fine. Prove it. Give me your strongest argument for rollerskates.
+NOAH: Rollerskates? Seriously?
+MYLAN: Yup.
+NOAH: Okay...
+]> Um...          ]> Uh...          ]> I guess...   ]> Well...
+>> 005a           >> 005b           >> 005c         >> 005d
+-- end
+
+
+
+<< 004c
+NOAH: C Tier. I mean...probably.
+MYLAN: Okay. Why?
+NOAH: I don't know. I never think about trains.
+NOAH: Like, I'm never on them. So...
+MYLAN: This is torture.
+NOAH: What?
+MYLAN: Where's the version of you that actually has opinions?
+NOAH: Come on, Mylan. You're just saying that to rile me up.
+MYLAN: Maybe I am. Maybe I want to see you show an emotion other than "meh".
+NOAH: Hey, I can still - I can still get passionate about things!
+MYLAN: Doesn't seem like it.
+MYLAN: But fine. Prove it. Give me your strongest argument for rollerskates.
+NOAH: Rollerskates? Seriously?
+MYLAN: Yup.
+NOAH: Okay...
+]> Um...          ]> Uh...          ]> I guess...   ]> Well...
+>> 005a           >> 005b           >> 005c         >> 005d
+-- end
+
+
+
+<< 004d
+NOAH: D Tier.
+MYLAN: Want to tell me why?
+NOAH: They're just sort of lame, I guess.
+MYLAN: You're joking, right?
+NOAH: What?
+MYLAN: That's what you're going with?
+NOAH: Well, they are kind of lame...
+MYLAN: But why? Where's the Noah that could string a full thought together?
+NOAH: Come on, Mylan. I know you don't mean that.
+MYLAN: Maybe I do. You definitely haven't proven otherwise.
+NOAH: Hey, I can still - I can still string a thought together!
+MYLAN: Doesn't seem like it.
+MYLAN: But fine. Prove it. Give me your strongest argument for rollerskates.
+NOAH: Rollerskates? Seriously?
+MYLAN: Yup.
+NOAH: Okay...
+]> Um...          ]> Uh...          ]> I guess...   ]> Well...
+>> 005a           >> 005b           >> 005c         >> 005d
+-- end
+
+
+
+# Chapter 4: Carrie
+
+<< 005a
+NOAH: Um...rollerskates...
+>> 005
+-- end
+
+
+
+<< 005b
+NOAH: Uh...rollerskates...
+>> 005
+-- end
+
+
+
+<< 005c
+NOAH: I guess...rollerskates...
+>> 005
+-- end
+
+
+
+<< 005d
+NOAH: Well...rollerskates...
+>> 005
+-- end
+
+
+
+<< 005
+NOAH: They're definitely an exciting option...
+! WAIT / 2
+NOAH: Faster than walking...
+! WAIT / 2
+NOAH: But I don't see myself crossing state lines on rollerskates...
+! WAIT / 2
+NOAH: And I'm not great at skating in the first place...
+! WAIT / 2
+NOAH: With all that in mind, I'm not sure where I'd place-
+MYLAN: Oh my god. No freaking way.
+NOAH: Huh?
+MYLAN: Do you follow Carrie on Instagram?
+NOAH: I think so? Why?
+MYLAN: You're not going to believe this.
+NOAH: Believe what?
+MYLAN: Check her page.
+NOAH: I left my phone back inside. Is she okay?
+NOAH: I haven't really talked to her in a while...
+MYLAN: She's in Greece right now. In freaking Mykonos.
+]> What's she doing there?       ]> You sound upset about it.
+>> 006a                          >> 006b
+-- end
+
+
+
+<< 006a
+NOAH: What's she doing there? Did her family win the lottery or something?
+MYLAN: As if. It's her new boyfriend.
+NOAH: Who?
+>> 006
+-- end
+
+
+
+<< 006b
+NOAH: You sound upset about it.
+MYLAN: Of course I'm upset! Why does Carrie get to spend her summer in Greece?
+MYLAN: It must be that new boy toy of hers.
+NOAH: Who?
+>> 006
+-- end
+
+
+
+<< 006
+MYLAN: She started seeing him a few months after we started college together.
+MYLAN: And she told me his family is loaded.
+MYLAN: Like upscale property landlord type rich.
+NOAH: Oh. Well, good for Carrie. Is it serious for her?
+MYLAN: Does it matter? It certainly looks like it's paying off for her.
+MYLAN: He's paying for her to bum around Greece, drink wine, and sunbathe.
+MYLAN: While we're sitting here with nothing to do.
+MYLAN: Except get bit by freaking mosquitoes.
+NOAH: Does it look like she's having a good time?
+MYLAN: She captioned it "don't wake me up from this dream."
+NOAH: Ah.
+MYLAN: She's definitely putting on a show for her followers, or whatever...
+NOAH: I don't remember the last time I spoke to her...
+MYLAN: Flaunting around, showing off how great her life is...
+NOAH: She probably looks much different now...
+MYLAN: Nothing about her is real these days. I can promise you that.
+! WAIT / 3
+MYLAN: The real Carrie is a weirdo.
+MYLAN: Don't you remember over break when we went to Cedar Point?
+]> Cedar Point?
+>> 007
+-- end
+
+# Chapter 5: Reflection
+
+<< 007
+NOAH: Cedar Point?
+MYLAN: Yeah - there was this crazy rain storm...
+MYLAN: And we tried to escape it by driving up there.
+MYLAN: But we could barely see in front of us, remember?
+MYLAN: And it rained so hard that it busted up my windshield wipers?
+! WAIT / 3
+MYLAN: Carrie kept sticking her head out the window to try and direct us!
+MYLAN: And she'd come back inside...
+MYLAN: Flick rain water at us...
+MYLAN: And go right back out!
+NOAH: Yeah?
+MYLAN: Yeah! We stayed in the car the whole time once we got there...
+MYLAN: And after the rain stopped...
+MYLAN: She stuck her head out the window on the way back... 
+MYLAN: But that time to dry off!
+NOAH: Hah.
+MYLAN: Hah.
+! WAIT / 2
+MYLAN: And now she's in Mykonos.
+! WAIT / 2
+MYLAN: And I still need to get my wipers fixed.
+! WAIT / 4
+MYLAN: You really don't remember any of this, do you?
+NOAH: I...don't think I was there for that.
+MYLAN: What do you mean, of course you were, we were all-
+NOAH: I wasn't home over break. I stayed at school.
+NOAH: Couldn't afford the flight.
+MYLAN: No way, Noah. I'm pulling up the posts. You were definitely there.
+! WAIT / 3
+MYLAN: Oh, huh.
+! WAIT / 3
+MYLAN: I guess you weren't. I could have sworn you were.
+! WAIT / 3
+MYLAN: Well, my point is Carrie is living my dream life.
+MYLAN: And I need a major life upgrade and some pics to go along with it.
+]> Life upgrade?      ]> Pics?
+>> 008a               >> 008b
+-- end
+
+
+
+<< 008a
+NOAH: Life upgrade?
+MYLAN: Oh, you know. My brand is lacking on socials.
+MYLAN: I want to give more avant-garde thrift fashionista.
+MYLAN: That repurposes and revitalizes vintage wear.
+NOAH: I have no idea what any of that means.
+MYLAN: It's just my style palette.
+! WAIT / 3
+MYLAN: Look, you have to keep up with the times, Noah.
+MYLAN: Otherwise they'll leave you behind.
+NOAH: Just because of what clothes I wear?
+MYLAN: No, dude. Come on, it's everything.
+MYLAN: Clothes, looks, places...
+>>008
+-- end
+
+
+
+<< 008b
+NOAH: Pics?
+MYLAN: Yeah. Pics. I need to have pictures taken of me.
+NOAH: Like, always?
+MYLAN: Well, definitely when I travel! I should hire a photographer.
+MYLAN: They'd follow me around and take candids of me.
+MYLAN: Like me mid laugh with my rich boyfriend.
+MYLAN: Or looking off into the distance at the ocean.
+MYLAN: Oh, but with like a muscular hand tucking strands of hair behind my ear.
+! WAIT / 3
+MYLAN: Look, you have to keep up with the times, Noah.
+MYLAN: Otherwise they'll leave you behind.
+NOAH: Just because of what pictures I take?
+MYLAN: No, dude. Come on, it's everything.
+MYLAN: Pic, fashion, vacations...
+>> 008
+-- end
+
+
+
+<< 008
+! WAIT / 3
+MYLAN: Opinions...
+MYLAN: If you're not showing up and showing off online with everyone else...
+MYLAN: You're basically dead.
+! WAIT / 3
+MYLAN: I mean you're actually alive, Kenneth.
+MYLAN: But practically dead - it's survival of the socially fittest.
+NOAH: Kenneth?
+MYLAN: My personal FBI Agent. His name is definitely Kenneth.
+MYLAN: Or Kenny. FBI Kenny. You definitely have one, too!
+NOAH: Oh.
+! WAIT / 3
+MYLAN: At the end of the day, people need to see me traveling.
+MYLAN: See me looking cute.
+MYLAN: So they can know that I'm living the dream.
+MYLAN: So I can be someone they admire. Someone they're a little jealous of.
+! WAIT / 3
+MYLAN: You get what I mean?
+]> Yeah, totally. ]> ~No, actually. I don't.
+>> 009            >> NULL
+-- end
+
+
+
+<< 009
+NOAH: Yeah, totally.
+MYLAN: And that's why I'm trying to get you back up to speed!
+MYLAN: Help you practice your hot takes.
+MYLAN: Which you're welcome for, by the way.
+NOAH: Thanks. I guess.
+MYLAN: Ugh, still giving zero enthusiasm.
+MYLAN: Are you like this with all your new college friends?
+NOAH: Like what?
+MYLAN: Like oblivious? Detached?
+MYLAN: I would've thought they'd rip right through you.
+MYLAN: Cities move real fast.
+MYLAN: ...That's what they say online, anyway.
+MYLAN: Trends are over before you can even jump on them...
+]> ~I haven't really made new friends.    ]> ~Stop being so mean to me.    ]> My new friends don't care.
+>> NULL                                   >> NULL                          >> 010
+-- end
+
+
+
+<< 010
+NOAH: My new friends don't care. They're not into that stuff.
+MYLAN: I think you have actual blinders on.
+MYLAN: Everyone cares about this stuff.
+NOAH: Okay. If you say so.
+! WAIT / 4
+MYLAN: Oh, come on. Don't get in a mood, Noah.
+MYLAN: I'm just trying to help.
+! WAIT / 3
+MYLAN: You're the cool, nonchalant type, you know?
+MYLAN: The type of guy that's relaxed all the time.
+MYLAN: Not worried about what people think.
+MYLAN: And that's really cool! People love that type.
+! WAIT / 2
+MYLAN: You just need to show it online more. That's all.
+! WAIT / 4
+MYLAN: Hello? Earth to Noah?
+]> ~I'm terrified of what people think. ]> ~I don't like to pretend. ]> ~I don't want to be online. ]> Yeah. You're right.
+>> NULL >> NULL >> NULL >> 011
+-- end
+
+
+
+<< 011
+NOAH: Yeah. You're right.
+NOAH: I should post more. Keep up the brand, right?
+MYLAN: Exactly. You've got a perfect face for Instagram.
+MYLAN: But if you tell anyone I told you that, I'll kill you.
+! WAIT / 3
+MYLAN: Just kidding, Kenneth!
+NOAH: FBI Kenny needs to learn how to take a joke.
+MYLAN: Maybe he can, but I'm not taking any risks here.
+MYLAN: I'm not trying to get thrown in jail.
+MYLAN: Not before I've had a shot to leave here, that is.
+! WAIT / 2
+MYLAN: What if I moved to the city after college? If I joined you there?
+MYLAN: You think I'd make it big there? Be happy, and all that?
+]> ~I haven't been happy. ]> ~I miss home, and I miss you. ]> Maybe. ]> Maybe not.
+>> NULL                   >> NULL                          >> 012a   >> 012b
+-- end
+
+
+
+<< 012a
+NOAH: Maybe. You might like it there.
+>> 013
+-- end
+
+
+
+<< 012b
+NOAH: Maybe not. It's a pretty big change.
+>> 013
+-- end
+
+
+
+# Chapter 6: Conclusion
+
+<< 013
+MYLAN: Anything beats staying here.
+MYLAN: You're the lucky one, you know.
+MYLAN: You got out.
+MYLAN: You have a chance to live out a dream.
+MYLAN: All I do here is drive back and forth.
+MYLAN: The only exciting thing is seeing the world through my phone.
+! WAIT / 3
+MYLAN: And when I'm bored of that, just laying down and staring at the sun.
+! WAIT / 3
+NOAH: When we were kids, it felt nice. Just staring at the sun.
+MYLAN: Yeah.
+MYLAN: I mean, it was nice then.
+MYLAN: Nice to do as kids, lame to do as adults.
+! WAIT / 3
+NOAH: I can't believe we didn't blind ourselves.
+MYLAN: You'd have thought humans would evolved to that point.
+MYLAN: Where we could stare at the sun, and be fine, you know?
+NOAH: Hm. Yeah.
+! WAIT / 3
+NOAH: That's a major over-SIGHT.
+! WAIT / 3
+NOAH: Get it?
+! WAIT / 3
+MYLAN: Dummy.
+>> 014
+-- end
+
+
+
+<< 014
+! WAIT / 4
+MYLAN: Wait, did I like Carrie's post? Let me check.
+MYLAN: I don't want her to whine about not getting enough likes.
+MYLAN: Even in Mykonos, she'd find some reason to complain.
+NOAH: Yeah, I guess I should probably like it too, then.
+! WAIT / 4
+MYLAN: Oh, here's a fun post - "Best travel destinations tier list."
+MYLAN: I want to hear your hottest takes for this one.
+MYLAN: I'm trying to think of spots that aren't too hot in the summer...
+MYLAN: But still have good beaches for pics...
+MYLAN: Places that are sunny so that I can get a good tan...
+MYLAN: But I'm not trying to sweat 18 hours of the day...
+MYLAN: Oh, and a ton of different foods...
+MYLAN: But not a spot that's overrun by tourists, you know what I mean?
+-- end

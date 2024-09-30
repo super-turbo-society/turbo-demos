@@ -1,0 +1,10 @@
+[package]
+name = "project-sol"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+turbo = { version = "1.6.0-alpha.4", package = "turbo-genesis-sdk" }
+
+[lib]
+crate-type = ["cdylib"]
