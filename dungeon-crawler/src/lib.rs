@@ -4,10 +4,10 @@ use os::ReadFileError;
 turbo::cfg! {r#"
     name = "Dungeon Crawler"
     [settings]
-    resolution = [384, 256]
+    resolution = [132, 224]
     [turbo-os]
-    api-url = "https://os.turbo.computer"
-    # api-url = "http://localhost:8000"
+    # api-url = "https://os.turbo.computer"
+    api-url = "http://localhost:8000"
 "#}
 
 turbo::init! {
@@ -23,6 +23,10 @@ turbo::init! {
             offset_y: Tween<i32>,
         },
         monsters: Vec<Entity>,
+        leaderboard_kind: enum LeaderboardKind {
+            Floor,
+            Gold,
+        },
     } = {
         Self {
             floor: Tween::new(0).duration(FLOOR_DUR),
@@ -36,6 +40,7 @@ turbo::init! {
                 offset_y: Tween::new(0).duration(MOVE_DUR / 2).ease(Easing::EaseInOutQuad),
             },
             monsters: vec![],
+            leaderboard_kind: LeaderboardKind::Floor,
         }
     }
 }
@@ -51,13 +56,25 @@ impl Entity {
 }
 
 const TILE_SIZE: i32 = 16;
-const TURN_DUR: usize = 16;
+const TURN_DUR: usize = 20;
 const FLOOR_DUR: usize = 32;
-const MOVE_DUR: usize = 8;
-const MOVE_Y_OFFSET: i32 = 4;
-const MOVE_X_OFFSET: i32 = 4;
+const MOVE_DUR: usize = 10;
+const MOVE_Y_OFFSET: i32 = 6;
+const MOVE_X_OFFSET: i32 = 6;
 const EXEC_TIMEOUT_DUR: usize = 32;
 const SHADOW_COLOR: u32 = 0x000000dd;
+
+// floor, dark_floor, wood_floor
+// wall, metal_block, crate
+// firepit,
+const THEMES: [(&'static str, &'static str, &'static str); 3] = [
+    // Fortress
+    ("floor", "wall", "firepit"),
+    // Crypt
+    ("dark_floor", "metal_block", "metal_crate"),
+    // Pirate
+    ("wood_floor", "crate", "barrel"),
+];
 
 turbo::go!({
     // Load the game state
@@ -74,7 +91,7 @@ turbo::go!({
         h = h,
         tx = (tick() / 4) % w as usize,
         ty = (tick() / 4) % h as usize,
-        opacity = 0.001,
+        opacity = 0.002,
         repeat = true,
         absolute = true,
     );
@@ -143,26 +160,33 @@ turbo::go!({
                 if !state.turn.done() && entity.x.done() && entity.y.done() {
                     match monster.direction {
                         Direction::Up => {
-                            if dungeon.is_player(monster.x, monster.y - 1) {
+                            if dungeon.is_player(monster.x, monster.y - 1) && monster.stun_dur == 0
+                            {
                                 entity.offset_y.set(-MOVE_Y_OFFSET);
                             }
                         }
                         Direction::Down => {
-                            if dungeon.is_player(monster.x, monster.y + 1) {
+                            if dungeon.is_player(monster.x, monster.y + 1) && monster.stun_dur == 0
+                            {
                                 entity.offset_y.set(MOVE_Y_OFFSET);
                             }
                         }
                         Direction::Left => {
-                            if dungeon.is_player(monster.x - 1, monster.y) {
+                            if dungeon.is_player(monster.x - 1, monster.y) && monster.stun_dur == 0
+                            {
                                 entity.offset_x.set(-MOVE_X_OFFSET);
                             }
                         }
                         Direction::Right => {
-                            if dungeon.is_player(monster.x + 1, monster.y) {
+                            if dungeon.is_player(monster.x + 1, monster.y) && monster.stun_dur == 0
+                            {
                                 entity.offset_x.set(MOVE_X_OFFSET);
                             }
                         }
                     }
+                }
+                if (!entity.y.done() || !entity.x.done()) && entity.offset_y.done() {
+                    entity.offset_y.set(-MOVE_Y_OFFSET);
                 }
                 if entity.offset_x.done() && entity.offset_x.get() != 0 {
                     entity.offset_x.set(0);
@@ -238,10 +262,20 @@ turbo::go!({
             }
         }
 
+        let theme = match dungeon.theme {
+            DungeonTheme::Fortress => THEMES[0],
+            DungeonTheme::Crypt => THEMES[1],
+            DungeonTheme::Pirate => THEMES[2],
+        };
+
+        // Size constants
+        let [w, h] = canvas_size!();
+        let menubar_h = 40;
+
         // Center camera on player
         set_cam!(
-            x = state.player.x.get() + (TILE_SIZE / 2) + 64,
-            y = state.player.y.get() + (TILE_SIZE / 2)
+            x = state.player.x.get() + (TILE_SIZE / 2),
+            y = state.player.y.get() + (TILE_SIZE / 2) + menubar_h,
         );
 
         let dungeon_w = dungeon.width * TILE_SIZE as u32;
@@ -255,11 +289,11 @@ turbo::go!({
             border_radius = 4,
         );
         sprite!(
-            "floor",
+            theme.0,
             w = dungeon_w,
             h = dungeon_h,
             repeat = true,
-            opacity = 0.01,
+            // opacity = 0.01,
             border_radius = 4,
         );
         rect!(
@@ -301,16 +335,16 @@ turbo::go!({
         // Draw obstacles
         for obstacle in &dungeon.obstacles {
             match obstacle.kind {
-                ObstacleKind::StoneBlock => {
+                ObstacleKind::WallA => {
                     sprite!(
-                        "wall",
+                        theme.1,
                         x = obstacle.x * TILE_SIZE,
                         y = obstacle.y * TILE_SIZE,
                     );
                 }
-                ObstacleKind::Firepit => {
+                ObstacleKind::WallB => {
                     sprite!(
-                        "firepit",
+                        theme.2,
                         x = obstacle.x * TILE_SIZE,
                         y = obstacle.y * TILE_SIZE,
                         fps = fps::SLOW
@@ -339,7 +373,7 @@ turbo::go!({
                 h = TILE_SIZE - 4,
                 color = SHADOW_COLOR,
             );
-            let y = y + state.player.offset_y.get() - 6;
+            let y = y + state.player.offset_y.get() - 4;
             sprite!("hero", x = x, y = y, fps = fps::FAST,);
         } else {
             sprite!(
@@ -359,6 +393,10 @@ turbo::go!({
             if monster.health == 0 {
                 continue;
             }
+            if monster.stun_dur > 0 && tick() % 16 < 8 {
+                continue;
+            }
+            let opacity = if monster.stun_dur > 0 { 0.5 } else { 1.0 };
             let x = entity.x.get() + entity.offset_x.get();
             let y = entity.y.get() + entity.offset_y.get() - 6;
             match monster.kind {
@@ -370,7 +408,45 @@ turbo::go!({
                         h = TILE_SIZE - 6,
                         color = SHADOW_COLOR,
                     );
-                    sprite!("blue_blob", x = x, y = y + 3, fps = fps::FAST);
+                    sprite!(
+                        "blue_blob",
+                        x = x,
+                        y = y + 3,
+                        fps = fps::FAST,
+                        opacity = opacity
+                    );
+                }
+                MonsterKind::YellowBlob => {
+                    ellipse!(
+                        x = x + 1,
+                        y = y + 9,
+                        w = TILE_SIZE - 2,
+                        h = TILE_SIZE - 6,
+                        color = SHADOW_COLOR,
+                    );
+                    sprite!(
+                        "yellow_blob",
+                        x = x,
+                        y = y + 3,
+                        fps = fps::FAST,
+                        opacity = opacity
+                    );
+                }
+                MonsterKind::RedBlob => {
+                    ellipse!(
+                        x = x + 1,
+                        y = y + 9,
+                        w = TILE_SIZE - 2,
+                        h = TILE_SIZE - 6,
+                        color = SHADOW_COLOR,
+                    );
+                    sprite!(
+                        "red_blob",
+                        x = x,
+                        y = y + 3,
+                        fps = fps::FAST,
+                        opacity = opacity
+                    );
                 }
                 MonsterKind::OrangeGoblin => {
                     ellipse!(
@@ -380,7 +456,59 @@ turbo::go!({
                         h = TILE_SIZE - 4,
                         color = SHADOW_COLOR,
                     );
-                    sprite!("orange_goblin", x = x, y = y, fps = fps::FAST);
+                    sprite!(
+                        "orange_goblin",
+                        x = x,
+                        y = y,
+                        fps = fps::FAST,
+                        opacity = opacity
+                    );
+                }
+                MonsterKind::GreenGoblin => {
+                    ellipse!(
+                        x = x + 2,
+                        y = y + 8,
+                        w = TILE_SIZE - 4,
+                        h = TILE_SIZE - 4,
+                        color = SHADOW_COLOR,
+                    );
+                    sprite!("goblin", x = x, y = y, fps = fps::FAST, opacity = opacity);
+                }
+                MonsterKind::Shade => {
+                    ellipse!(
+                        x = x + 2,
+                        y = y + 8,
+                        w = TILE_SIZE - 4,
+                        h = TILE_SIZE - 4,
+                        color = SHADOW_COLOR,
+                    );
+                    sprite!(
+                        "shade",
+                        x = x,
+                        y = y,
+                        fps = fps::FAST,
+                        opacity = if dungeon.is_obstacle(monster.x, monster.y) {
+                            0.5
+                        } else {
+                            opacity
+                        }
+                    );
+                }
+                MonsterKind::Spider => {
+                    ellipse!(
+                        x = x + 2,
+                        y = y + 8,
+                        w = TILE_SIZE - 4,
+                        h = TILE_SIZE - 4,
+                        color = SHADOW_COLOR,
+                    );
+                    sprite!(
+                        "spider",
+                        x = x,
+                        y = y + 2,
+                        fps = fps::MEDIUM,
+                        opacity = opacity
+                    );
                 }
                 _ => {
                     ellipse!(
@@ -390,7 +518,13 @@ turbo::go!({
                         h = TILE_SIZE - 4,
                         color = SHADOW_COLOR,
                     );
-                    sprite!("goblin", x = x, y = y, fps = fps::FAST);
+                    sprite!(
+                        "generic_monster",
+                        x = x,
+                        y = y,
+                        fps = fps::FAST,
+                        opacity = opacity
+                    );
                 }
             }
         }
@@ -460,241 +594,420 @@ turbo::go!({
             }
             let x = entity.x.get();
             let y = entity.y.get() - 8;
+
             // Draw health bar background (black)
             rect!(x = x, y = y - 4, w = TILE_SIZE, h = 3, color = 0x000000ff,);
 
-            // Draw health bar foreground (green)
-            rect!(
-                x = x,
-                y = y - 4,
-                w = TILE_SIZE as f32 * (monster.health as f32 / monster.max_health as f32),
-                h = 2,
-                color = 0x00ff00ff,
-            );
+            // Calculate segment width and spacing
+            let total_segments = monster.max_health as i32;
+            let spacing = 1 as i32;
+            let segment_width =
+                ((TILE_SIZE - 1) as i32 - spacing * (total_segments - 1)) / total_segments;
+
+            // Draw health bar foreground in segments with spacing
+            for i in 0..monster.health {
+                rect!(
+                    x = 1 + x + (i as i32 * (segment_width + spacing)),
+                    y = y - 4,
+                    w = segment_width,
+                    h = 2,
+                    color = 0x00ff00ff,
+                );
+            }
         }
 
-        // Draw UI
-        let [w, h] = canvas_size!();
-        rect!(absolute = true, w = 256, h = 28, color = 0x0000fd);
+        // Button menubar
+        let menubar_y = (h - menubar_h as u32) as i32;
+        let y = menubar_y;
 
-        // // Left side
-        // rect!(
-        //     absolute = true,
-        //     x = 8,
-        //     y = 0,
-        //     w = 78,
-        //     h = h,
-        //     color = 0x000000ff,
-        //     border_color = 0x83758bff,
-        //     border_width = 2,
-        //     border_radius = 4,
-        // );
+        if dungeon.player.health == 0 && state.turn.done() {
+            if let Some(user_id) = &os::user_id() {
+                if gp.left.just_pressed() || gp.right.just_pressed() {
+                    state.leaderboard_kind = match state.leaderboard_kind {
+                        LeaderboardKind::Floor => LeaderboardKind::Gold,
+                        LeaderboardKind::Gold => LeaderboardKind::Floor,
+                    }
+                }
+                if let Ok(leaderboard) = DungeonCrawlerProgram::fetch_leaderboard() {
+                    rect!(absolute = true, w = w, h = 40, color = 0x000000fa);
+                    rect!(
+                        absolute = true,
+                        w = w,
+                        h = h, // - menubar_h as u32,
+                        y = 32,
+                        // color = 0x293c8bff,
+                        color = 0x1a1932ff,
+                        border_radius = 8,
+                    );
 
-        // // Top-left panel
-        // rect!(
-        //     absolute = true,
-        //     x = 8,
-        //     y = 16,
-        //     w = 78,
-        //     h = h - 78 - 16,
-        //     color = 0x000000ff,
-        //     border_color = 0x83758bff,
-        //     border_width = 2,
-        //     border_radius = 4,
-        // );
-        // let mut x = 8 + 5;
-        // let mut y = 140;
-        // text!(
-        //     "FLOOR",
-        //     absolute = true,
-        //     font = Font::S,
-        //     x = x,
-        //     y = y,
-        //     color = 0xff00ffff
-        // );
-        // text!("           {:0>3}", dungeon.floor; absolute = true, font = Font::S, x = x, y = y);
-        // y += 7;
-        // text!(
-        //     "GOLD",
-        //     absolute = true,
-        //     font = Font::S,
-        //     x = x,
-        //     y = y,
-        //     color = 0xffff00ff
-        // );
-        // text!("           {:0>3}", dungeon.player.gold; absolute = true, font = Font::S, x = x, y = y);
-        // y += 7;
-        // text!("HP", absolute = true, font = Font::S, x = x, y = y,);
-        // text!("         {:0>2}/{:0>2}", dungeon.player.health, dungeon.player.max_health; absolute = true, font = Font::S, x = x, y = y, color = match dungeon.player.health as f32 / dungeon.player.max_health as f32 {
-        //     0.75..=1.0 => 0x00ff00ff,
-        //     0.25..=0.75 => 0xffff00ff,
-        //     _ => 0xff0000ff,
-        // });
-        // y += 7;
-        // text!("ATK         {:0>2}", 1; absolute = true, font = Font::S, x = x, y = y);
-        // y += 7;
-        // text!("DEF         {:0>2}", 0; absolute = true, font = Font::S, x = x, y = y);
+                    let slide_dot_y = h as i32 - (menubar_h + 12);
+                    circ!(
+                        absolute = true,
+                        d = 6,
+                        x = (w / 2) - 8,
+                        y = slide_dot_y,
+                        color = 0xacaabdff,
+                        border_width = if state.leaderboard_kind == LeaderboardKind::Floor {
+                            0
+                        } else {
+                            1
+                        },
+                        border_color = 0,
+                    );
+                    circ!(
+                        absolute = true,
+                        d = 6,
+                        x = (w / 2),
+                        y = slide_dot_y,
+                        color = 0xacaabdff,
+                        border_width = if state.leaderboard_kind == LeaderboardKind::Gold {
+                            0
+                        } else {
+                            1
+                        },
+                        border_color = 0,
+                    );
 
-        // // Bottom-left panel
-        // rect!(
-        //     absolute = true,
-        //     x = 8,
-        //     y = h - 78,
-        //     w = 78,
-        //     h = 78,
-        //     color = 0x000000ff,
-        //     border_color = 0x83758bff,
-        //     border_width = 2,
-        //     border_radius = 4,
-        // );
-        // let xy = (8., h as f32 - 78.);
-        // for i in 0..4 {
-        //     for j in 0..4 {
-        //         rect!(
-        //             absolute = true,
-        //             x = xy.0 + (i as f32 * 18.) + 4.,
-        //             y = xy.1 + (j as f32 * 18.) + 4.,
-        //             w = 16,
-        //             h = 16,
-        //             color = 0x00000000,
-        //             border_color = 0x524c52ff,
-        //             border_width = 1,
-        //             border_radius = 3,
-        //         );
-        //     }
-        // }
-        // circ!(
-        //     absolute = true,
-        //     d = 12,
-        //     x = 72,
-        //     y = h - 15,
-        //     color = 0xff00ff88
-        // );
-        // circ!(
-        //     absolute = true,
-        //     d = 12,
-        //     x = 72,
-        //     y = h - 16,
-        //     color = 0xff00ffff
-        // );
-        // text!("B", absolute = true, x = 72 + 4, y = h - 16 + 3,);
-
-        // Top-right panel
-        rect!(
-            absolute = true,
-            x = 256,
-            y = 0,
-            w = 128,
-            h = h,
-            color = 0x000000ff,
-            border_color = 0x83758bff,
-            border_width = 2,
-            border_radius = 4,
-        );
-        text!(
-            "ADVENTURE LOG: FLOOR {0:<2}", dungeon.floor + 1;
-            absolute = true,
-            x = 256 + 8,
-            y = 4,
-            font = Font::M,
-            color = 0xffffffff
-        );
-        path!(
-            absolute = true,
-            color = 0x83758bff,
-            width = 2,
-            start = (256, 14),
-            end = (w, 14)
-        );
-        let mut i = 2;
-        for log in &dungeon.logs {
-            text!(&log, absolute = true, x = 256 + 8, y = i * 10);
-            i += 1;
-        }
-
-        // Bottom-right panel
-        // rect!(
-        //     absolute = true,
-        //     x = 256,
-        //     y = h / 2,
-        //     w = 128,
-        //     h = h / 2,
-        //     color = 0x000000ff,
-        //     border_color = 0x83758bff,
-        //     border_width = 2,
-        //     border_radius = 4,
-        // );
-
-        // outer background
-        // let color = 0xde599cff;
-        // let color = 0x293c8bff;
-        // rect!(
-        //     absolute = true,
-        //     w = w,
-        //     h = 16,
-        //     x = 0,
-        //     y = 0,
-        //     // color = 0x293c8bff,
-        //     color = color
-        // );
-        // rect!(
-        //     absolute = true,
-        //     w = w,
-        //     h = h + 8,
-        //     x = 0,
-        //     y = 0,
-        //     color = 0x00000000,
-        //     border_color = color,
-        //     border_width = 8,
-        //     border_radius = 12,
-        // );
-        // rect!(
-        //     absolute = true,
-        //     w = w,
-        //     h = h + 8,
-        //     x = 0,
-        //     y = 8,
-        //     color = 0x00000000,
-        //     border_color = color,
-        //     border_width = 8,
-        //     border_radius = 12,
-        // );
-
-        // Display text if player dies
-        if dungeon.player.health == 0 {
-            text!(
-                "YOU DIED. GAME OVER!",
-                absolute = true,
-                x = 8,
-                y = 8,
-                font = Font::L,
-                color = 0xff0000ff
-            );
-        }
-        // Display text if all enemies are defeated
-        else if dungeon.is_exit(dungeon.player.x, dungeon.player.y) {
-            text!(
-                "GO TO NEXT FLOOR? PRESS START!",
-                absolute = true,
-                x = 8,
-                y = 8,
-                font = Font::L,
-                color = 0xffffffff
-            );
-        } else {
-            // Draw Life
-            text!("- LIFE -", absolute = true, x = 48, y = 4, font = Font::L);
-            for i in 0..dungeon.player.max_health {
-                if dungeon.player.health > i {
-                    sprite!("full_heart", absolute = true, x = i * 16, y = 12)
-                } else {
-                    sprite!("empty_heart", absolute = true, x = i * 16, y = 12)
+                    let leaderboard_x = 0;
+                    text!(
+                        "LEADERBOARD",
+                        absolute = true,
+                        x = leaderboard_x + 8,
+                        y = 7,
+                        font = Font::L
+                    );
+                    let y = 8;
+                    match state.leaderboard_kind {
+                        LeaderboardKind::Floor => {
+                            let mut i = 2;
+                            text!(
+                                "Highest Floor",
+                                absolute = true,
+                                x = leaderboard_x + 8,
+                                y = i * 10
+                            );
+                            i += 1;
+                            text!("#  PLAYER {:>7} FLOOR", ""; absolute = true, x = leaderboard_x + 8, y = y + i * 10);
+                            i += 1;
+                            let mut n = 0;
+                            let mut prev_floor = 0;
+                            for (id, floor) in leaderboard.highest_floor {
+                                if prev_floor != floor {
+                                    n += 1;
+                                    prev_floor = floor;
+                                }
+                                text!("{}  {:.8} {:>11} ", n, id, floor + 1; absolute = true, x = leaderboard_x + 8, y = y +  i * 10, color = if id == *user_id {
+                                    0x6ecb62ff
+                                } else {
+                                    0xacaabdff
+                                });
+                                i += 1;
+                                if i - 3 >= 10 {
+                                    break;
+                                }
+                            }
+                        }
+                        LeaderboardKind::Gold => {
+                            let mut i = 2;
+                            text!(
+                                "Most Gold",
+                                absolute = true,
+                                x = leaderboard_x + 8,
+                                y = i * 10
+                            );
+                            i += 1;
+                            text!("#  PLAYER {:>8} GOLD", ""; absolute = true, x = leaderboard_x + 8, y = y + i * 10);
+                            i += 1;
+                            let mut n = 0;
+                            let mut prev_gold = 0;
+                            for (id, gold) in leaderboard.most_gold {
+                                if prev_gold != gold {
+                                    n += 1;
+                                    prev_gold = gold;
+                                }
+                                text!("{}  {:.8} {:>11} ", n, id, &format!("${}", gold); absolute = true, x = leaderboard_x + 8, y = y + i * 10, color = if id == *user_id {
+                                    0x6ecb62ff
+                                } else {
+                                    0xacaabdff
+                                });
+                                i += 1;
+                                if i - 3 >= 10 {
+                                    break;
+                                }
+                            }
+                        }
+                    }
                 }
             }
+        }
 
-            // Draw Gold
-            text!("- GOLD -", absolute = true, x = 180, y = 4, font = Font::L);
-            text!("  ${:0>3}  ", dungeon.player.gold; absolute = true, x = 180, y = 16, font = Font::L);
+        // Menubar background
+        rect!(
+            absolute = true,
+            w = w,
+            h = menubar_h,
+            y = y,
+            color = 0x000000ff
+        );
+        let y = y + 2;
+
+        // HP
+        sprite!("full_heart", absolute = true, y = y);
+        let y = y + 4;
+        let hp_color = match dungeon.player.health as f32 / dungeon.player.max_health as f32 {
+            0.75..=1.0 => 0x71f341ff,
+            0.25..=0.75 => 0xffa200ff,
+            _ => 0xb41c39ff,
+        };
+        text!("  {:0>2}/  ", dungeon.player.health; absolute = true, x = 0, y = y, font = Font::L, color = hp_color);
+        text!("    /{:0>2}", dungeon.player.max_health; absolute = true, x = 0, y = y, font = Font::L);
+        let y = y + 8;
+
+        // Gold
+        sprite!("coin", absolute = true, y = y);
+        text!("  ${:0>4}", dungeon.player.gold; absolute = true, x = 0, y = y + 5, font = Font::L);
+
+        if dungeon.player.health == 0 {
+            let t = tick() as f32;
+            let cos_16 = ((t / 16.).cos()) + 1.;
+            let action_btn_x = w / 2;
+            let action_btn_y = (menubar_y + 3) - (cos_16 as i32);
+            let action_btn_w = (w / 2) - 4;
+            let action_btn_h = 24;
+            rect!(
+                absolute = true,
+                w = action_btn_w,
+                h = action_btn_h,
+                x = action_btn_x,
+                y = action_btn_y + 1 + (cos_16 as i32),
+                color = 0x81090aaa,
+                border_radius = 4,
+            );
+            rect!(
+                absolute = true,
+                w = action_btn_w,
+                h = action_btn_h,
+                x = action_btn_x,
+                y = action_btn_y,
+                color = 0x81090aff,
+                border_radius = 4,
+                border_width = cos_16,
+                border_color = 0xb41c39ff,
+            );
+            let action_btn_text = "GAME OVER";
+            let action_btn_text_len = action_btn_text.len() as u32;
+            let action_btn_text_w = action_btn_text_len * 5;
+            let action_btn_text_x = 1 + action_btn_x + (action_btn_w / 2) - (action_btn_text_w / 2);
+            let action_btn_text_y = action_btn_y + 5;
+            text!(
+                action_btn_text,
+                absolute = true,
+                // color = 0x000000ff,
+                x = action_btn_text_x,
+                y = action_btn_text_y,
+                font = Font::M,
+            );
+            let action_btn_text = "Try again?";
+            let action_btn_text_len = action_btn_text.len() as u32;
+            let action_btn_text_w = action_btn_text_len * 5;
+            let action_btn_text_x = 1 + action_btn_x + (action_btn_w / 2) - (action_btn_text_w / 2);
+            let action_btn_text_y = action_btn_y + 13;
+            text!(
+                action_btn_text,
+                absolute = true,
+                x = action_btn_text_x,
+                y = action_btn_text_y,
+                font = Font::M,
+            );
+
+            // Handle next floor click / tap
+            let m = mouse(0);
+            let [mx, my] = m.position;
+            let mx = (mx - (cam!().0)) + (w / 2) as i32;
+            let my = (my - (cam!().1)) + (h / 2) as i32;
+            let hit_x0 = action_btn_x as i32;
+            let hit_x1 = (action_btn_x + action_btn_w) as i32;
+            let hit_y0 = action_btn_y as i32;
+            let hit_y1 = (action_btn_y + action_btn_h) as i32;
+            let is_in_btn = mx >= hit_x0 && mx < hit_x1 && my >= hit_y0 && my < hit_y1;
+            if m.left.just_pressed() && is_in_btn {
+                DungeonCrawlerProgram::create_new_dungeon(CreateNewDungeonCommandInput {
+                    reset: true,
+                });
+            }
+        }
+        // Next floor button
+        else if dungeon.is_exit(dungeon.player.x, dungeon.player.y) {
+            let t = tick() as f32;
+            let cos_16 = ((t / 16.).cos()) + 1.;
+            let action_btn_x = w / 2;
+            let action_btn_y = (menubar_y + 3) - (cos_16 as i32);
+            let action_btn_w = (w / 2) - 4;
+            let action_btn_h = 24;
+            rect!(
+                absolute = true,
+                w = action_btn_w,
+                h = action_btn_h,
+                x = action_btn_x,
+                y = action_btn_y + 1 + (cos_16 as i32),
+                color = 0x7b34bdaa,
+                border_radius = 4,
+            );
+            rect!(
+                absolute = true,
+                w = action_btn_w,
+                h = action_btn_h,
+                x = action_btn_x,
+                y = action_btn_y,
+                color = 0x7b34bdff,
+                border_radius = 4,
+                border_width = cos_16,
+                border_color = 0xbd59deff,
+            );
+            let action_btn_text = "ENTER";
+            let action_btn_text_len = action_btn_text.len() as u32;
+            let action_btn_text_w = action_btn_text_len * 8;
+            let action_btn_text_x = 1 + action_btn_x + (action_btn_w / 2) - (action_btn_text_w / 2);
+            let action_btn_text_y = action_btn_y + 5;
+            text!(
+                action_btn_text,
+                absolute = true,
+                // color = 0x000000ff,
+                x = action_btn_text_x,
+                y = action_btn_text_y,
+                font = Font::L,
+            );
+            let action_btn_text = "NEXT FLOOR";
+            let action_btn_text_len = action_btn_text.len() as u32;
+            let action_btn_text_w = action_btn_text_len * 5;
+            let action_btn_text_x = 1 + action_btn_x + (action_btn_w / 2) - (action_btn_text_w / 2);
+            let action_btn_text_y = action_btn_y + 13;
+            text!(
+                action_btn_text,
+                absolute = true,
+                x = action_btn_text_x,
+                y = action_btn_text_y,
+                font = Font::M,
+            );
+
+            // Handle next floor click / tap
+            let m = mouse(0);
+            let [mx, my] = m.position;
+            let mx = (mx - (cam!().0)) + (w / 2) as i32;
+            let my = (my - (cam!().1)) + (h / 2) as i32;
+            let hit_x0 = action_btn_x as i32;
+            let hit_x1 = (action_btn_x + action_btn_w) as i32;
+            let hit_y0 = action_btn_y as i32;
+            let hit_y1 = (action_btn_y + action_btn_h) as i32;
+            let is_in_btn = mx >= hit_x0 && mx < hit_x1 && my >= hit_y0 && my < hit_y1;
+            if m.left.just_pressed() && is_in_btn {
+                DungeonCrawlerProgram::create_new_dungeon(CreateNewDungeonCommandInput {
+                    reset: false,
+                });
+            }
+        }
+        // CTA: Find exit
+        else if dungeon.exit.is_some() {
+            let cta_x = w / 2;
+            let cta_y = menubar_y + 4;
+            let cta_w = (w / 2) - 4;
+            let cta_text = "~TASK~";
+            let cta_text_len = cta_text.len() as u32;
+            let cta_text_w = cta_text_len * 8;
+            let cta_text_x = 1 + cta_x + (cta_w / 2) - (cta_text_w / 2);
+            let cta_text_y = cta_y + 5;
+            text!(
+                cta_text,
+                absolute = true,
+                color = 0x524c52ff,
+                x = cta_text_x,
+                y = cta_text_y,
+                font = Font::L,
+            );
+            let cta_text = "Find exit";
+            let cta_text_len = cta_text.len() as u32;
+            let cta_text_w = cta_text_len * 5;
+            let cta_text_x = 1 + cta_x + (cta_w / 2) - (cta_text_w / 2);
+            let cta_text_y = cta_y + 13;
+            text!(
+                cta_text,
+                absolute = true,
+                color = 0x524c52ff,
+                x = cta_text_x,
+                y = cta_text_y,
+                font = Font::M,
+            );
+        }
+        // CTA: Get the key
+        else {
+            let cta_x = w / 2;
+            let cta_y = menubar_y + 4;
+            let cta_w = (w / 2) - 4;
+            let cta_text = "~TASK~";
+            let cta_text_len = cta_text.len() as u32;
+            let cta_text_w = cta_text_len * 8;
+            let cta_text_x = 1 + cta_x + (cta_w / 2) - (cta_text_w / 2);
+            let cta_text_y = cta_y + 5;
+            text!(
+                cta_text,
+                absolute = true,
+                color = 0x524c52ff,
+                x = cta_text_x,
+                y = cta_text_y,
+                font = Font::L,
+            );
+            let cta_text = "Get the key";
+            let cta_text_len = cta_text.len() as u32;
+            let cta_text_w = cta_text_len * 5;
+            let cta_text_x = 1 + cta_x + (cta_w / 2) - (cta_text_w / 2);
+            let cta_text_y = cta_y + 13;
+            text!(
+                cta_text,
+                absolute = true,
+                color = 0x524c52ff,
+                x = cta_text_x,
+                y = cta_text_y,
+                font = Font::M,
+            );
+        }
+
+        // Bottom info bar
+        let info_bar_y = menubar_y + 32;
+        if let Some(user_id) = &os::user_id() {
+            rect!(
+                absolute = true,
+                w = w,
+                h = 8,
+                y = info_bar_y,
+                color = 0x293c8bff,
+            );
+            rect!(
+                absolute = true,
+                w = w / 2,
+                h = 8,
+                y = info_bar_y,
+                color = 0x524c52ff,
+            );
+            let id_text = format!("ID:{:.8}", user_id);
+            text!(
+                &id_text,
+                absolute = true,
+                x = 4,
+                y = info_bar_y + 2,
+                font = Font::S,
+                color = 0xacaabdff
+            );
+            let floor_text = format!("FLOOR:{:0>2}", dungeon.floor + 1);
+            let floor_text_len = floor_text.len() as u32;
+            let floor_text_w = floor_text_len * 5;
+            text!(
+                &floor_text,
+                absolute = true,
+                x = w - floor_text_w - 4,
+                y = info_bar_y + 2,
+                font = Font::S,
+                color = 0x4181c5ff
+            );
         }
 
         // Swipe transition
@@ -704,8 +1017,6 @@ turbo::go!({
             rect!(absolute = true, x = xo, w = w, h = h, color = 0x000000ff);
             rect!(absolute = true, x = -xo, w = w, h = h, color = 0x000000ff);
         }
-
-        // circ!(absolute=true, d = 32, x = 32, y = 32, color = if is_ready_to_exec { 0x00ff00ff } else { 0xff0000ff });
     }
 
     // If no existing dungeon, allow player to create one
@@ -716,64 +1027,106 @@ turbo::go!({
             DungeonCrawlerProgram::create_new_dungeon(CreateNewDungeonCommandInput { reset: true });
         }
 
+        // Reset camera position
+        reset_cam!();
+
+        // Current tick and timers
         let t = tick() as f32;
-        sprite!("night_sky", w = w, sw = w, tx = tick(), repeat = true);
-        // sprite!("night_sky");
+        let cos_32 = ((t / 32.).cos()) * 2. + 1.;
+        let cos_24 = (t / 24.).cos();
+        let cos_16 = (t / 16.).cos();
+        let cos_10 = (t / 10.).cos();
+        let cos_08 = (t / 08.).cos();
+
+        // Calculate y offset and base y position
+        let v_offset = if h < 256 { h } else { 256 };
+        let y = (h - v_offset) as f32;
+
+        // Draw background sky and clouds
+        sprite!("night_sky", y = y, w = w, sw = w, tx = t, repeat = true);
         if t % 2. == 0. {
             sprite!(
                 "clouds_3",
-                y = ((t / 16.).cos() * 2.) + 1.,
+                y = y + (cos_16 * 2.) + 1.,
                 w = w,
                 sw = w,
-                tx = tick() / 2,
+                tx = t / 2.,
                 repeat = true,
                 opacity = 0.5
             );
         }
         sprite!(
             "clouds_0",
-            y = ((t / 10.).cos() * 2.) + 1.,
+            y = y + (cos_10 * 2.) + 1.,
             w = w,
             sw = w,
-            tx = tick() / 8,
+            tx = t / 8.,
             repeat = true
         );
-        sprite!("title_b", y = ((t / 32.).cos() * 2.) - 2., x = 64);
+
+        // Draw background castle
+        let castle_scale = 0.5;
+        let castle_h = 256. * castle_scale;
+        let castle_w = 256. * castle_scale;
+        let castle_x = (w as f32 / 2.) - (castle_w / 2.);
+        let castle_y = h as f32 - castle_h - cos_32;
+        sprite!("title_b", scale = castle_scale, x = castle_x, y = castle_y);
+
+        // Draw foreground clouds
         sprite!(
             "clouds_1",
-            y = ((t / 24.).cos() * 2.) + 1.,
+            y = y + (cos_24 * 2.) + 1.,
             w = w,
             sw = w,
-            tx = tick() / 4,
+            tx = t / 4.,
             repeat = true
         );
         sprite!(
             "clouds_2",
-            y = ((t / 8.).cos() * 2.) + 1.,
+            y = y + (cos_08 * 2.) + 1.,
             w = w,
             sw = w,
-            tx = tick() / 2,
+            tx = t / 2.,
             repeat = true
         );
+
+        // Draw title text
+        let title_scale = 0.75;
+        let title_h = 93. * title_scale;
+        let title_w = 146. * title_scale;
+        let title_x = (w as f32 / 2.) - (title_w / 2.);
+        let title_y = h as f32 - (title_h * 3.);
         sprite!(
             "title_text",
-            y = 114.,
-            x = 128 - 9,
-            w = 146,
-            h = 93,
+            scale = title_scale,
+            y = title_y + 2.,
+            x = title_x,
             color = 0x000000ff,
             opacity = 0.75
         );
-        sprite!("title_text", y = 112., x = 128 - 9, w = 146, h = 93);
+        sprite!("title_text", scale = title_scale, y = title_y, x = title_x,);
 
-        // rect!(absolute = true, y = 232 + 15, w = w, h = 1, color = 0x000000ff);
         if os::user_id().is_some() {
-            rect!(absolute = true, y = 232, w = w, h = 32, color = 0x222034ff);
+            if mouse(0).left.just_pressed() {
+                DungeonCrawlerProgram::create_new_dungeon(CreateNewDungeonCommandInput {
+                    reset: true,
+                });
+            }
+            rect!(
+                absolute = true,
+                y = h - 32,
+                w = w,
+                h = 32,
+                color = 0x222034ff
+            );
             if t / 2. % 32. < 16. {
+                let text = "TAP TO START";
+                let text_len = text.len() as u32;
+                let text_w = text_len * 8;
                 text!(
-                    "PRESS START",
-                    x = 149,
-                    y = 240,
+                    text,
+                    x = (w / 2) - (text_w / 2),
+                    y = h - 20,
                     color = 0xffffffff,
                     font = Font::L
                 );
@@ -807,13 +1160,15 @@ struct Player {
     direction: Direction,
 }
 
-#[derive(BorshSerialize, BorshDeserialize, Debug, Clone)]
+#[derive(BorshSerialize, BorshDeserialize, Debug, Clone, Copy)]
 enum MonsterKind {
     GreenGoblin,
     OrangeGoblin,
     YellowBlob,
     BlueBlob,
     RedBlob,
+    Shade,
+    Spider,
 }
 impl MonsterKind {
     pub fn abbrev<'a>(&self) -> &'a str {
@@ -823,6 +1178,8 @@ impl MonsterKind {
             Self::YellowBlob => "Y. Blob",
             Self::GreenGoblin => "G. Goblin",
             Self::OrangeGoblin => "O. Goblin",
+            Self::Shade => "Shade",
+            Self::Spider => "Spider",
         }
     }
 }
@@ -836,6 +1193,7 @@ struct Monster {
     strength: u32,
     direction: Direction,
     kind: MonsterKind,
+    stun_dur: u32,
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, Clone)]
@@ -852,10 +1210,10 @@ struct Treasure {
     kind: TreasureKind,
 }
 
-#[derive(BorshSerialize, BorshDeserialize, Debug, Clone)]
+#[derive(BorshSerialize, BorshDeserialize, Debug, Clone, Copy)]
 enum ObstacleKind {
-    StoneBlock,
-    Firepit,
+    WallA,
+    WallB,
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, Clone)]
@@ -865,8 +1223,16 @@ struct Obstacle {
     kind: ObstacleKind,
 }
 
+#[derive(BorshSerialize, BorshDeserialize, Debug, Clone, Copy)]
+enum DungeonTheme {
+    Fortress,
+    Crypt,
+    Pirate,
+}
+
 #[derive(BorshSerialize, BorshDeserialize, Debug, Clone)]
 struct Dungeon {
+    theme: DungeonTheme,
     floor: u32,
     turn: u32,
     width: u32,
@@ -910,6 +1276,13 @@ impl Dungeon {
                 .iter_mut()
                 .find(|m| m.x == new_x && m.y == new_y && m.health > 0)
             {
+                // Swap positions with the stunned monsters
+                if monster.stun_dur > 0 {
+                    std::mem::swap(&mut self.player.x, &mut monster.x);
+                    std::mem::swap(&mut self.player.y, &mut monster.y);
+                    return true;
+                }
+
                 let monster_name = monster.kind.abbrev();
                 let msg = format!("P1 attacks {}!", monster_name);
                 log(&msg);
@@ -918,6 +1291,7 @@ impl Dungeon {
                 let msg = format!("P1 did {amount} damage.");
                 log(&msg);
                 self.logs.push(msg);
+                monster.stun_dur = 2; //program::random_number::<u32>() % 3; // 0 - 2
                 monster.health = monster.health.saturating_sub(amount);
                 if monster.health <= 0 {
                     let msg = format!("{} defeated!", monster_name);
@@ -999,6 +1373,12 @@ impl Dungeon {
                 return true;
             }
 
+            // Skip stunned monsters
+            if monster.stun_dur > 0 {
+                monster.stun_dur = monster.stun_dur.saturating_sub(1);
+                return true;
+            }
+
             // If the monster is adjacent to the player, it attacks
             let (mx, my) = (monster.x, monster.y);
             if (mx - player.x).abs() + (my - player.y).abs() == 1 {
@@ -1032,25 +1412,132 @@ impl Dungeon {
                 return true;
             }
 
-            // Move monster towards the player
-            let dx = player.x - mx;
-            let dy = player.y - my;
-            let (dir, mx, my) = match (dx.abs() > dy.abs(), dx > 0, dy > 0) {
-                // move up
-                (false, _, false) => (Direction::Up, mx, my - 1),
-                // move down
-                (false, _, true) => (Direction::Down, mx, my + 1),
-                // move left
-                (true, false, _) => (Direction::Left, mx - 1, my),
-                // move right
-                (true, true, _) => (Direction::Right, mx + 1, my),
+            // Movement based on monster kind
+            let (dir, mx, my) = match monster.kind {
+                MonsterKind::BlueBlob | MonsterKind::YellowBlob | MonsterKind::RedBlob => {
+                    let dx = player.x - mx;
+                    let dy = player.y - my;
+
+                    // When player is 2 or fewer spaces away, chase them
+                    if dx.abs() <= 2 && dy.abs() <= 2 {
+                        let (dir, mx, my) = match (dx.abs() > dy.abs(), dx > 0, dy > 0) {
+                            (false, _, false) => (Direction::Up, mx, my - 1),
+                            (false, _, true) => (Direction::Down, mx, my + 1),
+                            (true, false, _) => (Direction::Left, mx - 1, my),
+                            (true, true, _) => (Direction::Right, mx + 1, my),
+                        };
+                        if self.is_position_occupied(mx, my) {
+                            return true;
+                        }
+                        (dir, mx, my)
+                    }
+                    // Otherwise, move in a random direction
+                    else {
+                        let (dir, mx, my) = match program::random_number::<usize>() % 4 {
+                            0 => (Direction::Up, mx, my - 1),
+                            1 => (Direction::Down, mx, my + 1),
+                            2 => (Direction::Left, mx - 1, my),
+                            _ => (Direction::Right, mx + 1, my),
+                        };
+                        if self.is_position_occupied(mx, my) {
+                            return true;
+                        }
+                        (dir, mx, my)
+                    }
+                }
+                MonsterKind::Spider => {
+                    // Moves up to 3 spaces in one direction towards the player every 4 turns
+                    if self.turn % 3 != 0 {
+                        return true;
+                    }
+
+                    let dx = player.x - mx;
+                    let dy = player.y - my;
+
+                    // Attempt to move up to 3 spaces towards player
+                    let steps = 3.min(dx.abs().max(dy.abs()));
+
+                    let mut new_mx = mx;
+                    let mut new_my = my;
+                    let mut dir = monster.direction;
+
+                    for s in (1..=steps).rev() {
+                        let (dir_next, mx_next, my_next) =
+                            match (dx.abs() > dy.abs(), dx > 0, dy > 0) {
+                                (false, _, false) => (Direction::Up, mx, my - s),
+                                (false, _, true) => (Direction::Down, mx, my + s),
+                                (true, false, _) => (Direction::Left, mx - s, my),
+                                (true, true, _) => (Direction::Right, mx + s, my),
+                            };
+
+                        if !self.is_position_occupied(mx_next, my_next) {
+                            new_mx = mx_next;
+                            new_my = my_next;
+                            dir = dir_next;
+                            break;
+                        }
+                    }
+
+                    (dir, new_mx, new_my)
+                }
+                MonsterKind::Shade => {
+                    // Moves towards the player every other turn
+                    // Can phase through obstacles
+                    if self.turn % 2 != 0 {
+                        return true;
+                    }
+
+                    let dx = player.x - mx;
+                    let dy = player.y - my;
+
+                    let steps = 1;
+
+                    let (dir, mx, my) = match (dx.abs() > dy.abs(), dx > 0, dy > 0) {
+                        (false, _, false) => (Direction::Up, mx, my - steps),
+                        (false, _, true) => (Direction::Down, mx, my + steps),
+                        (true, false, _) => (Direction::Left, mx - steps, my),
+                        (true, true, _) => (Direction::Right, mx + steps, my),
+                    };
+
+                    if self.is_monster(mx, my) {
+                        return true;
+                    }
+
+                    (dir, mx, my)
+                }
+                _ => {
+                    // Moves towards the player each turn
+                    let dx = player.x - mx;
+                    let dy = player.y - my;
+
+                    let move_y = || {
+                        if dy < 0 {
+                            (Direction::Up, mx, my - 1)
+                        } else {
+                            (Direction::Down, mx, my + 1)
+                        }
+                    };
+                    let move_x = || {
+                        if dx < 0 {
+                            (Direction::Left, mx - 1, my)
+                        } else {
+                            (Direction::Right, mx + 1, my)
+                        }
+                    };
+                    let all = if dx.abs() > dy.abs() {
+                        [move_x(), move_y()]
+                    } else {
+                        [move_y(), move_x()]
+                    };
+                    if let Some(a) = all.iter().find(|a| !self.is_position_occupied(a.1, a.2)) {
+                        *a
+                    } else {
+                        return true;
+                    }
+                }
             };
 
             if self.is_out_of_bounds(mx, my) {
-                return true;
-            }
-
-            if self.is_position_occupied(mx, my) {
                 return true;
             }
 
@@ -1108,6 +1595,34 @@ impl Dungeon {
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, Clone)]
+struct Leaderboard {
+    highest_floor: Vec<(String, u32)>,
+    most_gold: Vec<(String, u32)>,
+}
+impl Leaderboard {
+    fn new() -> Self {
+        Self {
+            highest_floor: vec![],
+            most_gold: vec![],
+        }
+    }
+    fn update(&mut self, user_id: String, floor: u32, gold: u32) {
+        self.highest_floor.push((user_id.clone(), floor));
+        self.most_gold.push((user_id, gold));
+
+        self.highest_floor.sort_by(|a, b| b.1.cmp(&a.1));
+        self.most_gold.sort_by(|a, b| b.1.cmp(&a.1));
+
+        if self.highest_floor.len() > 10 {
+            self.highest_floor.truncate(10);
+        }
+        if self.most_gold.len() > 10 {
+            self.most_gold.truncate(10);
+        }
+    }
+}
+
+#[derive(BorshSerialize, BorshDeserialize, Debug, Clone)]
 struct CreateNewDungeonCommandInput {
     reset: bool,
 }
@@ -1122,9 +1637,16 @@ impl DungeonCrawlerProgram {
     pub const PROGRAM_ID: &'static str = "dungeon_crawler";
     pub const VERSION: usize = 1;
     pub fn fetch_player_dungeon(user_id: &str) -> Result<Dungeon, os::ReadFileError> {
+        // return Err(ReadFileError::ParsingError("lol nerd".to_string()));
         let filepath = Self::get_dungeon_filepath(&user_id);
         let file = os::read_file(Self::PROGRAM_ID, &filepath)?;
         Dungeon::try_from_slice(&file.contents)
+            .map_err(|err| ReadFileError::ParsingError(err.to_string()))
+    }
+    pub fn fetch_leaderboard() -> Result<Leaderboard, os::ReadFileError> {
+        let filepath = "leaderboard";
+        let file = os::read_file(Self::PROGRAM_ID, &filepath)?;
+        Leaderboard::try_from_slice(&file.contents)
             .map_err(|err| ReadFileError::ParsingError(err.to_string()))
     }
     pub fn create_new_dungeon(input: CreateNewDungeonCommandInput) -> String {
@@ -1176,14 +1698,17 @@ impl DungeonCrawlerProgram {
 
         // Create a default dungeon
         let mut dungeon = if input.reset {
+            let w = 6;
+            let h = 6;
             Dungeon {
+                theme: DungeonTheme::Fortress,
                 floor: 0,
                 turn: 0,
-                width: 8,
-                height: 8,
+                width: w,
+                height: h,
                 player: Player {
-                    x: program::random_number::<i32>().abs() % 8,
-                    y: program::random_number::<i32>().abs() % 8,
+                    x: program::random_number::<i32>().abs() % w as i32,
+                    y: program::random_number::<i32>().abs() % h as i32,
                     health: 10,
                     max_health: 10,
                     strength: 1,
@@ -1226,8 +1751,12 @@ impl DungeonCrawlerProgram {
             dungeon.player.health = (dungeon.player.health + 1).min(dungeon.player.max_health);
             // Increase floor
             dungeon.floor += 1;
-            // Embiggen every other floor
-            if dungeon.floor % 2 == 0 {
+            // Update dungeon theme
+            if dungeon.floor == 10 {
+                dungeon.theme = DungeonTheme::Crypt;
+            }
+            // Embiggen every 3 floors
+            if dungeon.floor % 3 == 0 {
                 dungeon.width += 2;
                 dungeon.height += 2;
             }
@@ -1244,42 +1773,60 @@ impl DungeonCrawlerProgram {
 
         // Randomize monsters
         program::log("Randomizing monsters...");
-        let num_monsters = magic_ratio;
+        let num_monsters = 2 + magic_ratio;
+        // Define monsters and their weights
+        let monster_weights: &[(u32, MonsterKind)] = match dungeon.theme {
+            DungeonTheme::Crypt => &[
+                (3, MonsterKind::GreenGoblin),
+                (1, MonsterKind::OrangeGoblin),
+                (1, MonsterKind::Spider),
+                (1, MonsterKind::Shade),
+                (1, MonsterKind::RedBlob),
+            ],
+            _ => &[
+                (3, MonsterKind::BlueBlob),
+                (1, MonsterKind::YellowBlob),
+                (1, MonsterKind::RedBlob),
+                (1, MonsterKind::GreenGoblin),
+            ],
+        };
+        let total_weight: u32 = monster_weights.iter().map(|(weight, _)| *weight).sum();
+
         while dungeon.monsters.len() < num_monsters {
             let x = program::random_number::<i32>().abs() % max_x;
             let y = program::random_number::<i32>().abs() % max_y;
             if !dungeon.is_position_occupied(x, y) {
-                dungeon
-                    .monsters
-                    .push(match program::random_number::<u32>() % 10 {
-                        0..=1 => Monster {
-                            x,
-                            y,
-                            health: 5,
-                            max_health: 5,
-                            strength: 1,
-                            direction: Direction::Down,
-                            kind: MonsterKind::OrangeGoblin,
-                        },
-                        2..=5 => Monster {
-                            x,
-                            y,
-                            health: 1,
-                            max_health: 1,
-                            strength: 2,
-                            direction: Direction::Down,
-                            kind: MonsterKind::BlueBlob,
-                        },
-                        _ => Monster {
-                            x,
-                            y,
-                            health: 3,
-                            max_health: 3,
-                            strength: 1,
-                            direction: Direction::Down,
-                            kind: MonsterKind::GreenGoblin,
-                        },
-                    });
+                // Generate a random number within the total weight
+                let mut rng = program::random_number::<u32>() % total_weight;
+                let mut selected_monster = MonsterKind::GreenGoblin;
+                // Select the monster based on weighted probability
+                for (weight, monster_kind) in monster_weights {
+                    if rng < *weight {
+                        selected_monster = *monster_kind;
+                        break;
+                    }
+                    rng -= *weight;
+                }
+                // Define monster stats based on the selected kind
+                let (health, strength) = match selected_monster {
+                    MonsterKind::OrangeGoblin => (5, 1),
+                    MonsterKind::Spider => (4, 2),
+                    MonsterKind::Shade => (3, 2),
+                    MonsterKind::GreenGoblin => (2, 1),
+                    MonsterKind::RedBlob => (3, 2),
+                    MonsterKind::YellowBlob => (2, 1),
+                    _ => (1, 1),
+                };
+                dungeon.monsters.push(Monster {
+                    x,
+                    y,
+                    health,
+                    max_health: health,
+                    strength,
+                    direction: Direction::Down,
+                    kind: selected_monster,
+                    stun_dur: 0,
+                });
             }
         }
 
@@ -1353,10 +1900,10 @@ impl DungeonCrawlerProgram {
                 y,
                 kind: if program::random_number::<usize>() % 10 == 9 {
                     // 10% chance for firepit
-                    ObstacleKind::Firepit
+                    ObstacleKind::WallB
                 } else {
                     // 90% chance for stone block
-                    ObstacleKind::StoneBlock
+                    ObstacleKind::WallA
                 },
             });
         }
@@ -1433,6 +1980,29 @@ impl DungeonCrawlerProgram {
         program::log("Saving the dungeon...");
         Self::save_player_dungeon(&user_id, &dungeon);
 
+        // If player died, try adding their leaderboard entry
+        if dungeon.player.health == 0 {
+            let filepath = "leaderboard";
+            program::log("About to read the leaderboard file.");
+            let mut leaderboard = match program::read_file(&filepath) {
+                Ok(bytes) => {
+                    program::log("Read the leaderboard file.");
+                    Leaderboard::try_from_slice(&bytes).unwrap()
+                }
+                Err(err) => {
+                    program::log("Could not deserialize leaderboard.");
+                    program::log(err);
+                    Leaderboard::new()
+                }
+            };
+            program::log("Updating leaderboard...");
+            leaderboard.update(user_id, dungeon.floor, dungeon.player.gold);
+            program::log("Updated leaderboard!");
+            let data = leaderboard.try_to_vec().unwrap();
+            program::log("Writing leaderboard file...");
+            program::write_file(&filepath, &data).unwrap();
+        }
+
         // Commit the command result
         return program::COMMIT;
     }
@@ -1466,6 +2036,12 @@ fn generate_maze(width: usize, height: usize) -> Vec<(i32, i32)> {
             grid[wall_y][passage_x] = false;
             walls.retain(|&(wx, wy)| !(wx == passage_x as i32 && wy == wall_y as i32));
 
+            // Ensure at least one passage in the adjacent walls
+            if !grid[wall_y - 1][passage_x] && !grid[wall_y + 1][passage_x] {
+                grid[wall_y][passage_x] = false;
+                walls.retain(|&(wx, wy)| !(wx == passage_x as i32 && wy == wall_y as i32));
+            }
+
             divide(grid, walls, x, y, width, wall_y - y);
             divide(grid, walls, x, wall_y + 1, width, y + height - wall_y - 1);
         } else {
@@ -1477,6 +2053,12 @@ fn generate_maze(width: usize, height: usize) -> Vec<(i32, i32)> {
             let passage_y = y + program::random_number::<usize>() % height;
             grid[passage_y][wall_x] = false;
             walls.retain(|&(wx, wy)| !(wx == wall_x as i32 && wy == passage_y as i32));
+
+            // Ensure at least one passage in the adjacent walls
+            if !grid[passage_y][wall_x - 1] && !grid[passage_y][wall_x + 1] {
+                grid[passage_y][wall_x] = false;
+                walls.retain(|&(wx, wy)| !(wx == wall_x as i32 && wy == passage_y as i32));
+            }
 
             divide(grid, walls, x, y, wall_x - x, height);
             divide(grid, walls, wall_x + 1, y, x + width - wall_x - 1, height);
