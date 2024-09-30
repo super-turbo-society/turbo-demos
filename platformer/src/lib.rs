@@ -13,7 +13,10 @@ const GRAVITY: f32 = 0.6;
 const PLAYER_MOVE_SPEED_MAX: f32 = 2.0;
 const PLAYER_ACCELERATION: f32 = 1.0;
 const PLAYER_DECELERATION: f32 = 0.5;
-const PLAYER_JUMP_FORCE: f32 = 7.5;
+const PLAYER_MIN_JUMP_FORCE: f32 = 3.0;
+const PLAYER_MAX_JUMP_FORCE: f32 = 5.5;
+const PLAYER_JUMP_POWER_DUR: i32 = 6;
+const PLAYER_COYOTE_TIMER_DUR: i32 = 3;
 
 turbo::init! {
     struct GameState {
@@ -52,6 +55,7 @@ turbo::go!({
     state.player.handle_input();
     state.player.check_collision_tilemap(&state.tiles);
     state.player.update_position();
+    center_camera(state.player.x, state.player.y);
     state.player.draw();
     state.save();
 });
@@ -66,6 +70,8 @@ struct Player {
     is_falling: bool,
     is_facing_left: bool,
     is_landed: bool,
+    coyote_timer: i32,
+    is_powering_jump: bool,
 }
 
 impl Player {
@@ -77,15 +83,31 @@ impl Player {
             speed_y: 0.0,
             max_gravity: 15.0,
             is_falling: false,
-            is_facing_left: false,
+            is_facing_left: true,
             is_landed: false,
+            coyote_timer: 0,
+            is_powering_jump: false,
         }
     }
-
     fn handle_input(&mut self) {
         let gp = gamepad(0);
-        if (gp.up.just_pressed() || gp.start.just_pressed()) && self.is_landed {
-            self.speed_y = -PLAYER_JUMP_FORCE;
+        if (gp.up.just_pressed() || gp.start.just_pressed())
+            && (self.is_landed || self.coyote_timer > 0)
+            && self.speed_y >= 0.
+        {
+            if !self.is_powering_jump {
+                self.speed_y = -PLAYER_MIN_JUMP_FORCE;
+                self.is_powering_jump = true;
+            }
+        }
+        if self.is_powering_jump && (gp.up.pressed() || gp.start.pressed()) {
+            self.speed_y -=
+                (PLAYER_MAX_JUMP_FORCE - PLAYER_MIN_JUMP_FORCE) / (PLAYER_JUMP_POWER_DUR as f32);
+            if self.speed_y <= -PLAYER_MAX_JUMP_FORCE {
+                self.is_powering_jump = false;
+            }
+        } else {
+            self.is_powering_jump = false;
         }
 
         if gp.left.pressed() {
@@ -105,8 +127,14 @@ impl Player {
         self.speed_x = self
             .speed_x
             .clamp(-PLAYER_MOVE_SPEED_MAX, PLAYER_MOVE_SPEED_MAX);
-        self.speed_y += GRAVITY;
-        self.speed_y = self.speed_y.clamp(-PLAYER_JUMP_FORCE, self.max_gravity);
+        if !self.is_powering_jump {
+            self.speed_y += GRAVITY;
+        }
+        self.speed_y = self.speed_y.clamp(-PLAYER_MAX_JUMP_FORCE, self.max_gravity);
+
+        if self.coyote_timer > 0 {
+            self.coyote_timer -= 1;
+        }
     }
 
     fn check_collision_tilemap(&mut self, tiles: &[Tile]) {
@@ -118,6 +146,7 @@ impl Player {
             } else {
                 if self.is_landed {
                     self.is_landed = false;
+                    self.coyote_timer = PLAYER_COYOTE_TIMER_DUR;
                 }
             }
         }
@@ -162,13 +191,23 @@ impl Player {
     }
 
     fn draw(&self) {
-        sprite!(
-            "kiwi_idle",
-            x = self.x as i32,
-            y = self.y as i32,
-            flip_x = self.is_facing_left,
-            fps = fps::MEDIUM
-        );
+        if self.is_landed && self.speed_x != 0. {
+            sprite!(
+                "kiwi_walking",
+                x = self.x as i32,
+                y = self.y as i32,
+                flip_x = self.is_facing_left,
+                fps = fps::FAST
+            );
+        } else {
+            sprite!(
+                "kiwi_idle",
+                x = self.x as i32,
+                y = self.y as i32,
+                flip_x = self.is_facing_left,
+                fps = fps::MEDIUM
+            );
+        }
     }
 }
 
@@ -249,4 +288,14 @@ fn check_collision(player_x: f32, player_y: f32, direction: Direction, tiles: &[
         }
     }
     false
+}
+
+fn center_camera(x: f32, y: f32) {
+    let canvas_width = canvas_size!()[0] as f32;
+    let canvas_height = canvas_size!()[1] as f32;
+    //Subtract half the width of the canvas, then add half the size of the player to center the camera
+    set_cam!(
+        x = x - canvas_width / 2. + 8.,
+        y = y - canvas_height / 2. + 8.
+    );
 }

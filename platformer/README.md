@@ -4,7 +4,7 @@
 
 ## Description
 
-A basic platformer template made in Turbo!
+A basic platformer template made in Turbo! This tutorial will show you the key building blocks you need to make a 2D platformer style game.
 
 ## Getting Started
 
@@ -40,7 +40,7 @@ turbo::cfg! {r#"
 
 ### Part One: Render the tiles and player
 
-We're going to use these sprites for the player:
+We're going to use these sprites for the player and tiles:
 
 IDLE:
 ![kiwi-idle](sprites/kiwi_idle.png)
@@ -115,6 +115,7 @@ impl Tile {
 
 }
 ```
+
 When we start moving our player in section 2, we'll use all of these variables to determine where it goes on screen. But for now, we just need the position (x and y) to tell Turbo where on screen to render the kiwi sprite.
 
 For the tiles, we are using a 16x16 grid to determine where they are in the level. The draw position in pixel units is calculated as their grid position * TILE_SIZE.
@@ -277,6 +278,20 @@ This function will return true if we have a collision and false if we don't.
 
 Now we need to add movement functionality to our player, so we can put the collisions into action.
 
+First we can add some constants related to the player movement at the top of our file:
+
+```rs
+const TILE_SIZE: i32 = 16;
+const GRAVITY: f32 = 0.6;
+
+const PLAYER_MOVE_SPEED_MAX: f32 = 2.0;
+const PLAYER_ACCELERATION: f32 = 1.0;
+const PLAYER_DECELERATION: f32 = 0.5;
+const PLAYER_JUMP_FORCE: f32 = 7.5;
+```
+
+And then we will update our impl Player so that it changes speed based on our key presses, checks collisions, and adjusts its position.
+
 ```rs
 impl Player {
     fn new(x: f32, y: f32) -> Self {
@@ -293,25 +308,29 @@ impl Player {
     }
 
     fn handle_input(&mut self) {
+        //Jump with UP or SPACE only if is_landed is true
         let gp = gamepad(0);
         if (gp.up.just_pressed() || gp.start.just_pressed()) && self.is_landed {
             self.speed_y = -PLAYER_JUMP_FORCE;
+            self.is_landed = false;
         }
-
+        //Add negative speed if you press left, or positive speed if you press right
         if gp.left.pressed() {
             self.speed_x -= PLAYER_ACCELERATION;
             self.is_facing_left = true;
         } else if gp.right.pressed() {
             self.speed_x += PLAYER_ACCELERATION;
             self.is_facing_left = false;
-        } else {
+        } 
+        //otherwise decelerate
+        else {
             if self.speed_x > 0. {
                 self.speed_x -= PLAYER_DECELERATION
             } else if self.speed_x < 0. {
                 self.speed_x += PLAYER_DECELERATION
             }
         }
-
+        //Make sure speed doesn't pass the maximums in any direction
         self.speed_x = self
             .speed_x
             .clamp(-PLAYER_MOVE_SPEED_MAX, PLAYER_MOVE_SPEED_MAX);
@@ -383,152 +402,287 @@ impl Player {
 }
 ```
 
+We've added three functions to our player. First we check for input, and change the speed based on what buttons the player pressed.
 
+Then we check if the player would collide with the wall at that speed. If they would, we lower the speed until they aren't colliding anymore.
 
-### Game Loop
+Lastly we update the position based on the new speed.
 
-The game loop is the core of your game, handling user input, updating the game state, and rendering. A typical Turbo game loop follows the following pattern:
+Now we need to call these functions from our go loop, and then we can test our game and see if it all works.
 
 ```rs
-turbo::go! {
-    // Load the current frame's game state
+turbo::go!({
     let mut state = GameState::load();
-
-    // Update the game state and draw graphics
-    // ...
-
-    // Save the game state for the next frame
-    state.save();
-}
-```
-
-In this walkthrough, we will cover:
-
-- Cat movement
-- Pancake generation, movement, and collision
-- Drawing various game elements
-
-#### Cat movement
-
-The following code handles the left and right movements of the cat via player 1's gamepad:
-
-```rs
-if gamepad(0).left.pressed() {
-    state.cat_x -= 2.;
-}
-if gamepad(0).right.pressed() {
-    state.cat_x += 2.;
-}
-```
-
-#### Pancake Generation
-
-There is a 1/64th chance of generating a new pancake each frame. The `x`, `vel`, and `radius` of the pancakes are also randomized:
-
-```rs
-if rand() % 64 == 0 {
-    // Create a new pancake with random attributes
-    let pancake = Pancake {
-        x: (rand() % 256) as f32,
-        y: 0.0,
-        vel: (rand() % 3 + 1) as f32,
-        radius: (rand() % 10 + 5) as f32,
-    };
-    state.pancakes.push(pancake);
-}
-```
-
-#### Pancake Movement and Collision
-
-Updating pancake positions and checking for collisions with the cat:
-
-```rs
-let cat_center = (state.cat_x + state.cat_r, state.cat_y + state.cat_r);
-state.pancakes.retain_mut(|pancake| {
-    pancake.y += pancake.vel;
-
-    // Check for collision with the cat
-    let pancake_center = (pancake.x + pancake.radius, pancake.y + pancake.radius);
-
-    // Calculate the distance between the cat and the pancake
-    let dx = cat_center.0 - pancake_center.0;
-    let dy = cat_center.1 - pancake_center.1;
-
-    let distance = (dx * dx + dy * dy).sqrt();
-    let radii_sum = state.cat_r + pancake.radius;
-    let radii_diff = (state.cat_r - pancake.radius).abs();
-
-    if radii_diff <= distance && distance <= radii_sum {
-        // Cat caught the pancake
-        state.score += 1;
-        state.last_munch_at = state.frame;
-        false // Remove the pancake from the game
-    } else if pancake.y < 144. + (pancake.radius * 2.) {
-        true // Keep the pancake in the game if it's within the screen
-    } else {
-        false // Remove the pancake if it's off-screen
+    clear(0xadd8e6ff);
+    for t in &mut state.tiles {
+        t.draw();
     }
+    state.player.handle_input();
+    state.player.check_collision_tilemap(&state.tiles);
+    state.player.update_position();
+    state.player.draw();
+    state.save();
 });
 ```
 
-#### Drawing the Background
+Now test your game and try moving with the arrow keys or WASD. You should be able to move, jump and collide into walls.
 
-Draw a tiled background of moving sprites:
+[movement gif]
+
+Feel free to play around with the CONST values to change how fast the kiwi moves and how high it jumps. You can also try adding some new tiles, then pressing ctrl+r to respawn the map and see if you can design some interesting jumps.
+
+One last improvement in this section, it to use our kiwi_walking sprite when the kiwi is moving and on the ground, and use idle in all other situations. To do this, we can update the draw function in our impl Player like this:
 
 ```rs
-clear(0x00ffffff);
-// Draw a tiled background of moving sprites
-let frame = (state.frame as i32) / 2;
-for col in 0..9 {
-    for row in 0..6 {
-        let x = col * 32;
-        let y = row * 32;
-        let x = ((x + frame) % (272 + 16)) - 32;
-        let y = ((y + frame) % (144 + 16)) - 24;
-        sprite!("heart", x = x, y = y);
+fn draw(&self) {
+        if self.is_landed && self.speed_x != 0. {
+            sprite!(
+                "kiwi_walking",
+                x = self.x as i32,
+                y = self.y as i32,
+                flip_x = self.is_facing_left,
+                fps = fps::FAST
+            );
+        } else {
+            sprite!(
+                "kiwi_idle",
+                x = self.x as i32,
+                y = self.y as i32,
+                flip_x = self.is_facing_left,
+                fps = fps::MEDIUM
+            );
+        }
+    }
+```
+If you wanted to add a different sprite for jumping or falling, you could add that as a 3rd condition in the draw function here.
+
+### Part Three: Camera Movement
+
+Now that we've got our character working, we can use the turbo cam function to make the camera follow the player.
+
+Lets start by making a function to center the camera at a certain point. This function can go at the bottom of your lib.rs file, outside of any struct:
+
+```rs
+fn center_camera(x: f32, y: f32) {
+    let canvas_width = canvas_size!()[0] as f32;
+    let canvas_height = canvas_size!()[1] as f32;
+    //Subtract half the width of the canvas, then add half the size of the player to center the camera
+    set_cam!(
+        x = x - canvas_width / 2. + 8.,
+        y = y - canvas_height / 2. + 8.
+    );
+}
+```
+
+Then we call this function from our go loop, after we update the player position:
+
+```rs
+turbo::go!({
+    let mut state = GameState::load();
+    clear(0xadd8e6ff);
+    for t in &mut state.tiles {
+        t.draw();
+    }
+    state.player.handle_input();
+    state.player.check_collision_tilemap(&state.tiles);
+    state.player.update_position();
+    center_camera(state.player.x, state.player.y);
+    state.player.draw();
+    state.save();
+});
+```
+
+Save your updated code and try moving around to see the camera follow the player.
+
+### Part Four: Polishing player movement
+
+Now we have the core functionality needed to make a playoformer game:
+1. We can move and jump.
+2. We can collide with the tile map.
+3. The camera follows the player's movement.
+
+While there are many areas we could improve, there are two key concepts that tend to make platformers much more fun to play: Variable Jump Power and Coyote Time.
+
+Variable Jump Power means that the player is able to hold down the jump button to jump higher, or tap it and let go quickly to do a small jump. Coyote Time gives the player a few frames after running off a ledge to still jump, even if they are not still touching the ground. This removes a lot of frustrating moments where players think they jumped in time, but actually were a frame or two too late.
+
+To get these working we need to add a few more CONST values to get this working:
+
+```rs
+const TILE_SIZE: i32 = 16;
+const GRAVITY: f32 = 0.6;
+
+const PLAYER_MOVE_SPEED_MAX: f32 = 2.0;
+const PLAYER_ACCELERATION: f32 = 1.0;
+const PLAYER_DECELERATION: f32 = 0.5;
+const PLAYER_MIN_JUMP_FORCE: f32 = 3.0;
+const PLAYER_MAX_JUMP_FORCE: f32 = 5.5;
+const PLAYER_JUMP_POWER_DUR: i32 = 6;
+const PLAYER_COYOTE_TIMER_DUR: i32 = 3;
+```
+
+And then update our struct Player and impl Player:
+
+```rs
+#[derive(BorshDeserialize, BorshSerialize, Debug, Clone, PartialEq)]
+struct Player {
+    x: f32,
+    y: f32,
+    speed_x: f32,
+    speed_y: f32,
+    max_gravity: f32,
+    is_falling: bool,
+    is_facing_left: bool,
+    is_landed: bool,
+    coyote_timer: i32,
+    is_powering_jump: bool,
+}
+
+impl Player {
+    fn new(x: f32, y: f32) -> Self {
+        Self {
+            x,
+            y,
+            speed_x: 0.0,
+            speed_y: 0.0,
+            max_gravity: 15.0,
+            is_falling: false,
+            is_facing_left: true,
+            is_landed: false,
+            coyote_timer: 0,
+            is_powering_jump: false,
+        }
+    }
+    fn handle_input(&mut self) {
+        let gp = gamepad(0);
+        if (gp.up.just_pressed() || gp.start.just_pressed())
+            && (self.is_landed || self.coyote_timer > 0)
+            && self.speed_y >= 0.
+        {
+            if !self.is_powering_jump {
+                self.speed_y = -PLAYER_MIN_JUMP_FORCE;
+                self.is_powering_jump = true;
+            }
+        }
+        if self.is_powering_jump && (gp.up.pressed() || gp.start.pressed()) {
+            self.speed_y -=
+                (PLAYER_MAX_JUMP_FORCE - PLAYER_MIN_JUMP_FORCE) / (PLAYER_JUMP_POWER_DUR as f32);
+            if self.speed_y <= -PLAYER_MAX_JUMP_FORCE {
+                self.is_powering_jump = false;
+            }
+        } else {
+            self.is_powering_jump = false;
+        }
+
+        if gp.left.pressed() {
+            self.speed_x -= PLAYER_ACCELERATION;
+            self.is_facing_left = true;
+        } else if gp.right.pressed() {
+            self.speed_x += PLAYER_ACCELERATION;
+            self.is_facing_left = false;
+        } else {
+            if self.speed_x > 0. {
+                self.speed_x -= PLAYER_DECELERATION
+            } else if self.speed_x < 0. {
+                self.speed_x += PLAYER_DECELERATION
+            }
+        }
+
+        self.speed_x = self
+            .speed_x
+            .clamp(-PLAYER_MOVE_SPEED_MAX, PLAYER_MOVE_SPEED_MAX);
+        if !self.is_powering_jump {
+            self.speed_y += GRAVITY;
+        }
+        self.speed_y = self.speed_y.clamp(-PLAYER_MAX_JUMP_FORCE, self.max_gravity);
+
+        if self.coyote_timer > 0 {
+            self.coyote_timer -= 1;
+        }
+    }
+
+    fn check_collision_tilemap(&mut self, tiles: &[Tile]) {
+        // Check collision down
+        if self.speed_y > 0.0 {
+            if check_collision(self.x, self.y + self.speed_y, Direction::Down, tiles) {
+                self.speed_y = 0.0;
+                self.is_landed = true;
+            } else {
+                if self.is_landed {
+                    self.is_landed = false;
+                    //Set this to the maximum value when you are no longer colliding downwards
+                    self.coyote_timer = PLAYER_COYOTE_TIMER_DUR;
+                }
+            }
+        }
+
+        // Check collision up
+        if self.speed_y < 0.0 {
+            while self.speed_y < 0.0 {
+                if check_collision(self.x, self.y + self.speed_y, Direction::Up, tiles) {
+                    self.speed_y += 1.0;
+                } else {
+                    break;
+                }
+            }
+        }
+
+        // Check collision right
+        if self.speed_x > 0.0 {
+            while self.speed_x > 0.0 {
+                if check_collision(self.x + self.speed_x, self.y, Direction::Right, tiles) {
+                    self.speed_x -= 1.0;
+                } else {
+                    break;
+                }
+            }
+        }
+
+        // Check collision left
+        if self.speed_x < 0.0 {
+            while self.speed_x < 0.0 {
+                if check_collision(self.x + self.speed_x, self.y, Direction::Left, tiles) {
+                    self.speed_x += 1.0;
+                } else {
+                    break;
+                }
+            }
+        }
+    }
+
+    fn update_position(&mut self) {
+        self.x += self.speed_x;
+        self.y += self.speed_y;
+    }
+
+    fn draw(&self) {
+        if self.is_landed && self.speed_x != 0. {
+            sprite!(
+                "kiwi_walking",
+                x = self.x as i32,
+                y = self.y as i32,
+                flip_x = self.is_facing_left,
+                fps = fps::FAST
+            );
+        } else {
+            sprite!(
+                "kiwi_idle",
+                x = self.x as i32,
+                y = self.y as i32,
+                flip_x = self.is_facing_left,
+                fps = fps::MEDIUM
+            );
+        }
     }
 }
-state.frame += 1;
 ```
 
-#### Drawing Speech Bubbles
+Save your file and try tapping the jump button lightly. You should see a much smaller jump, compared to if you hold it down.
 
-Draw a speech bubble when the cat eats a pancake:
+Coyote time can be a little harder to test, but try changing the const value for PLAYER_COYOTE_TIMER_DUR to something higher. That should make it easier to see it in action.
 
-```rs
-if state.frame >= 64 && state.frame.saturating_sub(state.last_munch_at) <= 60 {
-    rect!(w = 30, h = 10, x = state.cat_x as i32 + 32, y = state.cat_y as i32);
-    circ!(d = 10, x = state.cat_x as i32 + 28, y = state.cat_y as i32);
-    rect!(w = 10, h = 5, x = state.cat_x as i32 + 28, y = state.cat_y as i32 + 5);
-    circ!(d = 10, x = state.cat_x as i32 + 56, y = state.cat_y as i32);
-    text!("MUNCH!", x = state.cat_x as i32 + 33, y = state.cat_y as i32 + 3, font = Font::S, color = 0x000000ff);
-}
-```
+### Conclusion and Next Steps
+You can use this as the base for making a full fledge turbo platformer game, but where you go from here is up to you! Here are a few ideas:
 
-#### Drawing the Cat
-
-Here's how to draw the cat. Since its sprite is a horizontal strip, it is automatically animated:
-
-```rs
-sprite!("munch_cat", x = (state.cat_x - state.cat_r) as i32, y = (state.cat_y - 4.) as i32, fps = fps::FAST);
-```
-
-#### Drawing the Pancakes
-
-Draw the falling pancakes
-
-```rs
-for pancake in &state.pancakes {
-    circ!(x = pancake.x as i32, y = pancake.y as i32 + 1, d = (pancake.radius + 2.) as u32, color = 0x000000aa); // Render the pancakes
-    circ!(x = pancake.x as i32, y = pancake.y as i32, d = (pancake.radius + 1.) as u32, color = 0xf4d29cff); // Render the pancakes
-    circ!(x = pancake.x as i32, y = pancake.y as i32, d = pancake.radius as u32, color = 0xdba463ff); // Render the pancakes
-}
-```
-
-#### Drawing the Score
-
-Draw the score (aka number of pancakes eaten):
-
-```rs
-text!(&format!("Score: {}", state.score), x = 10, y = 10, font = Font::L, color = 0xffffffff); // Render the score
-```
+1. Add some enemies or hazards that the player has to dodge.
+2. Build a bigger map with a goal. Challenge the player to reach the goal without falling off the map.
+3. Add some coins for the player to collect.
