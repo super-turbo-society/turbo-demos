@@ -146,6 +146,7 @@ impl Player {
             } else {
                 if self.is_landed {
                     self.is_landed = false;
+                    //Set this to the maximum value when you are no longer colliding downwards
                     self.coyote_timer = PLAYER_COYOTE_TIMER_DUR;
                 }
             }

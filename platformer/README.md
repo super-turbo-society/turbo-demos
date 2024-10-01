@@ -1,6 +1,6 @@
-# Platformer
+# Turbo Platformer Tutorial
 
-![Turbo game window with an orange cat head and falling pancakes](kiwi-and-tile.png)
+![Platformer Game Movement Gif](kiwi-movement.gif)
 
 ## Description
 
@@ -8,11 +8,17 @@ A basic platformer template made in Turbo! This tutorial will show you the key b
 
 ## Getting Started
 
-From the project dir, run the following command:
+If you want to follow along with the tutorial and write the code on your own, start by running the turbo init command
 
 ```sh
-turbo run -w .
+turbo init platformer
 ```
+
+And then run the game
+```sh
+turbo run -w
+```
+
 **Development Tips:**
 - If you update sprites while your game is running, Turbo will immediately show the changes. Just be sure to restart Turbo when adding new sprites.
 - Using the keyboard shortcut `cmd+r / ctrl+r` will reset your game to its initial state
@@ -116,11 +122,13 @@ impl Tile {
 }
 ```
 
-When we start moving our player in section 2, we'll use all of these variables to determine where it goes on screen. But for now, we just need the position (x and y) to tell Turbo where on screen to render the kiwi sprite.
+When we start moving our player in Step 2, we'll use all of these variables to determine where it goes on screen. But for now, we just need the position (x and y) to tell Turbo where to render the kiwi sprite.
 
 For the tiles, we are using a 16x16 grid to determine where they are in the level. The draw position in pixel units is calculated as their grid position * TILE_SIZE.
 
 Now we need to add the player and tiles to our game state in our turbo:init section. We will also define a const value for TILE_SIZE, which tells the game that our tiles are 16 pixels wide.
+
+Add this code underneath your config code
 
 ```rs
 const TILE_SIZE: i32 = 16;
@@ -192,9 +200,10 @@ turbo::init! {
     }
 }
 ```
-[player and tiles screenshot]
 
-Press ctrl+R to reset your game and you should see several tiles with the player near the middle. You'll have to reset the game to see this update, because the tiles are generated in turbo::init (which only runs at the start of the game) not in turbo::go which runs every frame.
+Press ctrl+R to reset your game and you should see several tiles with the player near the middle, like this:
+![Screenshot of the kiwi character and some tiles](tiles_and_player.png)
+ You'll have to reset the game to see this update, because the tiles are generated in turbo::init (which only runs at the start of the game) not in turbo::go which runs every frame.
 
 Now lets work on the collisions. Collisions can seem fairly complicated at first, but they are essential for this kind of game.
 
@@ -211,7 +220,7 @@ fn contains(&self, point_x: f32, point_y: f32) -> bool {
     }
 ```
 
-This function takes point_x and point_y parameters, and returns true or false if that point is contained within the tile.
+This function takes point_x and point_y parameters, and returns true or false if that point is contained within the tile. Since the tile is "TILE_SIZE" units long, we can check if the point is within TILE_SIZE units horizontally from the left side and vertically from the top.
 
 Now we have to figure out which points to check if our player is colliding with the tiles or not. Add this function to the bottom of your file:
 
@@ -275,6 +284,10 @@ fn check_collision(
 When we are checking for a collision between our player and our tile, we need to check both sides of the player, coming from any particular direction. To calculate those positions, we need to use the height and width of our player sprite, and the direction that we are coming from.
 
 This function will return true if we have a collision and false if we don't.
+
+While each frame of the kiwi sprite is 16 x 16, the actual body of the kiwi is only about 12 x 12,so we use 12 for width and height in our collision.
+
+Pad X and Pad Y represent the amount of space in the sprite image before the body of the kiwi begins.
 
 Now we need to add movement functionality to our player, so we can put the collisions into action.
 
@@ -427,7 +440,7 @@ turbo::go!({
 
 Now test your game and try moving with the arrow keys or WASD. You should be able to move, jump and collide into walls.
 
-[movement gif]
+![Platformer Game Movement Gif](kiwi-movement.gif)
 
 Feel free to play around with the CONST values to change how fast the kiwi moves and how high it jumps. You can also try adding some new tiles, then pressing ctrl+r to respawn the map and see if you can design some interesting jumps.
 
@@ -458,7 +471,7 @@ If you wanted to add a different sprite for jumping or falling, you could add th
 
 ### Part Three: Camera Movement
 
-Now that we've got our character working, we can use the turbo cam function to make the camera follow the player.
+Now that we've got our character working, we can use the turbo cam function to make the camera follow the player. This will let us build a level that is bigger than the size of our canvas.
 
 Lets start by making a function to center the camera at a certain point. This function can go at the bottom of your lib.rs file, outside of any struct:
 
@@ -473,6 +486,8 @@ fn center_camera(x: f32, y: f32) {
     );
 }
 ```
+
+When we use set_cam! we are setting the top left corner of the camera to a certain point. So we adjust that value by half of the canvas width and height, and half of the size of the player sprite, so that our player is directly in the middle.
 
 Then we call this function from our go loop, after we update the player position:
 
@@ -496,7 +511,7 @@ Save your updated code and try moving around to see the camera follow the player
 
 ### Part Four: Polishing player movement
 
-Now we have the core functionality needed to make a playoformer game:
+Now we have all of the core functionality needed to make a playoformer game:
 1. We can move and jump.
 2. We can collide with the tile map.
 3. The camera follows the player's movement.
