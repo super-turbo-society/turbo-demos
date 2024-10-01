@@ -60,7 +60,9 @@ TILE:
 ![tile](sprites/tile.png)
 
 
-To start, we're going to render our player and tiles on screen. We can make a custom struct and impl for each. A struct holds data related to a specific object type, and an impl holds functions.
+Make a folder called sprites in the root of your project, and add these 3 pngs to that folder. 
+
+To start, we're going to render our player and tiles on screen. To keep our code organized, lets make a struct and impl for each. A struct holds data related to a specific object type, and an impl holds functions.
 
 ```rs
 #[derive(BorshDeserialize, BorshSerialize, Debug, Clone, PartialEq)]
@@ -131,11 +133,11 @@ One thing you may have noticed is this line of code above each of the struct dec
 
 In Turbo, any struct that is used in GameState needs to have these attributes. You can define your struct in Turbo::Init and it will automatically inherit them, but I find it is easier to organize your code if you move them outside.
 
-When we start moving our player in Step 2, we'll use all of these variables to determine where it goes on screen. But for now, we just need the position (x and y) to tell Turbo where to render the kiwi sprite.
+When we start moving our player in Step 2, we'll use all of the variables in `struct Player` to determine how the player moves. But for now, we just need the position (x and y) to tell Turbo where to render the kiwi sprite.
 
-For the tiles, we are using a 16x16 grid to determine where they are in the level. The draw position in pixel units is calculated as their grid position * TILE_SIZE.
+For the tiles, we are going to use a 16x16 grid to determine where they are positioned in the level. The draw position in pixel units is calculated as `grid position * TILE_SIZE`.
 
-Now we need to add the player and tiles to our game state in our turbo:init section. We will also define a const value for TILE_SIZE, which tells the game that our tiles are 16 pixels wide.
+Next, we need to add specific instances of the player and tiles to our game state inside of turbo:init. We will also define a const value for TILE_SIZE, which tells the game that our tiles are 16 pixels wide.
 
 Add this code underneath your config code
 
@@ -157,7 +159,7 @@ turbo::init! {
 }
 ```
 
-Lastly, we want to call the draw functions for player and tiles inside the turbo:go! loop. Here is how we do that:
+Lastly, we want to call the draw functions for our player and tiles inside the turbo:go! loop. Here is how we do that:
 
 ```rs
 turbo::go! ({
@@ -171,9 +173,9 @@ turbo::go! ({
 });
 ```
 
-Now when you call turbo run -w from your terminal, you should see the kiwi and tile rendered on screen!
+Run your game and you should see the kiwi and tile rendered on screen!
 
-Remember, there are no collisions yet, so don't worry if your kiwi is standing inside of the tiles. We will fix that later!
+Remember, there are no collisions yet, so don't worry if your kiwi is standing inside of the tiles. We will fix that later.
 
 ### Part Two: Collisions and player movement
 
@@ -453,7 +455,7 @@ Now test your game and try moving with the arrow keys or WASD. You should be abl
 
 Feel free to play around with the CONST values to change how fast the kiwi moves and how high it jumps. You can also try adding some new tiles, then pressing ctrl+r to respawn the map and see if you can design some interesting jumps.
 
-One last improvement in this section, it to use our kiwi_walking sprite when the kiwi is moving and on the ground, and use idle in all other situations. To do this, we can update the draw function in our impl Player like this:
+One last improvement in this section is to use our kiwi_walking sprite when the kiwi is moving and on the ground, and use idle in all other situations. To do this, we can update the draw function in our impl Player like this:
 
 ```rs
 fn draw(&self) {
