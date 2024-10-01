@@ -4,17 +4,19 @@
 
 ## Description
 
-A basic platformer template made in Turbo! This tutorial will show you the key building blocks you need to make a 2D platformer style game.
+A basic platformer template made in Turbo! This tutorial will show you the key building blocks you need to make a 2D platformer style game. 
+
+This tutorial is meant for developers with some familiarity with Turbo and Rust. If you haven't made any games in Turbo yet, I'd suggest you first go through this [pancake cat tutorial](https://github.com/super-turbo-society/turbo-demos/tree/main/pancake-cat) or watch the video version [here](https://www.youtube.com/watch?v=q1XirzwOxRM).
 
 ## Getting Started
 
-If you want to follow along with the tutorial and write the code on your own, start by running the turbo init command
+If you want to follow along with the tutorial and write the code on your own, start by running the turbo init command:
 
 ```sh
 turbo init platformer
 ```
 
-And then run the game
+And then run the game:
 ```sh
 turbo run -w
 ```
@@ -121,6 +123,13 @@ impl Tile {
 
 }
 ```
+One thing you may have noticed is this line of code above each of the struct declarations:
+
+```rs
+#[derive(BorshDeserialize, BorshSerialize, Debug, Clone, PartialEq)]
+```
+
+In Turbo, any struct that is used in GameState needs to have these attributes. You can define your struct in Turbo::Init and it will automatically inherit them, but I find it is easier to organize your code if you move them outside.
 
 When we start moving our player in Step 2, we'll use all of these variables to determine where it goes on screen. But for now, we just need the position (x and y) to tell Turbo where to render the kiwi sprite.
 
