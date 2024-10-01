@@ -16,6 +16,21 @@ If you want to follow along with the tutorial and write the code on your own, st
 turbo init platformer
 ```
 
+We're going to use these sprites for the player and tiles:
+
+IDLE:
+![kiwi-idle](sprites/kiwi_idle.png)
+
+WALKING:
+![kiwi-walking](sprites/kiwi_walking.png)
+
+TILE:
+![tile](sprites/tile.png)
+
+
+Make a folder called sprites in the root of your project, and add these 3 pngs to that folder.
+
+
 And then run the game:
 ```sh
 turbo run -w
@@ -47,20 +62,6 @@ turbo::cfg! {r#"
 ```
 
 ### Part One: Render the tiles and player
-
-We're going to use these sprites for the player and tiles:
-
-IDLE:
-![kiwi-idle](sprites/kiwi_idle.png)
-
-WALKING:
-![kiwi-walking](sprites/kiwi_walking.png)
-
-TILE:
-![tile](sprites/tile.png)
-
-
-Make a folder called sprites in the root of your project, and add these 3 pngs to that folder. 
 
 To start, we're going to render our player and tiles on screen. To keep our code organized, lets make a struct and impl for each. A struct holds data related to a specific object type, and an impl holds functions.
 
@@ -531,7 +532,7 @@ While there are many areas we could improve, there are two key concepts that ten
 
 Variable Jump Power means that the player is able to hold down the jump button to jump higher, or tap it and let go quickly to do a small jump. Coyote Time gives the player a few frames after running off a ledge to still jump, even if they are not still touching the ground. This removes a lot of frustrating moments where players think they jumped in time, but actually were a frame or two too late.
 
-To get these working we need to add a few more CONST values to get this working:
+To get these working we need to add a few more CONST values
 
 ```rs
 const TILE_SIZE: i32 = 16;
@@ -542,6 +543,7 @@ const PLAYER_ACCELERATION: f32 = 1.0;
 const PLAYER_DECELERATION: f32 = 0.5;
 const PLAYER_MIN_JUMP_FORCE: f32 = 3.0;
 const PLAYER_MAX_JUMP_FORCE: f32 = 5.5;
+//add these two
 const PLAYER_JUMP_POWER_DUR: i32 = 6;
 const PLAYER_COYOTE_TIMER_DUR: i32 = 3;
 ```
@@ -704,11 +706,11 @@ impl Player {
 
 Save your file and try tapping the jump button lightly. You should see a much smaller jump, compared to if you hold it down.
 
-Coyote time can be a little harder to test, but try changing the const value for PLAYER_COYOTE_TIMER_DUR to something higher. That should make it easier to see it in action.
+Coyote time can be a little harder to test. If you are having trouble seeing it, try changing the const value for PLAYER_COYOTE_TIMER_DUR to something higher. That should make it easier to see it in action.
 
 ### Conclusion and Next Steps
-You can use this as the base for making a full fledge turbo platformer game, but where you go from here is up to you! Here are a few ideas:
+You can use this as the base for making a full fledged turbo platformer game, but where you go next is up to you! Here are a few ideas:
 
-1. Add some enemies or hazards that the player has to dodge.
-2. Build a bigger map with a goal. Challenge the player to reach the goal without falling off the map.
-3. Add some coins for the player to collect.
+- Add some enemies or hazards that the player has to dodge.
+- Build a bigger map with a goal. Challenge the player to reach the goal without falling off the map.
+- Add some coins for the player to collect.
