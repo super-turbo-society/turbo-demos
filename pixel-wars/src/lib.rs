@@ -1,19 +1,18 @@
 mod rng;
-mod unit;
 mod trap;
+mod unit;
 
 use csv::{Reader, ReaderBuilder};
+use rng::*;
 use std::cmp::{max, Ordering};
 use std::collections::HashMap;
 use std::error::Error;
 use std::fmt::{format, Display};
-use rng::*;
-use unit::*;
 use trap::*;
+use unit::*;
 
 const UNIT_DATA_CSV: &[u8] = include_bytes!("../resources/unit-data.csv");
 const DAMAGE_EFFECT_TIME: u32 = 12;
-
 
 const UNIT_ANIM_SPEED: i32 = 8;
 const MAX_Y_ATTACK_DISTANCE: f32 = 10.;
@@ -128,18 +127,17 @@ turbo::go!({
         if gp.start.just_pressed() {
             //generate units
             create_units_for_all_teams(&mut state);
-            //generate any traps 
+            //generate any traps
 
             state.phase = Phase::Battle;
             //reset camera here
-            set_cam!(x = 192, y=108);
+            set_cam!(x = 192, y = 108);
         }
         //move camera if you press up and down
-        if gp.down.pressed(){
+        if gp.down.pressed() {
             set_cam!(y = cam!().1 + 3);
-        }
-        else if gp.up.pressed(){
-            set_cam!(y = cam!().1 -3);
+        } else if gp.up.pressed() {
+            set_cam!(y = cam!().1 - 3);
         }
         if state.auto_assign_teams {
             //draw each unit based on the teams
@@ -154,7 +152,7 @@ turbo::go!({
             draw_team_info_and_buttons(&mut state);
         }
     } else if state.phase == Phase::Battle {
-        //run the simulation once. 
+        //run the simulation once.
         //TODO: This might explode if there's a tie so lets run a better way to do this
         if state.simulation_result.living_units.len() == 0 {
             //store the state somehow
@@ -163,29 +161,31 @@ turbo::go!({
             //TODO: get this random from turbo OS
             let seed: u32 = rand();
             state.rng = RNG::new(seed);
-            while winning_team.is_none(){
+            while winning_team.is_none() {
                 step_through_battle(&mut state);
                 winning_team = has_some_team_won(&state.units);
             }
-            let simulation_result = SimulationResult{living_units: all_living_units(&state.units), seed};
+            let simulation_result = SimulationResult {
+                living_units: all_living_units(&state.units),
+                seed,
+            };
             //reset the state here
             state = stored_state;
             //and assign the simulation result. Then we'll do the actual simulation
             state.simulation_result = simulation_result;
             //assign the rng to the same seed you used for the simulation, so it matches
             state.rng = RNG::new(seed);
-        }
-        else{
+        } else {
             //after we did the simulation, step through one frame at a time until it's over
             step_through_battle(&mut state);
         }
-        
+
         //temp code to create traps
         let gp = gamepad(0);
-        if gp.a.just_pressed(){
+        if gp.a.just_pressed() {
             state.traps.push(create_trap(&mut state.rng));
         }
-        if gp.b.just_pressed(){
+        if gp.b.just_pressed() {
             state.traps.push(create_trap(&mut state.rng));
             state.traps.push(create_trap(&mut state.rng));
             state.traps.push(create_trap(&mut state.rng));
@@ -198,17 +198,16 @@ turbo::go!({
             state.traps.push(create_trap(&mut state.rng));
         }
         ///////////////DRAW CODE//////////////
-        
+
         //Draw craters beneath everything
-        for c in &state.craters{
+        for c in &state.craters {
             c.draw();
-            
         }
         //sprite!("crater_01", x=100, y=100, color = 0xFFFFFF80);
         //Draw footprints beneath units
-        for u in &mut state.units{
+        for u in &mut state.units {
             let mut y = 50;
-            for fp in &mut u.footprints{
+            for fp in &mut u.footprints {
                 fp.draw();
                 //format!()
             }
@@ -252,7 +251,7 @@ turbo::go!({
             explosion.update();
             !explosion.animator.is_done()
         });
-        for explosion in &mut state.explosions{
+        for explosion in &mut state.explosions {
             explosion.draw();
         }
 
@@ -292,7 +291,7 @@ turbo::go!({
             //     text!(" Simulation matches regular game", x=50, y=50);
             // }
             // else{
-            //     text!("SIMULATION DOES NOT MATCH", x=50, y=50); 
+            //     text!("SIMULATION DOES NOT MATCH", x=50, y=50);
             // }
         }
         //TODO: clean this up
@@ -311,23 +310,32 @@ turbo::go!({
                 team1_current_health += unit.health as f32;
             }
         }
-
+        let mut is_chosen_team = false;
+        if state.selected_team_index == 0 {
+            is_chosen_team = true;
+        }
+        let (team_0_pos, team_1_pos) = ((24.0, 20.0), (232.0, 20.0));
         // Draw health bar for team 0
         draw_team_health_bar(
             team0_base_health,
             team0_current_health,
-            (24.0, 20.0),
+            team_0_pos,
             &state.teams[0].name.to_uppercase(),
             true,
+            is_chosen_team,
         );
-
+        is_chosen_team = false;
+        if state.selected_team_index == 1 {
+            is_chosen_team = true;
+        }
         // Draw health bar for team 1
         draw_team_health_bar(
             team1_base_health,
             team1_current_health,
-            (232.0, 20.0),
+            team_1_pos,
             &state.teams[1].name.to_uppercase(),
             false,
+            is_chosen_team,
         );
     }
 
@@ -362,8 +370,7 @@ turbo::go!({
     state.save();
 });
 
-fn step_through_battle(state: &mut GameState)
-{
+fn step_through_battle(state: &mut GameState) {
     let units_clone = state.units.clone();
 
     //go through each unit, see what it wants to do, and handle all actions from here
@@ -373,10 +380,9 @@ fn step_through_battle(state: &mut GameState)
             if let Some(index) = closest_enemy_index(&unit, &units_clone) {
                 if unit.is_unit_in_range(&units_clone[index]) {
                     state.attacks.push(unit.start_attack(index));
-                    if unit.pos.0 > units_clone[index].pos.0{
+                    if unit.pos.0 > units_clone[index].pos.0 {
                         unit.is_facing_left = true;
-                    }
-                    else{
+                    } else {
                         unit.is_facing_left = false;
                     }
                 } else {
@@ -389,25 +395,27 @@ fn step_through_battle(state: &mut GameState)
         unit.update();
         //check for traps
         for trap in &mut state.traps {
-            if distance_between(unit.foot_position(), trap.pos) < (trap.size / 2.) && trap.is_active() {
-                if trap.trap_type == TrapType::Poop{
+            if distance_between(unit.foot_position(), trap.pos) < (trap.size / 2.)
+                && trap.is_active()
+            {
+                if trap.trap_type == TrapType::Poop {
                     unit.footprint_status = FootprintStatus::Poopy;
-                }
-                else if trap.trap_type == TrapType::Acidleak{
+                } else if trap.trap_type == TrapType::Acidleak {
                     unit.take_damage(trap.damage);
                     unit.footprint_status = FootprintStatus::Acid;
-                }
-                else if trap.trap_type == TrapType::Landmine{
-                    if let Some(closest_unit_index) = closest_unit_to_position(trap.pos, &units_clone) {
-                        let mut attack = Attack::new(closest_unit_index, 1., trap.pos, trap.damage, 8., 1);
+                } else if trap.trap_type == TrapType::Landmine {
+                    if let Some(closest_unit_index) =
+                        closest_unit_to_position(trap.pos, &units_clone)
+                    {
+                        let mut attack =
+                            Attack::new(closest_unit_index, 1., trap.pos, trap.damage, 8., 1);
                         attack.is_explosive = true;
                         //attack.instant_trigger = true;
                         state.attacks.push(attack);
                         trap.set_inactive();
-                        turbo::println!("TRAP POS {}, {}",trap.pos.0, trap.pos.1);
+                        turbo::println!("TRAP POS {}, {}", trap.pos.0, trap.pos.1);
                     }
                 }
-                
             }
         }
     }
@@ -421,13 +429,16 @@ fn step_through_battle(state: &mut GameState)
             if attack.splash_area == 0. {
                 let unit = &mut state.units[attack.target_unit_index];
                 unit.take_damage(attack.damage);
-                if unit.health <= 0.{
-                    if unit.data.explode_on_death{
+                if unit.health <= 0. {
+                    if unit.data.explode_on_death {
                         let mut explosion_offset = (-24., -24.);
-                        if unit.flip_x(){
+                        if unit.flip_x() {
                             explosion_offset.0 = -24.;
                         }
-                        let explosion_pos = (unit.pos.0 + explosion_offset.0, unit.pos.1 + explosion_offset.1);
+                        let explosion_pos = (
+                            unit.pos.0 + explosion_offset.0,
+                            unit.pos.1 + explosion_offset.1,
+                        );
                         let mut explosion = AnimatedSprite::new(explosion_pos, false);
                         explosion.set_anim("explosion".to_string(), 32, 14, 5, false);
                         state.explosions.push(explosion);
@@ -437,22 +448,27 @@ fn step_through_battle(state: &mut GameState)
             //if it has splash area, then look for all enemy units within range
             if attack.splash_area > 0. {
                 for unit in &mut state.units {
-                    if distance_between(attack.pos, unit.pos) <= attack.splash_area && unit.state != UnitState::Dead {
+                    if distance_between(attack.pos, unit.pos) <= attack.splash_area
+                        && unit.state != UnitState::Dead
+                    {
                         unit.take_damage(attack.damage);
                     }
                 }
             }
-            if attack.is_explosive{
+            if attack.is_explosive {
                 //create explosion
                 let explosion_offset = (-24., -24.);
-                let explosion_pos = (attack.pos.0 + explosion_offset.0, attack.pos.1 + explosion_offset.1);
+                let explosion_pos = (
+                    attack.pos.0 + explosion_offset.0,
+                    attack.pos.1 + explosion_offset.1,
+                );
                 let mut explosion = AnimatedSprite::new(explosion_pos, false);
                 explosion.set_anim("explosion".to_string(), 32, 14, 5, false);
                 state.explosions.push(explosion);
                 //make a crater
                 let crater_pos = (explosion_pos.0 + 16., explosion_pos.1 + 16.);
                 let mut crater = AnimatedSprite::new(crater_pos, false);
-                
+
                 crater.set_anim("crater_01".to_string(), 16, 1, 1, true);
                 crater.animator.change_tint_color(0xFFFFFF80);
                 state.craters.push(crater);
@@ -659,8 +675,8 @@ fn has_some_team_won(units: &Vec<Unit>) -> Option<i32> {
 
 fn all_living_units(units: &Vec<Unit>) -> Vec<String> {
     let mut living_units: Vec<String> = Vec::new();
-    for u in units{
-        if u.state != UnitState::Dead{
+    for u in units {
+        if u.state != UnitState::Dead {
             living_units.push(u.unit_type.to_string());
         }
     }
@@ -818,26 +834,21 @@ fn draw_team_health_bar(
     pos: (f32, f32),
     team_name: &str,
     right_allign: bool,
+    is_chosen_team: bool,
 ) {
-    //normalized health bar width
-    //colors
-    //sizes
-    //draw text
     let x = pos.0;
     let y = pos.1;
     let x_bar = x;
     let y_bar = y;
     let w_bar = 128.;
     let h_bar = 10;
-    let main_color: u32 = 0xd5dc1dff;
-    let back_color: u32 = 0xFca570ff;
     let inner_border_color: u32 = 0x7f8e44ff;
     let outer_border_color: u32 = 0x333c24ff;
+    let selected_border_color: u32 = 0xc5c7ddff;
     let mut health_width = (current_health / total_base_health * w_bar) as i32;
     health_width = health_width.max(0);
 
-
-    let checker_size = 1; // Size of each checker square
+    let checker_size = 2; // Size of each checker square
     let rows = (h_bar as f32 / checker_size as f32).ceil() as i32;
     let cols = (w_bar as f32 / checker_size as f32).ceil() as i32;
 
@@ -856,9 +867,17 @@ fn draw_team_health_bar(
             let is_health = (col * checker_size) < health_width;
 
             let color = if is_health {
-                if is_light { main_color_light } else { main_color_dark }
+                if is_light {
+                    main_color_light
+                } else {
+                    main_color_dark
+                }
             } else {
-                if is_light { back_color_light } else { back_color_dark }
+                if is_light {
+                    back_color_light
+                } else {
+                    back_color_dark
+                }
             };
 
             rect!(
@@ -870,30 +889,13 @@ fn draw_team_health_bar(
             );
         }
     }
-    // // Draw health bar background
-    // rect!(
-    //     w = w_bar,
-    //     h = h_bar,
-    //     x = x_bar,
-    //     y = y_bar,
-    //     color = back_color,        
-    // );
 
-    // // Draw current health bar
-    // rect!(
-    //     w = health_width,
-    //     h = h_bar,
-    //     x = x_bar,
-    //     y = y_bar,
-    //     color = main_color
-    // );
-
-    // Draw health bar border
+    // Draw health bar inner border
     rect!(
         w = w_bar + 2.,
-        h = h_bar+ 2,
+        h = h_bar + 2,
         x = x_bar - 1.,
-        y = y_bar -1.,
+        y = y_bar - 1.,
         color = 0,
         border_color = inner_border_color,
         border_width = 2,
@@ -903,23 +905,46 @@ fn draw_team_health_bar(
     //draw outer border
     rect!(
         w = w_bar + 4.,
-        h = h_bar+5,
+        h = h_bar + 5,
         x = x_bar - 2.,
-        y = y_bar-2.,
+        y = y_bar - 2.,
         color = 0,
         border_color = outer_border_color,
         border_width = 2,
         border_radius = 5
     );
+    //draw selected_team_border
+    if is_chosen_team {
+        rect!(
+            w = w_bar + 6.,
+            h = h_bar + 7,
+            x = x_bar - 3.,
+            y = y_bar - 3.,
+            color = 0,
+            border_color = selected_border_color,
+            border_width = 1,
+            border_radius = 5
+        );
+    }
     let mut text_adj = 0.;
-    if right_allign{
+    if right_allign {
         text_adj = (128 - team_name.len() * 5) as f32;
     }
     //put team name in white below the bar
-    text!(team_name, x = x_bar +1. + text_adj, y = y_bar + h_bar as f32 + 5., font = Font::M, color = 0x000000ff);
-    text!(team_name, x = x_bar + text_adj, y = y_bar + h_bar as f32 + 4., font = Font::M, color = WHITE);
-
-
+    text!(
+        team_name,
+        x = x_bar + text_adj,
+        y = y_bar + h_bar as f32 + 8.,
+        font = Font::M,
+        color = 0x696682ff
+    );
+    text!(
+        team_name,
+        x = x_bar + text_adj,
+        y = y_bar + h_bar as f32 + 7.,
+        font = Font::M,
+        color = WHITE
+    );
 }
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
@@ -1055,7 +1080,7 @@ impl Animator {
     fn draw(&self, pos: (f32, f32), flip_x: bool) {
         let name = self.cur_anim.name.as_str();
         let mut frame_index = self.anim_timer / self.cur_anim.loops_per_frame; // Calculate the frame index
-        frame_index = frame_index.clamp(0, self.cur_anim.num_frames-1);
+        frame_index = frame_index.clamp(0, self.cur_anim.num_frames - 1);
         let sx = (frame_index * self.cur_anim.s_w)
             .clamp(0, self.cur_anim.s_w * (self.cur_anim.num_frames - 1)); // Calculate the sprite X coordinate
         let mut x_adj = 0.;
@@ -1199,7 +1224,7 @@ fn create_units_for_all_teams(state: &mut GameState) {
     //generate units
     let row_height = 16.0;
     let row_width = 20.0;
-    let max_y = 180.0;
+    let max_y = 200.0;
     let data_store = state
         .data_store
         .as_ref()
@@ -1211,11 +1236,11 @@ fn create_units_for_all_teams(state: &mut GameState) {
 
     for (team_index, team) in state.teams.iter().enumerate() {
         let mut x_start = if team_index == 0 { 70.0 } else { 270.0 }; // Adjusted starting x for team 1
-        let mut y_pos = 30.0;
+        let mut y_pos = 60.0;
 
         for (i, unit_type) in team.units.iter().enumerate() {
             if y_pos > max_y {
-                y_pos = 50.0;
+                y_pos = 60.0;
 
                 if team_index == 0 {
                     x_start -= row_width;
@@ -1234,7 +1259,6 @@ fn create_units_for_all_teams(state: &mut GameState) {
             y_pos += row_height;
         }
     }
-
 }
 fn calculate_unit_power_level(data_store: &HashMap<String, UnitData>) -> HashMap<String, f32> {
     let mut power_levels = HashMap::new();
@@ -1269,7 +1293,7 @@ fn calculate_unit_power_level(data_store: &HashMap<String, UnitData>) -> HashMap
         }
 
         if unit_data.splash_area > 0.0 {
-            power_level = power_level*3.;
+            power_level = power_level * 3.;
         }
 
         power_levels.insert(unit_type.clone(), power_level);
@@ -1391,10 +1415,10 @@ fn create_unit_previews(
     unit_previews
 }
 
-fn create_trap(rng: &mut RNG) -> Trap{
+fn create_trap(rng: &mut RNG) -> Trap {
     //choose a random trap and a random position within some bounds
     let random_number = rng.next_in_range(0, 2);
-        
+
     let trap_type = match random_number {
         0 => TrapType::Poop,
         1 => TrapType::Acidleak,
@@ -1403,13 +1427,12 @@ fn create_trap(rng: &mut RNG) -> Trap{
         4 => TrapType::Spikes,
         _ => unreachable!(), // This should never happen due to the range we specified
     };
-    let x_bounds = (100,284);
+    let x_bounds = (100, 284);
     let y_bounds = (40, 176);
     let x = rng.next_in_range(x_bounds.0, x_bounds.1);
     let y = rng.next_in_range(y_bounds.0, y_bounds.1);
-    let trap = Trap::new((x as f32,y as f32), trap_type);
+    let trap = Trap::new((x as f32, y as f32), trap_type);
     trap
-
 }
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
@@ -1497,4 +1520,3 @@ struct SimulationResult {
     seed: u32,
     living_units: Vec<String>,
 }
-
