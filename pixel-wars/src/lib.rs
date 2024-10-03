@@ -842,9 +842,9 @@ fn draw_team_health_bar(
     let y_bar = y;
     let w_bar = 128.;
     let h_bar = 10;
-    let inner_border_color: u32 = 0x7f8e44ff;
-    let outer_border_color: u32 = 0x333c24ff;
-    let selected_border_color: u32 = 0xc5c7ddff;
+    let inner_border_color: u32 = 0x696682ff;
+    let outer_border_color: u32 = 0xc5c7ddff;
+    let selected_border_color: u32 = 0xe6e7f0ff;
     let mut health_width = (current_health / total_base_health * w_bar) as i32;
     health_width = health_width.max(0);
 
@@ -922,7 +922,7 @@ fn draw_team_health_bar(
             y = y_bar - 3.,
             color = 0,
             border_color = selected_border_color,
-            border_width = 1,
+            border_width = 2,
             border_radius = 5
         );
     }
