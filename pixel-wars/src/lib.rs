@@ -37,6 +37,7 @@ turbo::init! {
     struct GameState {
         phase: Phase,
         units: Vec<Unit>,
+        next_id: u32,
         teams: Vec<Team>,
         unit_previews: Vec<UnitPreview>,
         attacks: Vec<Attack>,
@@ -55,6 +56,8 @@ turbo::init! {
         Self {
             phase: Phase::PreBattle,
             units: Vec::new(),
+            //this starts at 1 so if any unit has 0 id it is unassigned or a bug.
+            next_id: 1,
             teams: Vec::new(),
             attacks: Vec::new(),
             event_queue: Vec::new(),
@@ -392,7 +395,11 @@ fn step_through_battle(state: &mut GameState) {
                 }
             }
         }
-        unit.update();
+        let friendly_units: Vec<&Unit> = units_clone
+            .iter()
+            .filter(|&other_unit| other_unit.team == unit.team && other_unit.id != unit.id)
+            .collect();
+        unit.update(&friendly_units);
         //check for traps
         for trap in &mut state.traps {
             if distance_between(unit.foot_position(), trap.pos) < (trap.size / 2.)
@@ -1254,7 +1261,9 @@ fn create_units_for_all_teams(state: &mut GameState) {
                 pos,
                 team_index as i32,
                 &data_store,
+                state.next_id,
             ));
+            state.next_id += 1;
             //let unit = Unit::new(UnitType::Axeman, (0.0, 0.0), 0, &unit_type_store);
             y_pos += row_height;
         }
