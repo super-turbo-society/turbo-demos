@@ -383,6 +383,8 @@ fn step_through_battle(state: &mut GameState) {
             if let Some(index) = closest_enemy_index(&unit, &units_clone) {
                 if unit.is_unit_in_range(&units_clone[index]) {
                     state.attacks.push(unit.start_attack(index));
+                    //assign the units target id as this unit now
+                    unit.target_id = units_clone[index].id;
                     if unit.pos.0 > units_clone[index].pos.0 {
                         unit.is_facing_left = true;
                     } else {
@@ -390,7 +392,29 @@ fn step_through_battle(state: &mut GameState) {
                     }
                 } else {
                     if unit.state == UnitState::Idle {
-                        unit.new_target_tween_position(&units_clone[index].pos, &mut state.rng);
+                        //here we should verify we have a target and they are alive,
+                        let mut target_unit = find_unit_by_id(&units_clone, Some(unit.target_id));
+                        if target_unit.is_none() {}
+                        if target_unit.is_some() && target_unit.unwrap().health > 0. {
+                            unit.new_target_tween_position(
+                                &target_unit.unwrap().pos,
+                                &mut state.rng,
+                            );
+                        } else {
+                            //find a new target
+                            let new_target_id =
+                                select_enemy_on_similar_y_axis(unit, &units_clone, &mut state.rng);
+                            if new_target_id.is_some() {}
+                            //and move toward it
+                            if new_target_id.is_some() {
+                                unit.target_id = new_target_id.unwrap();
+                                target_unit = find_unit_by_id(&units_clone, Some(unit.target_id));
+                                unit.new_target_tween_position(
+                                    &target_unit.unwrap().pos,
+                                    &mut state.rng,
+                                );
+                            }
+                        }
                     }
                 }
             }
@@ -488,6 +512,23 @@ fn step_through_battle(state: &mut GameState) {
     for trap in &mut state.traps {
         trap.update();
         trap.draw();
+    }
+}
+
+fn find_unit_by_id(units: &Vec<Unit>, id: Option<u32>) -> Option<&Unit> {
+    if units.is_empty() {
+        return None;
+    }
+
+    match id {
+        Some(target_id) => {
+            let result = units.iter().find(|&unit| unit.id == target_id);
+            match result {
+                Some(unit) => Some(unit),
+                None => None,
+            }
+        }
+        None => None,
     }
 }
 
@@ -654,6 +695,53 @@ fn closest_unit_to_position(position: (f32, f32), units: &Vec<Unit>) -> Option<u
                 .unwrap_or(std::cmp::Ordering::Equal)
         })
         .map(|(index, _)| index)
+}
+
+fn random_enemy_id(unit: &Unit, units: &Vec<Unit>, rng: &mut RNG) -> Option<u32> {
+    let enemy_ids: Vec<u32> = units
+        .iter()
+        .filter(|other_unit| {
+            other_unit.team != unit.team && // Filter out units on the same team
+            other_unit.health > 0.0 &&      // Filter out dead units
+            other_unit.id != unit.id // Filter out the unit itself
+        })
+        .map(|other_unit| other_unit.id)
+        .collect();
+
+    if enemy_ids.is_empty() {
+        None
+    } else {
+        let random_index = rng.next_in_range(0, enemy_ids.len() as u32 - 1 as u32);
+        Some(enemy_ids[random_index as usize])
+    }
+}
+
+fn select_enemy_on_similar_y_axis(unit: &Unit, units: &Vec<Unit>, rng: &mut RNG) -> Option<u32> {
+    // First, filter out invalid targets
+    let mut valid_enemies: Vec<(&Unit, f32)> = units
+        .iter()
+        .filter(|other_unit| {
+            other_unit.team != unit.team && // Filter out units on the same team
+            other_unit.health > 0.0 &&      // Filter out dead units
+            other_unit.id != unit.id // Filter out the unit itself
+        })
+        // Calculate Y-axis distance for each valid enemy
+        .map(|other_unit| (other_unit, (other_unit.pos.1 - unit.pos.1).abs()))
+        .collect();
+
+    if valid_enemies.is_empty() {
+        return None;
+    }
+
+    // Sort by Y-axis distance
+    valid_enemies.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
+
+    // Take up to 5 closest enemies
+    valid_enemies.truncate(5);
+
+    // Select a random enemy from these 5 (or fewer)
+    let random_index = rng.next_in_range(0, valid_enemies.len() as u32 - 1);
+    Some(valid_enemies[random_index as usize].0.id)
 }
 
 fn distance_between(pos1: (f32, f32), pos2: (f32, f32)) -> f32 {
