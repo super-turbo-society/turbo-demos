@@ -290,11 +290,10 @@ turbo::go!({
                 }
             }
             // let living_units = all_living_units(&state.units);
-            // if living_units.len() == state.simulation_result.living_units.len(){
-            //     text!(" Simulation matches regular game", x=50, y=50);
-            // }
-            // else{
-            //     text!("SIMULATION DOES NOT MATCH", x=50, y=50);
+            // if living_units.len() == state.simulation_result.living_units.len() {
+            //     text!(" Simulation matches regular game", x = 50, y = 50);
+            // } else {
+            //     text!("SIMULATION DOES NOT MATCH", x = 50, y = 50);
             // }
         }
         //TODO: clean this up
@@ -433,7 +432,7 @@ fn step_through_battle(state: &mut GameState) {
                     }
                 }
                 AttackStrategy::Flank(ref mut state) => {
-                    // Logic for flanking behavior
+                    //Logic for flanking behavior
                     //if target id is dead or none, pick a target (closest)
                     //else if flanking state is moving down, check if you can start attacking (x is close to target x)
                     //if you can, then change flank state and move toward enemy position
@@ -441,34 +440,7 @@ fn step_through_battle(state: &mut GameState) {
                 }
                 _ => {
                     // Default case
-                } // //check if unit is moving or not
-                  // if unit.state == UnitState::Idle {
-                  //     //if the closest enemy is in range, we can always attack it.
-                  //     //Let's keep this true regardless of the attack strategy (for now)
-                  //     if let Some(index) = closest_enemy_index(&unit, &units_clone) {
-                  //         if unit.is_unit_in_range(&units_clone[index]) {
-                  //             if unit.attack_strategy == AttackStrategy::AttackClosest
-                  //                 || unit.target_id == units_clone[index].id
-                  //             {
-                  //                 state.attacks.push(unit.start_attack(index));
-                  //                 //assign the units target id as this unit now
-                  //                 unit.target_id = units_clone[index].id;
-                  //                 if unit.pos.0 > units_clone[index].pos.0 {
-                  //                     unit.is_facing_left = true;
-                  //                 } else {
-                  //                     unit.is_facing_left = false;
-                  //                 }
-                  //             }
-                  //         } else {
-                  //             //make sure the unit is still idle
-                  //             if unit.state == UnitState::Idle {
-                  //                 //Check the units attack strategy, and give it a new target position based on that
-
-                  //                 }
-                  //             }
-                  //         }
-                  //     }
-                  // }
+                }
             }
         }
         unit.update();
