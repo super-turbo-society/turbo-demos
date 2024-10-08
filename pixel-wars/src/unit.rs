@@ -443,20 +443,20 @@ impl Unit {
 pub enum AttackStrategy {
     AttackClosest,
     TargetLowestHealth,
-    Flank(FlankingState),
+    Flank,
 }
 
-#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
-pub struct FlankingState {
-    stage: FlankingStage,
-}
+// #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
+// pub struct FlankingState {
+//     stage: FlankingStage,
+// }
 
-#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
+// #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 
-pub enum FlankingStage {
-    MovingToEdge,
-    MovingToTarget,
-}
+// pub enum FlankingStage {
+//     MovingToEdge,
+//     MovingToTarget,
+// }
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 pub struct UnitData {

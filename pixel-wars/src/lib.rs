@@ -135,6 +135,12 @@ turbo::go!({
             state.phase = Phase::Battle;
             //reset camera here
             set_cam!(x = 192, y = 108);
+            //set some of the units to flank
+            for u in state.units.iter_mut() {
+                if u.unit_type == "blade" {
+                    u.attack_strategy = AttackStrategy::Flank;
+                }
+            }
         }
         //move camera if you press up and down
         if gp.down.pressed() {
@@ -421,7 +427,8 @@ fn step_through_battle(state: &mut GameState) {
                         }
                     } else {
                         //find a unit with lowest health and set it as your target and move toward that position
-                        target_unit = lowest_health_enemy_unit(&units_clone, unit.team);
+                        target_unit =
+                            lowest_health_closest_enemy_unit(&units_clone, unit.team, unit.pos);
                         if target_unit.is_some() {
                             unit.set_new_target_move_position(
                                 &target_unit.unwrap().pos,
@@ -431,12 +438,24 @@ fn step_through_battle(state: &mut GameState) {
                         }
                     }
                 }
-                AttackStrategy::Flank(ref mut state) => {
+                AttackStrategy::Flank => {
                     //Logic for flanking behavior
-                    //if target id is dead or none, pick a target (closest)
-                    //else if flanking state is moving down, check if you can start attacking (x is close to target x)
-                    //if you can, then change flank state and move toward enemy position
-                    //if you can't then keep moving toward flank position (high/low y and enemy x)
+                    //if target is none, choose lowest health enemy and set target
+                    let mut target_unit = find_unit_by_id(&units_clone, Some(unit.target_id));
+                    if target_unit.is_none() || target_unit.unwrap().health == 0. {
+                        target_unit =
+                            lowest_health_closest_enemy_unit(&units_clone, unit.team, unit.pos);
+                    }
+                    if target_unit.is_some() {
+                        //if you have a target, move to a position at the bottom of the screen, underneath it
+                        let mut target_pos = target_unit.unwrap().pos;
+                        target_pos.1 = 216.;
+                        if distance_between(unit.pos, target_pos) > unit.data.speed {
+                            unit.set_new_target_move_position(&target_pos, &mut state.rng);
+                        } else {
+                            unit.attack_strategy = AttackStrategy::TargetLowestHealth
+                        }
+                    }
                 }
                 _ => {
                     // Default case
@@ -578,9 +597,38 @@ fn lowest_health_enemy_unit(units: &Vec<Unit>, team: i32) -> Option<&Unit> {
         //filter to keep living units not on this team
         .filter(|unit| unit.team != team && unit.health > 0.0)
         .min_by(|a, b| {
-            a.health
-                .partial_cmp(&b.health)
+            a.data
+                .max_health
+                .partial_cmp(&b.data.max_health)
                 .unwrap_or(std::cmp::Ordering::Equal)
+        })
+}
+
+fn lowest_health_closest_enemy_unit(
+    units: &Vec<Unit>,
+    team: i32,
+    pos: (f32, f32),
+) -> Option<&Unit> {
+    if units.is_empty() {
+        return None;
+    }
+
+    units
+        .iter()
+        .filter(|unit| unit.team != team && unit.health > 0.0)
+        .min_by(|&a, &b| {
+            match a.data.max_health.partial_cmp(&b.data.max_health) {
+                Some(std::cmp::Ordering::Equal) => {
+                    // If health is equal, compare distances
+                    let dist_a = distance_between(pos, a.pos);
+                    let dist_b = distance_between(pos, b.pos);
+                    dist_a
+                        .partial_cmp(&dist_b)
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                }
+                Some(ordering) => ordering,
+                None => std::cmp::Ordering::Equal,
+            }
         })
 }
 
