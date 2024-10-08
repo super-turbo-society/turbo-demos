@@ -378,52 +378,100 @@ fn step_through_battle(state: &mut GameState) {
 
     //go through each unit, see what it wants to do, and handle all actions from here
     for unit in &mut state.units {
-        //check if unit is moving or not
         if unit.state == UnitState::Idle {
-            if let Some(index) = closest_enemy_index(&unit, &units_clone) {
-                if unit.is_unit_in_range(&units_clone[index]) {
-                    state.attacks.push(unit.start_attack(index));
-                    //assign the units target id as this unit now
-                    unit.target_id = units_clone[index].id;
-                    if unit.pos.0 > units_clone[index].pos.0 {
-                        unit.is_facing_left = true;
-                    } else {
-                        unit.is_facing_left = false;
+            match unit.attack_strategy {
+                AttackStrategy::AttackClosest => {
+                    //find closest enemy
+                    if let Some(index) = closest_enemy_index(&unit, &units_clone) {
+                        if unit.is_unit_in_range(&units_clone[index]) {
+                            state.attacks.push(unit.start_attack(units_clone[index].id));
+                            if unit.pos.0 > units_clone[index].pos.0 {
+                                unit.is_facing_left = true;
+                            } else {
+                                unit.is_facing_left = false;
+                            }
+                        } else {
+                            unit.set_new_target_move_position(
+                                &units_clone[index].pos,
+                                &mut state.rng,
+                            );
+                        }
+                        unit.target_id = units_clone[index].id;
                     }
-                } else {
-                    if unit.state == UnitState::Idle {
-                        //here we should verify we have a target and they are alive,
-                        let mut target_unit = find_unit_by_id(&units_clone, Some(unit.target_id));
-                        if target_unit.is_none() {}
-                        if target_unit.is_some() && target_unit.unwrap().health > 0. {
-                            unit.new_target_tween_position(
+                }
+                AttackStrategy::TargetLowestHealth => {
+                    //check if target id is dead or none
+                    let mut target_unit = find_unit_by_id(&units_clone, Some(unit.target_id));
+                    if target_unit.is_some() && target_unit.unwrap().health > 0. {
+                        if unit.is_unit_in_range(&target_unit.unwrap()) {
+                            state
+                                .attacks
+                                .push(unit.start_attack(target_unit.unwrap().id));
+                            //assign the units target id as this unit now
+                            unit.target_id = target_unit.unwrap().id;
+                            if unit.pos.0 > target_unit.unwrap().pos.0 {
+                                unit.is_facing_left = true;
+                            } else {
+                                unit.is_facing_left = false;
+                            }
+                        } else {
+                            unit.set_new_target_move_position(
                                 &target_unit.unwrap().pos,
                                 &mut state.rng,
                             );
-                        } else {
-                            //find a new target
-                            let new_target_id =
-                                select_enemy_on_similar_y_axis(unit, &units_clone, &mut state.rng);
-                            if new_target_id.is_some() {}
-                            //and move toward it
-                            if new_target_id.is_some() {
-                                unit.target_id = new_target_id.unwrap();
-                                target_unit = find_unit_by_id(&units_clone, Some(unit.target_id));
-                                unit.new_target_tween_position(
-                                    &target_unit.unwrap().pos,
-                                    &mut state.rng,
-                                );
-                            }
+                        }
+                    } else {
+                        //find a unit with lowest health and set it as your target and move toward that position
+                        target_unit = lowest_health_enemy_unit(&units_clone, unit.team);
+                        if target_unit.is_some() {
+                            unit.set_new_target_move_position(
+                                &target_unit.unwrap().pos,
+                                &mut state.rng,
+                            );
+                            unit.target_id = target_unit.unwrap().id;
                         }
                     }
                 }
+                AttackStrategy::Flank(ref mut state) => {
+                    // Logic for flanking behavior
+                    //if target id is dead or none, pick a target (closest)
+                    //else if flanking state is moving down, check if you can start attacking (x is close to target x)
+                    //if you can, then change flank state and move toward enemy position
+                    //if you can't then keep moving toward flank position (high/low y and enemy x)
+                }
+                _ => {
+                    // Default case
+                } // //check if unit is moving or not
+                  // if unit.state == UnitState::Idle {
+                  //     //if the closest enemy is in range, we can always attack it.
+                  //     //Let's keep this true regardless of the attack strategy (for now)
+                  //     if let Some(index) = closest_enemy_index(&unit, &units_clone) {
+                  //         if unit.is_unit_in_range(&units_clone[index]) {
+                  //             if unit.attack_strategy == AttackStrategy::AttackClosest
+                  //                 || unit.target_id == units_clone[index].id
+                  //             {
+                  //                 state.attacks.push(unit.start_attack(index));
+                  //                 //assign the units target id as this unit now
+                  //                 unit.target_id = units_clone[index].id;
+                  //                 if unit.pos.0 > units_clone[index].pos.0 {
+                  //                     unit.is_facing_left = true;
+                  //                 } else {
+                  //                     unit.is_facing_left = false;
+                  //                 }
+                  //             }
+                  //         } else {
+                  //             //make sure the unit is still idle
+                  //             if unit.state == UnitState::Idle {
+                  //                 //Check the units attack strategy, and give it a new target position based on that
+
+                  //                 }
+                  //             }
+                  //         }
+                  //     }
+                  // }
             }
         }
-        let friendly_units: Vec<&Unit> = units_clone
-            .iter()
-            .filter(|&other_unit| other_unit.team == unit.team && other_unit.id != unit.id)
-            .collect();
-        unit.update(&friendly_units);
+        unit.update();
         //check for traps
         for trap in &mut state.traps {
             if distance_between(unit.foot_position(), trap.pos) < (trap.size / 2.)
@@ -438,8 +486,14 @@ fn step_through_battle(state: &mut GameState) {
                     if let Some(closest_unit_index) =
                         closest_unit_to_position(trap.pos, &units_clone)
                     {
-                        let mut attack =
-                            Attack::new(closest_unit_index, 1., trap.pos, trap.damage, 8., 1);
+                        let mut attack = Attack::new(
+                            units_clone[closest_unit_index].id,
+                            1.,
+                            trap.pos,
+                            trap.damage,
+                            8.,
+                            1,
+                        );
                         attack.is_explosive = true;
                         //attack.instant_trigger = true;
                         state.attacks.push(attack);
@@ -458,29 +512,39 @@ fn step_through_battle(state: &mut GameState) {
         if !should_keep {
             //deal the actual damage here
             if attack.splash_area == 0. {
-                let unit = &mut state.units[attack.target_unit_index];
-                unit.take_damage(attack.damage);
-                if unit.health <= 0. {
-                    if unit.data.explode_on_death {
-                        let mut explosion_offset = (-24., -24.);
-                        if unit.flip_x() {
-                            explosion_offset.0 = -24.;
+                if let Some(unit_index) = state
+                    .units
+                    .iter()
+                    .position(|u| u.id == attack.target_unit_id)
+                {
+                    let unit = &mut state.units[unit_index];
+                    unit.take_damage(attack.damage);
+                    if unit.health <= 0. {
+                        if unit.data.explode_on_death {
+                            let mut explosion_offset = (-24., -24.);
+                            if unit.flip_x() {
+                                explosion_offset.0 = -24.;
+                            }
+                            let explosion_pos = (
+                                unit.pos.0 + explosion_offset.0,
+                                unit.pos.1 + explosion_offset.1,
+                            );
+                            let mut explosion = AnimatedSprite::new(explosion_pos, false);
+                            explosion.set_anim("explosion".to_string(), 32, 14, 5, false);
+                            state.explosions.push(explosion);
                         }
-                        let explosion_pos = (
-                            unit.pos.0 + explosion_offset.0,
-                            unit.pos.1 + explosion_offset.1,
-                        );
-                        let mut explosion = AnimatedSprite::new(explosion_pos, false);
-                        explosion.set_anim("explosion".to_string(), 32, 14, 5, false);
-                        state.explosions.push(explosion);
                     }
                 }
             }
             //if it has splash area, then look for all enemy units within range
             if attack.splash_area > 0. {
+                let team = find_unit_by_id(&state.units, Some(attack.target_unit_id))
+                    .unwrap()
+                    .team;
                 for unit in &mut state.units {
                     if distance_between(attack.pos, unit.pos) <= attack.splash_area
                         && unit.state != UnitState::Dead
+                        && unit.team == team
                     {
                         unit.take_damage(attack.damage);
                     }
@@ -530,6 +594,22 @@ fn find_unit_by_id(units: &Vec<Unit>, id: Option<u32>) -> Option<&Unit> {
         }
         None => None,
     }
+}
+
+fn lowest_health_enemy_unit(units: &Vec<Unit>, team: i32) -> Option<&Unit> {
+    if units.is_empty() {
+        return None;
+    }
+
+    units
+        .iter()
+        //filter to keep living units not on this team
+        .filter(|unit| unit.team != team && unit.health > 0.0)
+        .min_by(|a, b| {
+            a.health
+                .partial_cmp(&b.health)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
 }
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
@@ -589,7 +669,7 @@ impl AnimatedSprite {
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 struct Attack {
-    target_unit_index: usize,
+    target_unit_id: u32,
     speed: f32,
     pos: (f32, f32),
     damage: f32,
@@ -601,7 +681,7 @@ struct Attack {
 impl Attack {
     //new
     fn new(
-        target_unit_index: usize,
+        target_unit_id: u32,
         speed: f32,
         pos: (f32, f32),
         damage: f32,
@@ -609,7 +689,7 @@ impl Attack {
         size: i32,
     ) -> Self {
         Self {
-            target_unit_index,
+            target_unit_id,
             speed,
             pos,
             damage,
@@ -622,23 +702,26 @@ impl Attack {
         let distance = 0.;
 
         // Get the target unit's position
-        let target_position = units[self.target_unit_index].pos;
+        let target_unit = find_unit_by_id(units, Some(self.target_unit_id));
+        if target_unit.is_some() {
+            let target_position = target_unit.unwrap().pos;
 
-        // Calculate the direction vector towards the target
-        let direction_x = target_position.0 - self.pos.0;
-        let direction_y = target_position.1 - self.pos.1;
+            // Calculate the direction vector towards the target
+            let direction_x = target_position.0 - self.pos.0;
+            let direction_y = target_position.1 - self.pos.1;
 
-        // Calculate the distance to the target
-        let distance = (direction_x * direction_x + direction_y * direction_y).sqrt();
+            // Calculate the distance to the target
+            let distance = (direction_x * direction_x + direction_y * direction_y).sqrt();
 
-        // Normalize the direction vector and scale by speed
-        if distance > 0.0 {
-            self.pos.0 += self.speed * (direction_x / distance);
-            self.pos.1 += self.speed * (direction_y / distance);
+            // Normalize the direction vector and scale by speed
+            if distance > 0.0 {
+                self.pos.0 += self.speed * (direction_x / distance);
+                self.pos.1 += self.speed * (direction_y / distance);
+            }
+            //if distance is less than speed, we want to remove the attack and deal the damage
+            return distance <= self.speed;
         }
-
-        //if distance is less than speed, we want to remove the attack and deal the damage
-        distance <= self.speed
+        false
     }
 
     fn draw(&self) {

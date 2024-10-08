@@ -13,6 +13,7 @@ pub struct Unit {
     pub move_tween_x: Tween<f32>,
     pub move_tween_y: Tween<f32>,
     pub target_pos: (f32, f32),
+    pub attack_strategy: AttackStrategy,
     pub attack_timer: i32,
     pub animator: Animator,
     pub damage_effect_timer: u32,
@@ -47,6 +48,8 @@ impl Unit {
             state: UnitState::Idle,
             move_tween_x: Tween::new(0.),
             move_tween_y: Tween::new(0.),
+            target_pos: (0., 0.),
+            attack_strategy: AttackStrategy::AttackClosest,
             attack_timer: 0,
             damage_effect_timer: 0,
             blood_splatter: None,
@@ -54,7 +57,6 @@ impl Unit {
             footprint_status: FootprintStatus::Clean,
             footprint_timer: 20,
             is_facing_left: false,
-            target_pos: (0., 0.),
             //placeholder, gets overwritten when they are drawn, but I can't figure out how to do it more logically than this
             animator: Animator::new(Animation {
                 name: "placeholder".to_string(),
@@ -65,19 +67,14 @@ impl Unit {
             }),
         }
     }
-    pub fn update(&mut self, friendly_units: &[&Unit]) {
+    pub fn update(&mut self) {
         if self.state == UnitState::Moving {
             //move toward taget pos at some speed
             //check if you
-            self.pos = self.move_towards_target(friendly_units);
+            self.pos = self.move_towards_target();
             if self.reached_target() {
                 self.state = UnitState::Idle;
             }
-            // self.pos.0 = self.move_tween_x.get();
-            // self.pos.1 = self.move_tween_y.get();
-            // if self.move_tween_x.done() {
-            //     self.state = UnitState::Idle;
-            // }
         }
         if self.state == UnitState::Attacking {
             self.attack_timer -= 1;
@@ -238,7 +235,7 @@ impl Unit {
         // )
     }
 
-    pub fn new_target_tween_position(&mut self, target: &(f32, f32), rng: &mut RNG) {
+    pub fn set_new_target_move_position(&mut self, target: &(f32, f32), rng: &mut RNG) {
         let mut dir_x = target.0 - self.pos.0;
         let dir_y = target.1 - self.pos.1;
 
@@ -294,30 +291,13 @@ impl Unit {
         }
         separation
     }
-
-    pub fn move_towards_target(&self, all_units: &[&Unit]) -> (f32, f32) {
+    pub fn move_towards_target(&self) -> (f32, f32) {
         // Calculate direction towards target
         let dir_x = self.target_pos.0 - self.pos.0;
         let dir_y = self.target_pos.1 - self.pos.1;
         let length = (dir_x * dir_x + dir_y * dir_y).sqrt();
         let norm_dir_x = dir_x / length;
         let norm_dir_y = dir_y / length;
-
-        // // Calculate separation
-        // let separation = self.calculate_separation(all_units);
-
-        // // Combine target direction and separation
-        // // You can adjust these weights to change the balance between target-seeking and separation
-        // let target_weight = 0.8;
-        // let separation_weight = 0.2;
-
-        // let combined_x = norm_dir_x * target_weight + separation.0 * separation_weight;
-        // let combined_y = norm_dir_y * target_weight + separation.1 * separation_weight;
-
-        // // Normalize the combined vector
-        // let combined_length = (combined_x * combined_x + combined_y * combined_y).sqrt();
-        // let final_dir_x = combined_x / combined_length;
-        // let final_dir_y = combined_y / combined_length;
 
         // Calculate new position
         let new_x = self.pos.0 + norm_dir_x * self.data.speed / 20.;
@@ -383,13 +363,13 @@ impl Unit {
         }
     }
 
-    pub fn start_attack(&mut self, target_index: usize) -> Attack {
+    pub fn start_attack(&mut self, target_unit_id: u32) -> Attack {
         self.attack_timer = self.data.attack_time;
         self.state = UnitState::Attacking;
         //create the actual attack
         let size = 1;
         let mut attack = Attack::new(
-            target_index,
+            target_unit_id,
             2.,
             self.pos,
             self.data.damage,
@@ -457,6 +437,25 @@ impl Unit {
         //self.team == 1
         self.is_facing_left
     }
+}
+
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
+pub enum AttackStrategy {
+    AttackClosest,
+    TargetLowestHealth,
+    Flank(FlankingState),
+}
+
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
+pub struct FlankingState {
+    stage: FlankingStage,
+}
+
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
+
+pub enum FlankingStage {
+    MovingToEdge,
+    MovingToTarget,
 }
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
