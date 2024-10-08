@@ -10,8 +10,6 @@ pub struct Unit {
     pub health: f32,
     pub pos: (f32, f32),
     pub state: UnitState,
-    pub move_tween_x: Tween<f32>,
-    pub move_tween_y: Tween<f32>,
     pub target_pos: (f32, f32),
     pub attack_strategy: AttackStrategy,
     pub attack_timer: i32,
@@ -46,8 +44,6 @@ impl Unit {
             health: data.max_health,
             pos,
             state: UnitState::Idle,
-            move_tween_x: Tween::new(0.),
-            move_tween_y: Tween::new(0.),
             target_pos: (0., 0.),
             attack_strategy: AttackStrategy::AttackClosest,
             attack_timer: 0,
@@ -257,15 +253,11 @@ impl Unit {
         let norm_dir_y = dir_y / length;
 
         let rand_x = rng.next_in_range(0, 5) as f32 * norm_dir_x.signum();
-        //turbo::println!("rand_x: {}", rand_x);
 
         let rand_y = rng.next_in_range(0, 8) as f32 * norm_dir_y.signum();
-        //turbo::println!("rand_y: {}", rand_x);
 
         let new_x = self.pos.0 + norm_dir_x * self.data.speed + rand_x;
         let new_y = self.pos.1 + norm_dir_y * self.data.speed + rand_y;
-        self.move_tween_x = Tween::new(self.pos.0).set(new_x).duration(20);
-        self.move_tween_y = Tween::new(self.pos.1).set(new_y).duration(20);
         self.target_pos = (new_x, new_y);
         self.state = UnitState::Moving;
     }

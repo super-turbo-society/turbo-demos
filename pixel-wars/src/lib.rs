@@ -137,7 +137,7 @@ turbo::go!({
             set_cam!(x = 192, y = 108);
             //set some of the units to flank
             for u in state.units.iter_mut() {
-                if u.unit_type == "blade" {
+                if u.unit_type == "sabre" {
                     u.attack_strategy = AttackStrategy::Flank;
                 }
             }
@@ -449,8 +449,13 @@ fn step_through_battle(state: &mut GameState) {
                     if target_unit.is_some() {
                         //if you have a target, move to a position at the bottom of the screen, underneath it
                         let mut target_pos = target_unit.unwrap().pos;
-                        target_pos.1 = 216.;
-                        if distance_between(unit.pos, target_pos) > unit.data.speed {
+                        if unit.pos.1 < 100. {
+                            target_pos.1 = 40.;
+                        } else {
+                            target_pos.1 = 200.;
+                        }
+                        //stop flanking and start attacking once you are close to the target
+                        if distance_between(unit.pos, target_pos) > unit.data.speed * 2. {
                             unit.set_new_target_move_position(&target_pos, &mut state.rng);
                         } else {
                             unit.attack_strategy = AttackStrategy::TargetLowestHealth
