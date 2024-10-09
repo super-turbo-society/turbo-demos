@@ -173,24 +173,45 @@ impl Unit {
         //     d = 1,
         // );
 
+        // circ!(
+        //     x = self.head_position().0,
+        //     y = self.head_position().1,
+        //     d = 1,
+        // );
+
         //TURN THIS ON TO SHOW HEALTH BARS
         // if self.state == UnitState::Dead {
         //     self.draw_health_bar();
         // }
+
+        //self.is_points_in_bounds(self.pos);
     }
 
     pub fn start_cheering(&mut self) {
         self.state = UnitState::Cheer;
     }
 
+    pub fn is_points_in_bounds(&self, point: (f32, f32)) -> bool {
+        //get four corners of box
+        let left = self.pos.0 - (0.5 * self.data.bounding_box.2 as f32);
+        let right = left + self.data.bounding_box.2 as f32;
+        let top = self.pos.1 - (0.5 * self.data.bounding_box.3 as f32);
+        let bottom = top + self.data.bounding_box.3 as f32;
+        // circ!(x = left, y = top, d = 1, color = 0x000000ff);
+        // circ!(x = right, y = top, d = 1, color = 0x000000ff);
+        // circ!(x = left, y = bottom, d = 1, color = 0x000000ff);
+        // circ!(x = right, y = bottom, d = 1, color = 0x000000ff);
+        point.0 >= left && point.0 <= right && point.1 >= top && point.1 <= bottom
+    }
+
     pub fn draw_health_bar(&self) {
-        let d_p = self.draw_position();
+        let d_p = self.head_position();
         let x = d_p.0;
         let y = d_p.1;
-        let x_bar = x;
         let y_bar = y - 2.;
-        let w_bar = 0.06 * self.data.max_health;
+        let w_bar = (0.06 * self.data.max_health).clamp(6.0, 15.0);
         let h_bar = 2;
+        let x_bar = x - w_bar / 2.;
         let mut main_color: u32 = 0xc4f129ff;
         if self.team == 1 {
             main_color = 0xa69e9aff;
@@ -421,10 +442,14 @@ impl Unit {
     }
 
     pub fn foot_position(&self) -> (f32, f32) {
-        let d_y = self.data.bounding_box.3 as f32 / 3.;
-        return (self.pos.0, self.pos.1 + d_y as f32);
+        let d_y = self.data.bounding_box.3 as f32 / 2.;
+        return (self.pos.0, self.pos.1 + d_y);
     }
 
+    pub fn head_position(&self) -> (f32, f32) {
+        let d_y = self.data.bounding_box.3 as f32 / 2.;
+        return (self.pos.0, self.pos.1 - d_y);
+    }
     pub fn flip_x(&self) -> bool {
         //self.team == 1
         self.is_facing_left

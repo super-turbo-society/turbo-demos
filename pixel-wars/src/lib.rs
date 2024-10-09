@@ -264,6 +264,16 @@ turbo::go!({
             explosion.draw();
         }
 
+        //draw health bar on hover
+        //get mouse posisiton
+        let m = mouse(0);
+        let mpos = (m.position[0] as f32, m.position[1] as f32);
+        //for unit, if mouse position is in bounds, then draw health bar
+        for u in &mut state.units {
+            if u.is_points_in_bounds(mpos) {
+                u.draw_health_bar();
+            }
+        }
         //draw end game text
         let mut winning_team = has_some_team_won(&state.units);
         if winning_team.is_some() {
@@ -274,13 +284,13 @@ turbo::go!({
             }
             //let text = format!("{} Win!", state.teams[index].name);
             //text!(text.as_str(), x = cam!().0,);
-            draw_text_box(
-                text.to_string(),
-                (20., 150.),
-                (120., 20.),
-                0x333333ff,
-                0x87CEFAff,
-            );
+            // draw_text_box(
+            //     text.to_string(),
+            //     (20., 150.),
+            //     (120., 20.),
+            //     0x333333ff,
+            //     0x87CEFAff,
+            // );
             //add a restart game button here
             let restart_button = Button::new(
                 String::from("AGAIN!"),
