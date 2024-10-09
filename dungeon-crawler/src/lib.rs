@@ -202,6 +202,7 @@ turbo::go!({
         let did_exec_timeout = (tick() - state.last_exec_at) >= EXEC_TIMEOUT_DUR;
         let is_ready_to_exec =
             did_turn_transition_end && (was_last_exec_on_diff_turn || did_exec_timeout);
+        let is_alive = dungeon.player.health > 0;
 
         // Handle player input
         let gp = gamepad(0);
@@ -223,7 +224,7 @@ turbo::go!({
                 state.last_exec_turn = Some(dungeon.turn);
             }
             // Move
-            else if gp.up.pressed() {
+            else if gp.up.pressed() && is_alive {
                 DungeonCrawlerProgram::move_player(MovePlayerCommandInput {
                     direction: Direction::Up,
                 });
@@ -232,7 +233,7 @@ turbo::go!({
                 if dungeon.is_position_blocked(dungeon.player.x, dungeon.player.y - 1) {
                     state.player.offset_y.set(-MOVE_Y_OFFSET);
                 }
-            } else if gp.down.pressed() {
+            } else if gp.down.pressed() && is_alive {
                 DungeonCrawlerProgram::move_player(MovePlayerCommandInput {
                     direction: Direction::Down,
                 });
@@ -241,7 +242,7 @@ turbo::go!({
                 if dungeon.is_position_blocked(dungeon.player.x, dungeon.player.y + 1) {
                     state.player.offset_y.set(MOVE_Y_OFFSET);
                 }
-            } else if gp.left.pressed() {
+            } else if gp.left.pressed() && is_alive {
                 DungeonCrawlerProgram::move_player(MovePlayerCommandInput {
                     direction: Direction::Left,
                 });
@@ -250,7 +251,7 @@ turbo::go!({
                 if dungeon.is_position_blocked(dungeon.player.x - 1, dungeon.player.y) {
                     state.player.offset_x.set(-MOVE_X_OFFSET);
                 }
-            } else if gp.right.pressed() {
+            } else if gp.right.pressed() && is_alive {
                 DungeonCrawlerProgram::move_player(MovePlayerCommandInput {
                     direction: Direction::Right,
                 });
@@ -1134,7 +1135,8 @@ turbo::go!({
         }
 
         // text!("PRESS START {:?}", os::user_id(););
-        // text!("Reason: {}", err; y = 32);
+        // let msg = format!("{}", err).replace("ParsingError(", "").replace(")", "");
+        // text!("{}", msg; y = 0, font = Font::S);
         // text!("PRESS START");
     }
 
