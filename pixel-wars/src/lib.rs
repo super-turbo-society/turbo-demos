@@ -83,28 +83,6 @@ turbo::go!({
     clear!(0x8f8cacff);
     if state.phase == Phase::PreBattle {
         //initialize the data store if it is blank
-        sprite!(
-            "you_win_loop_01",
-            x = 100,
-            y = 140,
-            sw = 32,
-            fps = fps::FAST
-        );
-        sprite!(
-            "you_win_loop_02",
-            x = 132,
-            y = 140,
-            sw = 32,
-            fps = fps::FAST
-        );
-        sprite!(
-            "you_win_loop_03",
-            x = 164,
-            y = 140,
-            sw = 32,
-            fps = fps::FAST
-        );
-        //sprite!("you_win_full", x = 100, y = 180, sw = 96, fps = fps::FAST);
         if state.data_store.is_none() {
             match UnitDataStore::load_from_csv(UNIT_DATA_CSV) {
                 Ok(loaded_store) => {
@@ -161,11 +139,13 @@ turbo::go!({
             //reset camera here
             set_cam!(x = 192, y = 108);
             //SET ANY UNITS TO TEST ATTACK STRATEGIES
-            // for u in state.units.iter_mut() {
-            //     if u.unit_type == "sabre" {
-            //         u.attack_strategy = AttackStrategy::Flank;
-            //     }
-            // }
+            for u in state.units.iter_mut() {
+                if u.id % 3 == 0 {
+                    u.attack_strategy = AttackStrategy::SeekTarget;
+                } else if u.id + 1 % 3 == 0 {
+                    u.attack_strategy = AttackStrategy::Flank;
+                }
+            }
         }
         //move camera if you press up and down
         if gp.down.pressed() {
@@ -303,19 +283,11 @@ turbo::go!({
         let mut winning_team = has_some_team_won(&state.units);
         if winning_team.is_some() {
             let index: usize = winning_team.take().unwrap_or(-1) as usize;
-            let mut text = "You Chose Incorrectly!";
-            if index == state.selected_team_index as usize {
-                text = "You Chose Correctly!";
+            let mut is_win = true;
+            if index != state.selected_team_index as usize {
+                is_win = false;
             }
-            let text = format!("{} Win!", state.teams[index].name);
-            text!(text.as_str(), x = cam!().0,);
-            draw_text_box(
-                text.to_string(),
-                (20., 150.),
-                (120., 20.),
-                0x333333ff,
-                0x87CEFAff,
-            );
+            draw_end_animation(is_win);
             //add a restart game button here
             let restart_button = Button::new(
                 String::from("AGAIN!"),
@@ -413,6 +385,34 @@ turbo::go!({
     state.save();
 });
 
+fn draw_end_animation(is_win: bool) {
+    let center_x = canvas_size!()[0] / 2;
+    let center_y = canvas_size()[1] / 2 - 16;
+    if is_win {
+        sprite!(
+            "you_win_loop_01",
+            x = center_x - 48,
+            y = center_y,
+            sw = 32,
+            fps = fps::FAST
+        );
+        sprite!(
+            "you_win_loop_02",
+            x = center_x - 16,
+            y = center_y,
+            sw = 32,
+            fps = fps::FAST
+        );
+        sprite!(
+            "you_win_loop_03",
+            x = center_x + 16,
+            y = center_y,
+            sw = 32,
+            fps = fps::FAST
+        );
+    }
+}
+
 fn step_through_battle(state: &mut GameState) {
     let units_clone = state.units.clone();
 
@@ -494,6 +494,37 @@ fn step_through_battle(state: &mut GameState) {
                             unit.set_new_target_move_position(&target_pos, &mut state.rng);
                         } else {
                             unit.attack_strategy = AttackStrategy::TargetLowestHealth
+                        }
+                    }
+                }
+                AttackStrategy::SeekTarget => {
+                    //set target unit to closest enemy one time
+                    let mut target_unit = find_unit_by_id(&units_clone, Some(unit.target_id));
+                    if target_unit.is_none() || target_unit.unwrap().health == 0. {
+                        target_unit =
+                            lowest_health_closest_enemy_unit(&units_clone, unit.team, unit.pos);
+                        if target_unit.is_some() {
+                            unit.target_id = target_unit.unwrap().id;
+                        }
+                    }
+                    //if you already have a target unit, then try to fight it
+                    else {
+                        if unit.is_unit_in_range(&target_unit.unwrap()) {
+                            state
+                                .attacks
+                                .push(unit.start_attack(target_unit.unwrap().id));
+                            //assign the units target id as this unit now
+                            unit.target_id = target_unit.unwrap().id;
+                            if unit.pos.0 > target_unit.unwrap().pos.0 {
+                                unit.is_facing_left = true;
+                            } else {
+                                unit.is_facing_left = false;
+                            }
+                        } else {
+                            unit.set_new_target_move_position(
+                                &target_unit.unwrap().pos,
+                                &mut state.rng,
+                            );
                         }
                     }
                 }
@@ -1321,36 +1352,16 @@ impl Animator {
         frame_index = frame_index.clamp(0, self.cur_anim.num_frames - 1);
         let sx = (frame_index * self.cur_anim.s_w)
             .clamp(0, self.cur_anim.s_w * (self.cur_anim.num_frames - 1)); // Calculate the sprite X coordinate
-        let mut x_adj = 0.;
-        // if sx > 32 {
-        //     x_adj = -self.cur_anim.s_w as f32;
-        // }
-        //log!("FI: {}", frame_index);
-        if frame_index >= 3 {
-            x_adj = (-self.cur_anim.s_w * (frame_index - 2)) as f32;
-        }
 
         sprite!(
             name,
-            x = pos.0 + x_adj,
+            x = pos.0,
             y = pos.1,
             sx = sx,
             flip_x = flip_x,
             sw = self.cur_anim.s_w,
             color = self.tint_color,
         );
-        // sprite!(
-        //     "flameboi_attack copy",
-        //     x = pos.0 + x_adj,
-        //     y = pos.1,
-        //     sx =sx,
-        //     flip_x = flip_x,
-        //     sw = 32,
-        //     w = 32,
-        // );
-        // let mut y = 10;
-        // if flip_x{y=20};
-        // text!("sx: {}", sx; x=10, y=y);
     }
 
     fn set_cur_anim(&mut self, new_anim: Animation) {

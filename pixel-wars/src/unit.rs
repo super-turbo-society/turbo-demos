@@ -461,6 +461,7 @@ pub enum AttackStrategy {
     AttackClosest,
     TargetLowestHealth,
     Flank,
+    SeekTarget,
 }
 
 // #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
