@@ -3,6 +3,7 @@ mod trap;
 mod unit;
 
 use csv::{Reader, ReaderBuilder};
+use fps::FAST;
 use rng::*;
 use std::cmp::{max, Ordering};
 use std::collections::HashMap;
@@ -47,6 +48,7 @@ turbo::init! {
         traps: Vec<Trap>,
         explosions: Vec<AnimatedSprite>,
         craters: Vec<AnimatedSprite>,
+        game_over_anim: AnimatedSprite,
         selected_team_index: i32,
         simulation_result: SimulationResult,
         //test variables
@@ -65,6 +67,7 @@ turbo::init! {
             unit_previews: Vec::new(),
             explosions: Vec::new(),
             craters: Vec::new(),
+            game_over_anim: AnimatedSprite::new((0.,100.), false),
             //replace this number with a program number later
             rng: RNG::new(12345),
             data_store: None,
@@ -80,6 +83,28 @@ turbo::go!({
     clear!(0x8f8cacff);
     if state.phase == Phase::PreBattle {
         //initialize the data store if it is blank
+        sprite!(
+            "you_win_loop_01",
+            x = 100,
+            y = 140,
+            sw = 32,
+            fps = fps::FAST
+        );
+        sprite!(
+            "you_win_loop_02",
+            x = 132,
+            y = 140,
+            sw = 32,
+            fps = fps::FAST
+        );
+        sprite!(
+            "you_win_loop_03",
+            x = 164,
+            y = 140,
+            sw = 32,
+            fps = fps::FAST
+        );
+        //sprite!("you_win_full", x = 100, y = 180, sw = 96, fps = fps::FAST);
         if state.data_store.is_none() {
             match UnitDataStore::load_from_csv(UNIT_DATA_CSV) {
                 Ok(loaded_store) => {
@@ -135,12 +160,12 @@ turbo::go!({
             state.phase = Phase::Battle;
             //reset camera here
             set_cam!(x = 192, y = 108);
-            //set some of the units to flank
-            for u in state.units.iter_mut() {
-                if u.unit_type == "sabre" {
-                    u.attack_strategy = AttackStrategy::Flank;
-                }
-            }
+            //SET ANY UNITS TO TEST ATTACK STRATEGIES
+            // for u in state.units.iter_mut() {
+            //     if u.unit_type == "sabre" {
+            //         u.attack_strategy = AttackStrategy::Flank;
+            //     }
+            // }
         }
         //move camera if you press up and down
         if gp.down.pressed() {
@@ -270,7 +295,7 @@ turbo::go!({
         let mpos = (m.position[0] as f32, m.position[1] as f32);
         //for unit, if mouse position is in bounds, then draw health bar
         for u in &mut state.units {
-            if u.is_points_in_bounds(mpos) {
+            if u.state != UnitState::Dead && u.is_point_in_bounds(mpos) {
                 u.draw_health_bar();
             }
         }
@@ -282,15 +307,15 @@ turbo::go!({
             if index == state.selected_team_index as usize {
                 text = "You Chose Correctly!";
             }
-            //let text = format!("{} Win!", state.teams[index].name);
-            //text!(text.as_str(), x = cam!().0,);
-            // draw_text_box(
-            //     text.to_string(),
-            //     (20., 150.),
-            //     (120., 20.),
-            //     0x333333ff,
-            //     0x87CEFAff,
-            // );
+            let text = format!("{} Win!", state.teams[index].name);
+            text!(text.as_str(), x = cam!().0,);
+            draw_text_box(
+                text.to_string(),
+                (20., 150.),
+                (120., 20.),
+                0x333333ff,
+                0x87CEFAff,
+            );
             //add a restart game button here
             let restart_button = Button::new(
                 String::from("AGAIN!"),

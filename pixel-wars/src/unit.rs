@@ -184,14 +184,14 @@ impl Unit {
         //     self.draw_health_bar();
         // }
 
-        //self.is_points_in_bounds(self.pos);
+        //self.is_point_in_bounds(self.pos);
     }
 
     pub fn start_cheering(&mut self) {
         self.state = UnitState::Cheer;
     }
 
-    pub fn is_points_in_bounds(&self, point: (f32, f32)) -> bool {
+    pub fn is_point_in_bounds(&self, point: (f32, f32)) -> bool {
         //get four corners of box
         let left = self.pos.0 - (0.5 * self.data.bounding_box.2 as f32);
         let right = left + self.data.bounding_box.2 as f32;
