@@ -139,13 +139,13 @@ turbo::go!({
             //reset camera here
             set_cam!(x = 192, y = 108);
             //SET ANY UNITS TO TEST ATTACK STRATEGIES
-            for u in state.units.iter_mut() {
-                if u.id % 3 == 0 {
-                    u.attack_strategy = AttackStrategy::SeekTarget;
-                } else if u.id + 1 % 3 == 0 {
-                    u.attack_strategy = AttackStrategy::Flank;
-                }
-            }
+            // for u in state.units.iter_mut() {
+            //     if u.id % 3 == 0 {
+            //         u.attack_strategy = AttackStrategy::SeekTarget;
+            //     } else if u.id + 1 % 3 == 0 {
+            //         u.attack_strategy = AttackStrategy::Flank;
+            //     }
+            // }
         }
         //move camera if you press up and down
         if gp.down.pressed() {
@@ -191,26 +191,39 @@ turbo::go!({
             state.rng = RNG::new(seed);
         } else {
             //after we did the simulation, step through one frame at a time until it's over
+            log("STARTED STEP THROUGH");
             step_through_battle(&mut state);
+            log("FINISHED STEP THROUGH");
+        }
+        //some testing code to try out attack strategies
+        let gp = gamepad(0);
+        if gp.a.just_pressed() {
+            //get the units on team 1 and make them flee
+            for u in &mut state.units {
+                if u.team == 1 {
+                    u.attack_strategy = AttackStrategy::Flee { timer: 3 };
+                    //u.attack_strategy = AttackStrategy::AttackClosest;
+                }
+            }
         }
 
         //temp code to create traps
-        let gp = gamepad(0);
-        if gp.a.just_pressed() {
-            state.traps.push(create_trap(&mut state.rng));
-        }
-        if gp.b.just_pressed() {
-            state.traps.push(create_trap(&mut state.rng));
-            state.traps.push(create_trap(&mut state.rng));
-            state.traps.push(create_trap(&mut state.rng));
-            state.traps.push(create_trap(&mut state.rng));
-            state.traps.push(create_trap(&mut state.rng));
-            state.traps.push(create_trap(&mut state.rng));
-            state.traps.push(create_trap(&mut state.rng));
-            state.traps.push(create_trap(&mut state.rng));
-            state.traps.push(create_trap(&mut state.rng));
-            state.traps.push(create_trap(&mut state.rng));
-        }
+        // let gp = gamepad(0);
+        // if gp.a.just_pressed() {
+        //     state.traps.push(create_trap(&mut state.rng));
+        // }
+        // if gp.b.just_pressed() {
+        //     state.traps.push(create_trap(&mut state.rng));
+        //     state.traps.push(create_trap(&mut state.rng));
+        //     state.traps.push(create_trap(&mut state.rng));
+        //     state.traps.push(create_trap(&mut state.rng));
+        //     state.traps.push(create_trap(&mut state.rng));
+        //     state.traps.push(create_trap(&mut state.rng));
+        //     state.traps.push(create_trap(&mut state.rng));
+        //     state.traps.push(create_trap(&mut state.rng));
+        //     state.traps.push(create_trap(&mut state.rng));
+        //     state.traps.push(create_trap(&mut state.rng));
+        // }
         ///////////////DRAW CODE//////////////
 
         //Draw craters beneath everything
@@ -220,7 +233,6 @@ turbo::go!({
         //sprite!("crater_01", x=100, y=100, color = 0xFFFFFF80);
         //Draw footprints beneath units
         for u in &mut state.units {
-            let mut y = 50;
             for fp in &mut u.footprints {
                 fp.draw();
                 //format!()
@@ -415,7 +427,7 @@ fn draw_end_animation(is_win: bool) {
 
 fn step_through_battle(state: &mut GameState) {
     let units_clone = state.units.clone();
-
+    //=== MOVEMENT AND ATTACKING ===
     //go through each unit, see what it wants to do, and handle all actions from here
     for unit in &mut state.units {
         if unit.state == UnitState::Idle {
@@ -501,8 +513,7 @@ fn step_through_battle(state: &mut GameState) {
                     //set target unit to closest enemy one time
                     let mut target_unit = find_unit_by_id(&units_clone, Some(unit.target_id));
                     if target_unit.is_none() || target_unit.unwrap().health == 0. {
-                        target_unit =
-                            lowest_health_closest_enemy_unit(&units_clone, unit.team, unit.pos);
+                        target_unit = closest_enemy_unit(&units_clone, unit.team, unit.pos);
                         if target_unit.is_some() {
                             unit.target_id = target_unit.unwrap().id;
                         }
@@ -528,6 +539,24 @@ fn step_through_battle(state: &mut GameState) {
                         }
                     }
                 }
+                AttackStrategy::Flee { ref mut timer } => {
+                    //if timer is 0, then start trying to fight again
+                    if *timer <= 0 {
+                        log("FLEE TIMER FINISHED");
+                        unit.attack_strategy = AttackStrategy::AttackClosest;
+                    } else {
+                        *timer -= 1;
+                        //if not, figure out which way to run away
+                        let dir = if unit.team == 0 { -1 } else { 1 };
+                        //choose a spot X units in that dir
+                        let flee_dist = 50 * dir;
+                        let new_target = (unit.pos.0 + flee_dist as f32, unit.pos.1);
+                        //move to that target position
+                        unit.set_new_target_move_position(&new_target, &mut state.rng);
+                        log("Gave target to unit")
+                    }
+                }
+
                 _ => {
                     // Default case
                 }
@@ -835,6 +864,19 @@ pub fn shuffle<T>(rng: &mut RNG, array: &mut [T]) {
     }
 }
 
+fn closest_enemy_unit(units: &Vec<Unit>, team: i32, pos: (f32, f32)) -> Option<&Unit> {
+    units
+        .iter()
+        .filter(|unit| unit.team != team && unit.health > 0.0)
+        .min_by(|&a, &b| {
+            let dist_a = distance_between(pos, a.pos);
+            let dist_b = distance_between(pos, b.pos);
+            dist_a
+                .partial_cmp(&dist_b)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
+}
+
 fn closest_enemy_index(unit: &Unit, units: &Vec<Unit>) -> Option<usize> {
     units
         .iter()
@@ -888,34 +930,6 @@ fn random_enemy_id(unit: &Unit, units: &Vec<Unit>, rng: &mut RNG) -> Option<u32>
         let random_index = rng.next_in_range(0, enemy_ids.len() as u32 - 1 as u32);
         Some(enemy_ids[random_index as usize])
     }
-}
-
-fn select_enemy_on_similar_y_axis(unit: &Unit, units: &Vec<Unit>, rng: &mut RNG) -> Option<u32> {
-    // First, filter out invalid targets
-    let mut valid_enemies: Vec<(&Unit, f32)> = units
-        .iter()
-        .filter(|other_unit| {
-            other_unit.team != unit.team && // Filter out units on the same team
-            other_unit.health > 0.0 &&      // Filter out dead units
-            other_unit.id != unit.id // Filter out the unit itself
-        })
-        // Calculate Y-axis distance for each valid enemy
-        .map(|other_unit| (other_unit, (other_unit.pos.1 - unit.pos.1).abs()))
-        .collect();
-
-    if valid_enemies.is_empty() {
-        return None;
-    }
-
-    // Sort by Y-axis distance
-    valid_enemies.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
-
-    // Take up to 5 closest enemies
-    valid_enemies.truncate(5);
-
-    // Select a random enemy from these 5 (or fewer)
-    let random_index = rng.next_in_range(0, valid_enemies.len() as u32 - 1);
-    Some(valid_enemies[random_index as usize].0.id)
 }
 
 fn distance_between(pos1: (f32, f32), pos2: (f32, f32)) -> f32 {

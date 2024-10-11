@@ -66,10 +66,22 @@ impl Unit {
     pub fn update(&mut self) {
         if self.state == UnitState::Moving {
             //move toward taget pos at some speed
-            //check if you
+            if self.team == 1 && matches!(self.attack_strategy, AttackStrategy::Flee { .. }) {
+                log("BAZOOKA IS MOVING");
+            }
             self.pos = self.move_towards_target();
+            if self.team == 1 && matches!(self.attack_strategy, AttackStrategy::Flee { .. }) {
+                log("BAZOOKA SET POSITION");
+            }
             if self.reached_target() {
+                if self.team == 1 && matches!(self.attack_strategy, AttackStrategy::Flee { .. }) {
+                    log("BAZOOKA REACHED TARGET");
+                }
                 self.state = UnitState::Idle;
+            } else {
+                if self.team == 1 && matches!(self.attack_strategy, AttackStrategy::Flee { .. }) {
+                    log("BAZOOKA WENT PAST REACHED TARGET");
+                }
             }
         }
         if self.state == UnitState::Attacking {
@@ -267,7 +279,7 @@ impl Unit {
             dir_x = 0.;
         }
         // Calculate the length (magnitude) of the direction vector
-        let length = (dir_x * dir_x + dir_y * dir_y).sqrt();
+        let length = (dir_x * dir_x + dir_y * dir_y).sqrt().max(f32::EPSILON);
 
         // Normalize the direction vector
         let norm_dir_x = dir_x / length;
@@ -462,19 +474,8 @@ pub enum AttackStrategy {
     TargetLowestHealth,
     Flank,
     SeekTarget,
+    Flee { timer: i32 },
 }
-
-// #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
-// pub struct FlankingState {
-//     stage: FlankingStage,
-// }
-
-// #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
-
-// pub enum FlankingStage {
-//     MovingToEdge,
-//     MovingToTarget,
-// }
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 pub struct UnitData {
