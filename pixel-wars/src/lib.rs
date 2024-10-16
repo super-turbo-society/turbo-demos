@@ -9,6 +9,7 @@ use std::cmp::{max, Ordering};
 use std::collections::HashMap;
 use std::error::Error;
 use std::fmt::{format, Display};
+use std::str::FromStr;
 use trap::*;
 use unit::*;
 
@@ -133,6 +134,15 @@ turbo::go!({
         if gp.start.just_pressed() {
             //generate units
             create_units_for_all_teams(&mut state);
+            // for unit in &state.units {
+            //     if unit.data.has_attribute(&Attribute::ExplodeOnDeath) {
+            //         turbo::println!("{} has explode on death", unit.data.unit_type)
+            //     } else {
+            //     }
+            //     if unit.data.has_attribute(&Attribute::Stalwart) {
+            //         turbo::println!("{} has Stalwart", unit.data.unit_type)
+            //     }
+            // }
             //generate any traps
 
             state.phase = Phase::Battle;
@@ -167,7 +177,7 @@ turbo::go!({
         }
     } else if state.phase == Phase::Battle {
         //run the simulation once.
-        //TODO: This might explode if there's a tie so lets run a better way to do this
+        //TODO: This might explode if there's a tie so lets find a better way to do this
         if state.simulation_result.living_units.len() == 0 {
             //store the state somehow
             let stored_state = state.clone();
@@ -191,9 +201,7 @@ turbo::go!({
             state.rng = RNG::new(seed);
         } else {
             //after we did the simulation, step through one frame at a time until it's over
-            log("STARTED STEP THROUGH");
             step_through_battle(&mut state);
-            log("FINISHED STEP THROUGH");
         }
         //some testing code to try out attack strategies
         let gp = gamepad(0);
@@ -592,7 +600,8 @@ fn step_through_battle(state: &mut GameState) {
                 if trap.trap_type == TrapType::Poop {
                     unit.footprint_status = FootprintStatus::Poopy;
                 } else if trap.trap_type == TrapType::Acidleak {
-                    unit.take_damage(trap.damage);
+                    let attack = Attack::new(unit.id, 1., trap.pos, trap.damage, 0., 1, Vec::new());
+                    unit.take_damage(&attack, &mut state.rng);
                     unit.footprint_status = FootprintStatus::Acid;
                 } else if trap.trap_type == TrapType::Landmine {
                     if let Some(closest_unit_index) =
@@ -605,9 +614,8 @@ fn step_through_battle(state: &mut GameState) {
                             trap.damage,
                             8.,
                             1,
+                            unit.data.attributes.clone(),
                         );
-                        attack.is_explosive = true;
-                        //attack.instant_trigger = true;
                         state.attacks.push(attack);
                         trap.set_inactive();
                         turbo::println!("TRAP POS {}, {}", trap.pos.0, trap.pos.1);
@@ -630,9 +638,9 @@ fn step_through_battle(state: &mut GameState) {
                     .position(|u| u.id == attack.target_unit_id)
                 {
                     let unit = &mut state.units[unit_index];
-                    unit.take_damage(attack.damage);
+                    unit.take_damage(&attack, &mut state.rng);
                     if unit.health <= 0. {
-                        if unit.data.explode_on_death {
+                        if unit.data.has_attribute(&Attribute::ExplodeOnDeath) {
                             let mut explosion_offset = (-24., -24.);
                             if unit.flip_x() {
                                 explosion_offset.0 = -24.;
@@ -658,11 +666,26 @@ fn step_through_battle(state: &mut GameState) {
                         && unit.state != UnitState::Dead
                         && unit.team == team
                     {
-                        unit.take_damage(attack.damage);
+                        unit.take_damage(&attack, &mut state.rng);
+                        if unit.health <= 0.0 {
+                            if unit.data.has_attribute(&Attribute::ExplodeOnDeath) {
+                                let mut explosion_offset = (-24., -24.);
+                                if unit.flip_x() {
+                                    explosion_offset.0 = -24.;
+                                }
+                                let explosion_pos = (
+                                    unit.pos.0 + explosion_offset.0,
+                                    unit.pos.1 + explosion_offset.1,
+                                );
+                                let mut explosion = AnimatedSprite::new(explosion_pos, false);
+                                explosion.set_anim("explosion".to_string(), 32, 14, 5, false);
+                                state.explosions.push(explosion);
+                            }
+                        }
                     }
                 }
             }
-            if attack.is_explosive {
+            if attack.attributes.contains(&Attribute::ExplosiveAttack) {
                 //create explosion
                 let explosion_offset = (-24., -24.);
                 let explosion_pos = (
@@ -816,7 +839,7 @@ struct Attack {
     damage: f32,
     splash_area: f32,
     size: i32,
-    is_explosive: bool,
+    attributes: Vec<Attribute>,
 }
 
 impl Attack {
@@ -828,6 +851,7 @@ impl Attack {
         damage: f32,
         splash_area: f32,
         size: i32,
+        attributes: Vec<Attribute>,
     ) -> Self {
         Self {
             target_unit_id,
@@ -836,7 +860,7 @@ impl Attack {
             damage,
             splash_area,
             size,
-            is_explosive: false,
+            attributes,
         }
     }
     fn update(&mut self, units: &Vec<Unit>) -> bool {
@@ -1533,13 +1557,15 @@ fn create_units_for_all_teams(state: &mut GameState) {
                 }
             }
             let pos = (x_start, y_pos);
-            state.units.push(Unit::new(
+            let mut unit = Unit::new(
                 unit_type.clone(),
                 pos,
                 team_index as i32,
                 &data_store,
                 state.next_id,
-            ));
+            );
+            unit.set_starting_strategy(&mut state.rng);
+            state.units.push(unit);
             state.next_id += 1;
             //let unit = Unit::new(UnitType::Axeman, (0.0, 0.0), 0, &unit_type_store);
             y_pos += row_height;
@@ -1775,14 +1801,14 @@ impl UnitDataStore {
             let box_w = record.get(10).ok_or("Missing box_w")?.parse::<i32>()?;
             let box_h = record.get(11).ok_or("Missing box_h")?.parse::<i32>()?;
             let bounding_box = (box_x, box_y, box_w, box_h);
-            let explode_on_death = match record.get(12).map(|s| s.trim()) {
-                Some("true") => true,
-                Some("TRUE") => true,
-                Some("1") => true,
-                Some("yes") => true,
-                Some("y") => true,
-                _ => false,
-            };
+            let attributes = record
+                .get(12)
+                .map(|s| {
+                    s.split(',')
+                        .filter_map(|attr| attr.parse::<Attribute>().ok())
+                        .collect()
+                })
+                .unwrap_or_else(Vec::new);
             let unit_data = UnitData {
                 unit_type,
                 damage,
@@ -1793,7 +1819,7 @@ impl UnitDataStore {
                 splash_area,
                 sprite_width,
                 bounding_box,
-                explode_on_death,
+                attributes,
             };
             store.add_unit_data(unit_data);
         }

@@ -66,22 +66,11 @@ impl Unit {
     pub fn update(&mut self) {
         if self.state == UnitState::Moving {
             //move toward taget pos at some speed
-            if self.team == 1 && matches!(self.attack_strategy, AttackStrategy::Flee { .. }) {
-                log("BAZOOKA IS MOVING");
-            }
             self.pos = self.move_towards_target();
-            if self.team == 1 && matches!(self.attack_strategy, AttackStrategy::Flee { .. }) {
-                log("BAZOOKA SET POSITION");
-            }
+
             if self.reached_target() {
-                if self.team == 1 && matches!(self.attack_strategy, AttackStrategy::Flee { .. }) {
-                    log("BAZOOKA REACHED TARGET");
-                }
                 self.state = UnitState::Idle;
             } else {
-                if self.team == 1 && matches!(self.attack_strategy, AttackStrategy::Flee { .. }) {
-                    log("BAZOOKA WENT PAST REACHED TARGET");
-                }
             }
         }
         if self.state == UnitState::Attacking {
@@ -199,6 +188,21 @@ impl Unit {
         //self.is_point_in_bounds(self.pos);
     }
 
+    pub fn set_starting_strategy(&mut self, rng: &mut RNG) {
+        //set some different odds and check attributes to assign strategy
+        if self.data.has_attribute(&Attribute::Flanker) {
+            let flank_chance = 2;
+            if rng.next() % flank_chance == 0 {
+                self.attack_strategy = AttackStrategy::Flank;
+            }
+        } else {
+            let target_change = 3;
+            if rng.next() % target_change == 0 {
+                self.attack_strategy = AttackStrategy::SeekTarget;
+            }
+        }
+    }
+
     pub fn start_cheering(&mut self) {
         self.state = UnitState::Cheer;
     }
@@ -275,7 +279,9 @@ impl Unit {
         }
         //if you are already in range on the x axis, only move on the y axis
         //This looks better, especially for ranged units
-        if dir_x.abs() < self.data.range {
+        if !matches!(self.attack_strategy, AttackStrategy::Flee { .. })
+            && dir_x.abs() < self.data.range
+        {
             dir_x = 0.;
         }
         // Calculate the length (magnitude) of the direction vector
@@ -285,10 +291,9 @@ impl Unit {
         let norm_dir_x = dir_x / length;
         let norm_dir_y = dir_y / length;
 
-        let rand_x = rng.next_in_range(0, 5) as f32 * norm_dir_x.signum();
+        let rand_x = rng.next_in_range(0, 10) as f32 * norm_dir_x.signum() - 5.0;
 
         let rand_y = rng.next_in_range(0, 8) as f32 * norm_dir_y.signum();
-
         let new_x = self.pos.0 + norm_dir_x * self.data.speed + rand_x;
         let new_y = self.pos.1 + norm_dir_y * self.data.speed + rand_y;
         self.target_pos = (new_x, new_y);
@@ -323,7 +328,6 @@ impl Unit {
         let length = (dir_x * dir_x + dir_y * dir_y).sqrt();
         let norm_dir_x = dir_x / length;
         let norm_dir_y = dir_y / length;
-
         // Calculate new position
         let new_x = self.pos.0 + norm_dir_x * self.data.speed / 20.;
         let new_y = self.pos.1 + norm_dir_y * self.data.speed / 20.;
@@ -364,11 +368,30 @@ impl Unit {
         self.state = UnitState::Moving;
     }
 
-    pub fn take_damage(&mut self, damage: f32) {
+    pub fn take_damage(&mut self, attack: &Attack, rng: &mut RNG) {
         if self.state != UnitState::Dead {
-            self.health -= damage;
+            self.health -= attack.damage;
             self.health = self.health.max(0.);
             self.damage_effect_timer = DAMAGE_EFFECT_TIME;
+            //apply terrifying effect to cause units to flee
+            if attack.attributes.contains(&Attribute::Terrifying)
+                && !self.data.has_attribute(&Attribute::Stalwart)
+            {
+                let flee_chance = 3;
+                if rng.next() % flee_chance == 0 {
+                    self.attack_strategy = AttackStrategy::Flee { timer: (5) };
+                    self.state = UnitState::Idle;
+                }
+            } else if self.data.has_attribute(&Attribute::Ranged)
+                && !attack.attributes.contains(&Attribute::Ranged)
+                && !self.data.has_attribute(&Attribute::Stalwart)
+            {
+                let flee_chance = 2;
+                if rng.next() % flee_chance == 0 {
+                    self.attack_strategy = AttackStrategy::Flee { timer: (5) };
+                    self.state = UnitState::Idle;
+                }
+            }
             if self.blood_splatter.is_none() {
                 //make the splatter position the top-middle of the sprite
                 let mut splat_pos = self.pos;
@@ -400,10 +423,8 @@ impl Unit {
             self.data.damage,
             self.data.splash_area,
             size,
+            self.data.attributes.clone(),
         );
-        if self.unit_type == "bazooka" || self.unit_type == "tanker" {
-            attack.is_explosive = true;
-        }
         attack
     }
 
@@ -478,6 +499,36 @@ pub enum AttackStrategy {
 }
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
+pub enum Attribute {
+    ExplodeOnDeath,
+    ExplosiveAttack,
+    Terrifying,
+    Stalwart,
+    FireEffect,
+    FireResistance,
+    Ranged,
+    Flanker,
+}
+
+impl FromStr for Attribute {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.trim() {
+            "Terrifying" => Ok(Attribute::Terrifying),
+            "Stalwart" => Ok(Attribute::Stalwart),
+            "FireEffect" => Ok(Attribute::FireEffect),
+            "FireResistance" => Ok(Attribute::FireResistance),
+            "ExplodeOnDeath" => Ok(Attribute::ExplodeOnDeath),
+            "ExplosiveAttack" => Ok(Attribute::ExplosiveAttack),
+            "Flanker" => Ok(Attribute::Flanker),
+            "Ranged" => Ok(Attribute::Ranged),
+            _ => Err(format!("Unknown attribute: {}", s)),
+        }
+    }
+}
+
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 pub struct UnitData {
     pub unit_type: String,
     pub damage: f32,
@@ -488,7 +539,13 @@ pub struct UnitData {
     pub splash_area: f32,
     pub sprite_width: i32,
     pub bounding_box: (i32, i32, i32, i32),
-    pub explode_on_death: bool,
+    pub attributes: Vec<Attribute>,
+}
+
+impl UnitData {
+    pub fn has_attribute(&self, attr: &Attribute) -> bool {
+        self.attributes.contains(attr)
+    }
 }
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
