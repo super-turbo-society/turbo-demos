@@ -422,6 +422,28 @@ fn draw_end_animation(is_win: bool) {
             sw = 32,
             fps = fps::FAST
         );
+    } else {
+        sprite!(
+            "you_lose_loop_01",
+            x = center_x - 48,
+            y = center_y,
+            sw = 32,
+            fps = fps::FAST
+        );
+        sprite!(
+            "you_lose_loop_02",
+            x = center_x - 16,
+            y = center_y,
+            sw = 32,
+            fps = fps::FAST
+        );
+        sprite!(
+            "you_lose_loop_03",
+            x = center_x + 16,
+            y = center_y,
+            sw = 32,
+            fps = fps::FAST
+        );
     }
 }
 
@@ -542,7 +564,6 @@ fn step_through_battle(state: &mut GameState) {
                 AttackStrategy::Flee { ref mut timer } => {
                     //if timer is 0, then start trying to fight again
                     if *timer <= 0 {
-                        log("FLEE TIMER FINISHED");
                         unit.attack_strategy = AttackStrategy::AttackClosest;
                     } else {
                         *timer -= 1;
@@ -550,10 +571,10 @@ fn step_through_battle(state: &mut GameState) {
                         let dir = if unit.team == 0 { -1 } else { 1 };
                         //choose a spot X units in that dir
                         let flee_dist = 50 * dir;
+                        //TODO: add some extra randomness to the Y value here
                         let new_target = (unit.pos.0 + flee_dist as f32, unit.pos.1);
                         //move to that target position
                         unit.set_new_target_move_position(&new_target, &mut state.rng);
-                        log("Gave target to unit")
                     }
                 }
 
