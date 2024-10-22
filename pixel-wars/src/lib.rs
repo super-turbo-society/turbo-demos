@@ -19,10 +19,11 @@ const DAMAGE_EFFECT_TIME: u32 = 12;
 const UNIT_ANIM_SPEED: i32 = 8;
 const MAX_Y_ATTACK_DISTANCE: f32 = 10.;
 const FOOTPRINT_LIFETIME: u32 = 240;
+const MAP_BOUNDS: (f32, f32, f32, f32) = (10.0, 340.0, 40.0, 180.0);
 
 //colors
-const POO_BROWN: u32 = 0x654321FF;
-const ACID_GREEN: u32 = 0x32CD32FF;
+const POO_BROWN: usize = 0x654321FF;
+const ACID_GREEN: usize = 0x32CD32FF;
 const WHITE: usize = 0xffffffff;
 const DAMAGE_TINT_RED: usize = 0xb9451dff;
 
@@ -134,15 +135,6 @@ turbo::go!({
         if gp.start.just_pressed() {
             //generate units
             create_units_for_all_teams(&mut state);
-            // for unit in &state.units {
-            //     if unit.data.has_attribute(&Attribute::ExplodeOnDeath) {
-            //         turbo::println!("{} has explode on death", unit.data.unit_type)
-            //     } else {
-            //     }
-            //     if unit.data.has_attribute(&Attribute::Stalwart) {
-            //         turbo::println!("{} has Stalwart", unit.data.unit_type)
-            //     }
-            // }
             //generate any traps
 
             state.phase = Phase::Battle;
@@ -516,7 +508,6 @@ fn step_through_battle(state: &mut GameState) {
                     }
                 }
                 AttackStrategy::Flank => {
-                    //Logic for flanking behavior
                     //if target is none, choose lowest health enemy and set target
                     let mut target_unit = find_unit_by_id(&units_clone, Some(unit.target_id));
                     if target_unit.is_none() || target_unit.unwrap().health == 0. {
@@ -525,14 +516,14 @@ fn step_through_battle(state: &mut GameState) {
                     }
                     if target_unit.is_some() {
                         //if you have a target, move to a position at the bottom of the screen, underneath it
+                        //first check if you have reached the top or bottom of the screen. If not, then set target as top of bottom
                         let mut target_pos = target_unit.unwrap().pos;
                         if unit.pos.1 < 100. {
-                            target_pos.1 = 40.;
+                            target_pos.1 = MAP_BOUNDS.2;
                         } else {
-                            target_pos.1 = 200.;
+                            target_pos.1 = MAP_BOUNDS.3;
                         }
-                        //stop flanking and start attacking once you are close to the target
-                        if distance_between(unit.pos, target_pos) > unit.data.speed * 2. {
+                        if distance_between(unit.pos, target_pos) > unit.calculated_speed() * 2.0 {
                             unit.set_new_target_move_position(&target_pos, &mut state.rng);
                         } else {
                             unit.attack_strategy = AttackStrategy::TargetLowestHealth
@@ -607,14 +598,14 @@ fn step_through_battle(state: &mut GameState) {
                     if let Some(closest_unit_index) =
                         closest_unit_to_position(trap.pos, &units_clone)
                     {
-                        let mut attack = Attack::new(
+                        let attack = Attack::new(
                             units_clone[closest_unit_index].id,
                             1.,
                             trap.pos,
                             trap.damage,
                             8.,
                             1,
-                            unit.data.attributes.clone(),
+                            Vec::new(),
                         );
                         state.attacks.push(attack);
                         trap.set_inactive();
@@ -1448,26 +1439,6 @@ impl Animation {
     fn total_animation_time(&self) -> i32 {
         return self.num_frames * self.loops_per_frame;
     }
-}
-
-#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
-struct StatusEffect {
-    status: Status,
-    timer: i32,
-}
-
-impl StatusEffect {
-    //new
-    //update - run timer
-    //draw - draw sprite based on name, at position
-}
-
-#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
-enum Status {
-    Poison,
-    Healing,
-    Freeze,
-    Burn,
 }
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]

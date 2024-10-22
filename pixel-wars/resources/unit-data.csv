@@ -1,14 +1,14 @@
 unit type,damage,max_health,speed,range,attack_time,splash_area,sprite_width,box_x,box_y,box_w,box_h,attributes
-axeman,8,100,4,8,40,0,16,3,5,5,9
-blade,10,120,10,8,40,0,16,3,5,5,9,"Flanker"
+axeman,30,100,5,8,40,0,16,3,5,5,9
+blade,20,40,12,8,40,0,16,3,5,5,9,"Flanker"
 hunter,8,50,5,120,120,0,32,3,20,5,9,"Ranged"
-pyro,15,40,6,12,40,0,16,3,5,5,9
-bigpound,5,300,2,16,120,4,32,3,19,5,10, "Stalwart"
-sabre,10,50,6,12,80,8,16,3,4,5,10, "Flanker"
-flameboi,10,40,7,32,40,5,32,3,19,5,10
-deathray,10,35,10,32,40,0,32,3,20,5,10, "Flanker"
+pyro,15,40,8,12,40,0,16,3,5,5,9,"FireEffect"
+bigpound,5,200,4,16,120,4,32,3,19,5,10, "Stalwart"
+sabre,25,50,12,12,80,8,16,3,4,5,10, "Flanker"
+flameboi,20,40,7,32,40,8,32,3,19,5,10,"Terrifying, FireEffect"
+deathray,30,35,12,32,40,0,32,3,20,5,10, "Flanker, Terrifying"
 bazooka,20,20,4,120,160,12,32,3,20,5,10,"ExplosiveAttack, Ranged"
 cosmo,5,35,6,120,60,0,32,3,20,5,10, "Ranged"
-draco,15,100,8,32,80,5,48,4,34,16,14,"Terrifying"
-saucer,10,120,3,16,40,16,48,13,33,20,13,"ExplodeOnDeath, Stalwart"
+draco,15,300,12,32,80,5,48,4,34,16,14,"Terrifying, FireEffect"
+saucer,10,300,5,16,40,16,48,13,33,20,13,"ExplodeOnDeath, Stalwart"
 tanker,30,200,4,60,200,12,48,1,28,22,18,"ExplodeOnDeath, Stalwart, ExplosiveAttack, Ranged"

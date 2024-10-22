@@ -13,10 +13,13 @@ pub struct Unit {
     pub target_pos: (f32, f32),
     pub attack_strategy: AttackStrategy,
     pub attack_timer: i32,
+    pub status_effects: Vec<Status>,
+
     pub animator: Animator,
     pub damage_effect_timer: u32,
     pub blood_splatter: Option<AnimatedSprite>,
     pub is_facing_left: bool,
+
     //foot print status
     pub footprints: Vec<Footprint>,
     pub footprint_status: FootprintStatus,
@@ -47,6 +50,7 @@ impl Unit {
             target_pos: (0., 0.),
             attack_strategy: AttackStrategy::AttackClosest,
             attack_timer: 0,
+            status_effects: Vec::new(),
             damage_effect_timer: 0,
             blood_splatter: None,
             footprints: Vec::new(),
@@ -91,6 +95,7 @@ impl Unit {
                     self.footprint_timer = 20;
                 }
             }
+            self.apply_status_effects();
         }
     }
 
@@ -147,6 +152,7 @@ impl Unit {
             };
             self.animator.set_next_anim(Some(next_anim));
         }
+
         if self.damage_effect_timer > 0 {
             self.animator.change_tint_color(DAMAGE_TINT_RED);
             self.damage_effect_timer -= 1;
@@ -185,19 +191,23 @@ impl Unit {
         //     self.draw_health_bar();
         // }
 
-        //self.is_point_in_bounds(self.pos);
+        if self.state != UnitState::Dead {
+            self.draw_strategy_icon();
+            self.draw_status_effects();
+        }
     }
 
     pub fn set_starting_strategy(&mut self, rng: &mut RNG) {
+        //TODO: Clean this up a bit so its more flexible
         //set some different odds and check attributes to assign strategy
         if self.data.has_attribute(&Attribute::Flanker) {
-            let flank_chance = 2;
+            let flank_chance = 1;
             if rng.next() % flank_chance == 0 {
                 self.attack_strategy = AttackStrategy::Flank;
             }
         } else {
-            let target_change = 3;
-            if rng.next() % target_change == 0 {
+            let target_chance = 6;
+            if rng.next() % target_chance == 0 {
                 self.attack_strategy = AttackStrategy::SeekTarget;
             }
         }
@@ -268,6 +278,59 @@ impl Unit {
         // )
     }
 
+    pub fn draw_strategy_icon(&self) {
+        match self.attack_strategy {
+            AttackStrategy::Flank => {
+                let draw_pos = self.head_position();
+                text!(
+                    "F",
+                    x = draw_pos.0,
+                    y = draw_pos.1 - 10.,
+                    font = Font::M,
+                    color = ACID_GREEN
+                );
+            }
+            AttackStrategy::SeekTarget => {
+                //
+            }
+            AttackStrategy::Flee { .. } => {
+                let draw_pos = self.head_position();
+                text!(
+                    "!",
+                    x = draw_pos.0,
+                    y = draw_pos.1 - 10.,
+                    font = Font::L,
+                    color = DAMAGE_TINT_RED
+                );
+            }
+            _ => {}
+        }
+    }
+
+    pub fn draw_status_effects(&self) {
+        let base_pos = self.head_position();
+        let mut offset = 0.0;
+
+        for status in &self.status_effects {
+            let (symbol, color) = match status {
+                Status::Poison => ("P", ACID_GREEN),
+                Status::Healing => ("H", WHITE),
+                Status::Freeze => ("F", WHITE), // Assuming you have a BLUE constant
+                Status::Burn { .. } => ("B", DAMAGE_TINT_RED),
+            };
+
+            text!(
+                symbol,
+                x = base_pos.0 + 10.0 + offset,
+                y = base_pos.1 - 10.0,
+                font = Font::M,
+                color = color
+            );
+
+            offset += 5.0;
+        }
+    }
+
     pub fn set_new_target_move_position(&mut self, target: &(f32, f32), rng: &mut RNG) {
         let mut dir_x = target.0 - self.pos.0;
         let dir_y = target.1 - self.pos.1;
@@ -291,36 +354,39 @@ impl Unit {
         let norm_dir_x = dir_x / length;
         let norm_dir_y = dir_y / length;
 
-        let rand_x = rng.next_in_range(0, 10) as f32 * norm_dir_x.signum() - 5.0;
+        let rand_x = rng.next_in_range(0, 10) as f32 * norm_dir_x.signum();
 
         let rand_y = rng.next_in_range(0, 8) as f32 * norm_dir_y.signum();
-        let new_x = self.pos.0 + norm_dir_x * self.data.speed + rand_x;
-        let new_y = self.pos.1 + norm_dir_y * self.data.speed + rand_y;
+        let mut new_x = self.pos.0 + norm_dir_x * self.calculated_speed() + rand_x;
+        let mut new_y = self.pos.1 + norm_dir_y * self.calculated_speed() + rand_y;
+        //cap new_x, new_y within the bounds of the map so they don't go off screen
+        new_x = new_x.clamp(MAP_BOUNDS.0, MAP_BOUNDS.1);
+        new_y = new_y.clamp(MAP_BOUNDS.2, MAP_BOUNDS.3);
         self.target_pos = (new_x, new_y);
         self.state = UnitState::Moving;
     }
 
-    fn calculate_separation(&self, nearby_units: &[&Unit]) -> (f32, f32) {
-        let mut separation = (0.0, 0.0);
-        let mut repulsions = Vec::new();
-        let separation_radius = 8.;
-        for other in nearby_units {
-            if distance_between(self.pos, other.pos) < separation_radius {
-                let away = (self.pos.0 - other.pos.0, self.pos.1 - other.pos.1);
-                let length = (away.0 * away.0 + away.1 * away.1).sqrt();
-                let strength = 2.0 / length.max(0.0001);
-                let normalized = (away.0 / length, away.1 / length);
-                repulsions.push((strength, normalized));
-            }
-        }
-        repulsions.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
-        repulsions.truncate(3);
-        for (strength, direction) in repulsions {
-            separation.0 += direction.0 * strength.powf(2.0);
-            separation.1 += direction.1 * strength.powf(2.0);
-        }
-        separation
-    }
+    // fn calculate_separation(&self, nearby_units: &[&Unit]) -> (f32, f32) {
+    //     let mut separation = (0.0, 0.0);
+    //     let mut repulsions = Vec::new();
+    //     let separation_radius = 8.;
+    //     for other in nearby_units {
+    //         if distance_between(self.pos, other.pos) < separation_radius {
+    //             let away = (self.pos.0 - other.pos.0, self.pos.1 - other.pos.1);
+    //             let length = (away.0 * away.0 + away.1 * away.1).sqrt();
+    //             let strength = 2.0 / length.max(0.0001);
+    //             let normalized = (away.0 / length, away.1 / length);
+    //             repulsions.push((strength, normalized));
+    //         }
+    //     }
+    //     repulsions.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
+    //     repulsions.truncate(3);
+    //     for (strength, direction) in repulsions {
+    //         separation.0 += direction.0 * strength.powf(2.0);
+    //         separation.1 += direction.1 * strength.powf(2.0);
+    //     }
+    //     separation
+    // }
     pub fn move_towards_target(&self) -> (f32, f32) {
         // Calculate direction towards target
         let dir_x = self.target_pos.0 - self.pos.0;
@@ -329,15 +395,15 @@ impl Unit {
         let norm_dir_x = dir_x / length;
         let norm_dir_y = dir_y / length;
         // Calculate new position
-        let new_x = self.pos.0 + norm_dir_x * self.data.speed / 20.;
-        let new_y = self.pos.1 + norm_dir_y * self.data.speed / 20.;
+        let new_x = self.pos.0 + norm_dir_x * self.calculated_speed() / 20.;
+        let new_y = self.pos.1 + norm_dir_y * self.calculated_speed() / 20.;
 
         (new_x, new_y)
     }
 
     pub fn reached_target(&self) -> bool {
         let mut reached_target = false;
-        if distance_between(self.pos, self.target_pos) < self.data.speed / 20. {
+        if distance_between(self.pos, self.target_pos) < self.calculated_speed() / 20. {
             reached_target = true;
         }
         reached_target
@@ -362,17 +428,59 @@ impl Unit {
         let rand_y = rng.next_f32() * norm_dir_y.signum() * 10.;
         //turbo::println!("rand_y: {}", rand_x);
 
-        let new_x = self.pos.0 + norm_dir_x * (self.data.speed / 50.) + rand_x;
-        let new_y = self.pos.1 + norm_dir_y * (self.data.speed / 50.) + rand_y;
+        let new_x = self.pos.0 + norm_dir_x * (self.calculated_speed() / 50.) + rand_x;
+        let new_y = self.pos.1 + norm_dir_y * (self.calculated_speed() / 50.) + rand_y;
         self.target_pos = (new_x, new_y);
         self.state = UnitState::Moving;
     }
+    pub fn apply_status_effects(&mut self) {
+        // Create a vector to store statuses that should be removed
+        let mut statuses_to_remove = Vec::new();
+        let mut total_damage = 0.0;
+        // Iterate through statuses with their indices
+        for (index, status) in self.status_effects.iter_mut().enumerate() {
+            match status {
+                Status::Poison => {
+                    // Apply poison damage
+                }
+                Status::Healing => {
+                    // Apply healing
+                }
+                Status::Freeze => {
+                    // Apply freeze effect
+                }
+                Status::Burn { timer } => {
+                    // Apply burn damage
+                    total_damage += 0.1;
+                    *timer -= 1;
 
+                    // If timer reaches 0, mark for removal
+                    if *timer == 0 {
+                        statuses_to_remove.push(index);
+                    }
+                }
+            }
+        }
+        if total_damage > 0.0 {
+            self.apply_damage(total_damage);
+        }
+
+        // Remove statuses in reverse order to maintain correct indices
+        for index in statuses_to_remove.iter().rev() {
+            self.status_effects.remove(*index);
+        }
+    }
+
+    pub fn apply_damage(&mut self, damage: f32) {
+        self.health -= damage;
+        self.health = self.health.max(0.);
+        self.damage_effect_timer = DAMAGE_EFFECT_TIME;
+    }
+
+    //TODO: Rename this to take_attack or something
     pub fn take_damage(&mut self, attack: &Attack, rng: &mut RNG) {
         if self.state != UnitState::Dead {
-            self.health -= attack.damage;
-            self.health = self.health.max(0.);
-            self.damage_effect_timer = DAMAGE_EFFECT_TIME;
+            self.apply_damage(attack.damage);
             //apply terrifying effect to cause units to flee
             if attack.attributes.contains(&Attribute::Terrifying)
                 && !self.data.has_attribute(&Attribute::Stalwart)
@@ -382,6 +490,7 @@ impl Unit {
                     self.attack_strategy = AttackStrategy::Flee { timer: (5) };
                     self.state = UnitState::Idle;
                 }
+            //Ranged units will sometimes flee when hit by melee units
             } else if self.data.has_attribute(&Attribute::Ranged)
                 && !attack.attributes.contains(&Attribute::Ranged)
                 && !self.data.has_attribute(&Attribute::Stalwart)
@@ -391,6 +500,13 @@ impl Unit {
                     self.attack_strategy = AttackStrategy::Flee { timer: (5) };
                     self.state = UnitState::Idle;
                 }
+            }
+            //if it is a fire effect, then add a burn status to this unit
+            if !self.data.has_attribute(&Attribute::FireResistance)
+                && attack.attributes.contains(&Attribute::FireEffect)
+            {
+                let new_status = Status::Burn { timer: (360) };
+                self.status_effects.push(new_status);
             }
             if self.blood_splatter.is_none() {
                 //make the splatter position the top-middle of the sprite
@@ -416,7 +532,7 @@ impl Unit {
         self.state = UnitState::Attacking;
         //create the actual attack
         let size = 1;
-        let mut attack = Attack::new(
+        let attack = Attack::new(
             target_unit_id,
             2.,
             self.pos,
@@ -443,7 +559,7 @@ impl Unit {
         }
         let fp = Footprint {
             pos: self.foot_position(),
-            color: color,
+            color: color as u32,
             lifetime: FOOTPRINT_LIFETIME,
         };
         self.footprints.push(fp);
@@ -487,6 +603,21 @@ impl Unit {
         //self.team == 1
         self.is_facing_left
     }
+
+    pub fn calculated_speed(&self) -> f32 {
+        //do an adjustment if you are fleeing or flanking
+        let mut calc_speed = self.data.speed;
+        let flank_adj = 1.2;
+        let flee_adj = 2.0;
+        match self.attack_strategy {
+            AttackStrategy::Flank => {
+                calc_speed = calc_speed * flank_adj;
+            }
+            AttackStrategy::Flee { .. } => calc_speed = calc_speed * flee_adj,
+            _ => {}
+        }
+        calc_speed
+    }
 }
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
@@ -496,6 +627,7 @@ pub enum AttackStrategy {
     Flank,
     SeekTarget,
     Flee { timer: i32 },
+    MoveRandom,
 }
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
@@ -527,6 +659,22 @@ impl FromStr for Attribute {
         }
     }
 }
+
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
+enum Status {
+    Poison,
+    Healing,
+    Freeze,
+    Burn { timer: u32 },
+}
+/*
+TODO: Apply burn when attack comes in
+If burned - take damage and lessen burn timer
+Give units a list of status effects
+Whenever unit is idle, apply burn damage
+visualize burn
+make status effect a string for now. If you have X status, add whatever text, then render all of them
+*/
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 pub struct UnitData {
