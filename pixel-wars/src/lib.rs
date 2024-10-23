@@ -3,7 +3,6 @@ mod trap;
 mod unit;
 
 use csv::{Reader, ReaderBuilder};
-use fps::FAST;
 use rng::*;
 use std::cmp::{max, Ordering};
 use std::collections::HashMap;
@@ -19,7 +18,7 @@ const DAMAGE_EFFECT_TIME: u32 = 12;
 const UNIT_ANIM_SPEED: i32 = 8;
 const MAX_Y_ATTACK_DISTANCE: f32 = 10.;
 const FOOTPRINT_LIFETIME: u32 = 240;
-const MAP_BOUNDS: (f32, f32, f32, f32) = (10.0, 340.0, 40.0, 180.0);
+const MAP_BOUNDS: (f32, f32, f32, f32) = (10.0, 340.0, 0.0, 200.0);
 
 //colors
 const POO_BROWN: usize = 0x654321FF;
@@ -412,6 +411,7 @@ fn draw_end_animation(is_win: bool) {
             "you_win_loop_02",
             x = center_x - 16,
             y = center_y,
+            scale = 2.0,
             sw = 32,
             fps = fps::FAST
         );
@@ -507,9 +507,10 @@ fn step_through_battle(state: &mut GameState) {
                         }
                     }
                 }
-                AttackStrategy::Flank => {
+                AttackStrategy::Flank { ref mut stage } => {
                     //if target is none, choose lowest health enemy and set target
                     let mut target_unit = find_unit_by_id(&units_clone, Some(unit.target_id));
+                    let max_dist = 20.0;
                     if target_unit.is_none() || target_unit.unwrap().health == 0. {
                         target_unit =
                             lowest_health_closest_enemy_unit(&units_clone, unit.team, unit.pos);
@@ -518,15 +519,25 @@ fn step_through_battle(state: &mut GameState) {
                         //if you have a target, move to a position at the bottom of the screen, underneath it
                         //first check if you have reached the top or bottom of the screen. If not, then set target as top of bottom
                         let mut target_pos = target_unit.unwrap().pos;
-                        if unit.pos.1 < 100. {
-                            target_pos.1 = MAP_BOUNDS.2;
+                        if *stage == FlankStage::Vertical {
+                            if unit.pos.1 < 100. {
+                                target_pos.1 = MAP_BOUNDS.2;
+                            } else {
+                                target_pos.1 = MAP_BOUNDS.3;
+                            }
+                            target_pos.0 = unit.pos.0;
                         } else {
-                            target_pos.1 = MAP_BOUNDS.3;
+                            target_pos.1 = unit.pos.1;
                         }
-                        if distance_between(unit.pos, target_pos) > unit.calculated_speed() * 2.0 {
+
+                        if distance_between(unit.pos, target_pos) > max_dist {
                             unit.set_new_target_move_position(&target_pos, &mut state.rng);
                         } else {
-                            unit.attack_strategy = AttackStrategy::TargetLowestHealth
+                            if *stage == FlankStage::Vertical {
+                                *stage = FlankStage::Horizontal;
+                            } else {
+                                unit.attack_strategy = AttackStrategy::TargetLowestHealth;
+                            }
                         }
                     }
                 }
@@ -583,7 +594,7 @@ fn step_through_battle(state: &mut GameState) {
             }
         }
         unit.update();
-        //check for traps
+        //check if the unit is on top of a trap
         for trap in &mut state.traps {
             if distance_between(unit.foot_position(), trap.pos) < (trap.size / 2.)
                 && trap.is_active()

@@ -192,7 +192,7 @@ impl Unit {
         // }
 
         if self.state != UnitState::Dead {
-            self.draw_strategy_icon();
+            //self.draw_strategy_icon();
             self.draw_status_effects();
         }
     }
@@ -201,9 +201,11 @@ impl Unit {
         //TODO: Clean this up a bit so its more flexible
         //set some different odds and check attributes to assign strategy
         if self.data.has_attribute(&Attribute::Flanker) {
-            let flank_chance = 1;
+            let flank_chance = 3;
             if rng.next() % flank_chance == 0 {
-                self.attack_strategy = AttackStrategy::Flank;
+                self.attack_strategy = AttackStrategy::Flank {
+                    stage: (FlankStage::Vertical),
+                };
             }
         } else {
             let target_chance = 6;
@@ -280,13 +282,13 @@ impl Unit {
 
     pub fn draw_strategy_icon(&self) {
         match self.attack_strategy {
-            AttackStrategy::Flank => {
+            AttackStrategy::Flank { .. } => {
                 let draw_pos = self.head_position();
                 text!(
                     "F",
                     x = draw_pos.0,
                     y = draw_pos.1 - 10.,
-                    font = Font::M,
+                    font = Font::S,
                     color = ACID_GREEN
                 );
             }
@@ -299,7 +301,7 @@ impl Unit {
                     "!",
                     x = draw_pos.0,
                     y = draw_pos.1 - 10.,
-                    font = Font::L,
+                    font = Font::M,
                     color = DAMAGE_TINT_RED
                 );
             }
@@ -311,23 +313,54 @@ impl Unit {
         let base_pos = self.head_position();
         let mut offset = 0.0;
 
+        // Keep track of which status types we've already drawn
+        let mut drawn_statuses = Vec::new();
+
+        // First draw all status effects
         for status in &self.status_effects {
-            let (symbol, color) = match status {
-                Status::Poison => ("P", ACID_GREEN),
-                Status::Healing => ("H", WHITE),
-                Status::Freeze => ("F", WHITE), // Assuming you have a BLUE constant
-                Status::Burn { .. } => ("B", DAMAGE_TINT_RED),
+            // Convert status to a comparable type ignoring internal values
+            let status_type = match status {
+                Status::Poison => "poison",
+                Status::Healing => "healing",
+                Status::Freeze => "freeze",
+                Status::Burn { .. } => "burn",
             };
 
-            text!(
-                symbol,
-                x = base_pos.0 + 10.0 + offset,
-                y = base_pos.1 - 10.0,
-                font = Font::M,
-                color = color
+            // Skip if we've already drawn this status type
+            if drawn_statuses.contains(&status_type) {
+                continue;
+            }
+
+            // Add to drawn list and draw the status
+            drawn_statuses.push(status_type);
+
+            let name = match status {
+                Status::Poison => "status_poisoned",
+                Status::Healing => "status_healing",
+                Status::Freeze => "status_frozen",
+                Status::Burn { .. } => "status_burning",
+            };
+
+            sprite!(
+                name,
+                x = base_pos.0 + offset - 4.,
+                y = base_pos.1 - 4.,
+                sw = 16,
+                fps = fps::FAST
             );
 
-            offset += 5.0;
+            offset += 4.0;
+        }
+
+        // Then check for flee status and draw it if present
+        if matches!(self.attack_strategy, AttackStrategy::Flee { .. }) {
+            sprite!(
+                "status_fleeing",
+                x = base_pos.0 + offset - 4.,
+                y = base_pos.1 - 4.,
+                sw = 16,
+                fps = fps::FAST
+            );
         }
     }
 
@@ -505,7 +538,7 @@ impl Unit {
             if !self.data.has_attribute(&Attribute::FireResistance)
                 && attack.attributes.contains(&Attribute::FireEffect)
             {
-                let new_status = Status::Burn { timer: (360) };
+                let new_status = Status::Burn { timer: (300) };
                 self.status_effects.push(new_status);
             }
             if self.blood_splatter.is_none() {
@@ -610,7 +643,7 @@ impl Unit {
         let flank_adj = 1.2;
         let flee_adj = 2.0;
         match self.attack_strategy {
-            AttackStrategy::Flank => {
+            AttackStrategy::Flank { .. } => {
                 calc_speed = calc_speed * flank_adj;
             }
             AttackStrategy::Flee { .. } => calc_speed = calc_speed * flee_adj,
@@ -624,10 +657,16 @@ impl Unit {
 pub enum AttackStrategy {
     AttackClosest,
     TargetLowestHealth,
-    Flank,
+    Flank { stage: FlankStage },
     SeekTarget,
     Flee { timer: i32 },
     MoveRandom,
+}
+
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
+pub enum FlankStage {
+    Vertical,
+    Horizontal,
 }
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
@@ -661,7 +700,7 @@ impl FromStr for Attribute {
 }
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
-enum Status {
+pub enum Status {
     Poison,
     Healing,
     Freeze,

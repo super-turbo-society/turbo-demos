@@ -32,6 +32,17 @@ html, body {
   margin: 0;
   background: #202124;
 }
+@media (orientation: portrait) and (hover: none) {
+  html, body {
+    justify-content: flex-start;
+  }
+}
+
+@media (orientation: portrait) and (hover: none) {
+  iframe {
+    width: calc(100% - 32px) !important;
+  }
+}
 
 button {
   font-family: "04b03", monospace;
@@ -47,6 +58,12 @@ button {
   align-items: center;
   background: #202124;
   user-select: none;
+}
+@media (orientation: portrait) and (hover: none) {
+  #player {
+    flex: none;
+    height: auto;
+  }
 }
 
 canvas {

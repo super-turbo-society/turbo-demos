@@ -11,7 +11,7 @@ const APP_DESCRIPTION = "Epic Fantasy Battles of All Time";
 const RESOLUTION = [384, 216];
 const WASM_SRC = "pixel_wars.wasm";
 
-const SPRITES = ["./sprites/tanker_attack.png","./sprites/bigpound_attack.png","./sprites/pyro_hit.png","./sprites/acidleak.png","./sprites/draco_idle.png","./sprites/deathray_attack.png","./sprites/deathray_idle.png","./sprites/blood_16px_08.png","./sprites/tanker_idle.png","./sprites/axeman_idle.png","./sprites/sabre_walk.png","./sprites/blade_walk.png","./sprites/healing.png","./sprites/draco_cheer.png","./sprites/hunter_walk.png","./sprites/bigpound_walk.png","./sprites/flameboi_walk.png","./sprites/bazooka_attack.png","./sprites/draco_death.png","./sprites/saucer_walk.png","./sprites/pyro_walk.png","./sprites/hunter_hit.png","./sprites/bazooka_idle.png","./sprites/cosmo_walk.png","./sprites/flameboi_attack.png","./sprites/blade_death.png","./sprites/saucer_cheer.png","./sprites/bigpound_death.png","./sprites/cosmo_cheer.png","./sprites/landmine.png","./sprites/bazooka_cheer.png","./sprites/flameboi_idle.png","./sprites/hunter_idle.png","./sprites/bigpound_idle.png","./sprites/bazooka_walk.png","./sprites/pyro_idle.png","./sprites/axeman_cheer.png","./sprites/hunter_attack.png","./sprites/cosmo_idle.png","./sprites/spikes.png","./sprites/pyro_death.png","./sprites/sabre_death.png","./sprites/flameboi_death.png","./sprites/deathray_cheer.png","./sprites/saucer_idle.png","./sprites/hunter_death.png","./sprites/tanker_death.png","./sprites/poop.png","./sprites/blood_16px_02.png","./sprites/deathray_walk.png","./sprites/cosmo_death.png","./sprites/cosmo_attack.png","./sprites/saucer_attack.png","./sprites/pyro_attack.png","./sprites/blood_16px_03.png","./sprites/bazooka_death.png","./sprites/blood_16px_01.png","./sprites/draco_walk.png","./sprites/sabre_attack.png","./sprites/blade_attack.png","./sprites/bigpound_cheer.png","./sprites/blade_cheer.png","./sprites/saucer_death.png","./sprites/axeman_attack.png","./sprites/blood_16px_04.png","./sprites/explosion.png","./sprites/sabre_cheer.png","./sprites/blade_idle.png","./sprites/draco_attack.png","./sprites/hunter_cheer.png","./sprites/tanker_cheer.png","./sprites/blood_16px_05.png","./sprites/flameboi_cheer.png","./sprites/deathray_death.png","./sprites/sabre_idle.png","./sprites/blood_16px_07.png","./sprites/axeman_death.png","./sprites/tanker_walk.png","./sprites/axeman_walk.png","./sprites/pyro_cheer.png","./sprites/blood_16px_06.png",];
+const SPRITES = ["./sprites/tanker_attack.png","./sprites/bigpound_attack.png","./sprites/pyro_hit.png","./sprites/acidleak.png","./sprites/draco_idle.png","./sprites/crater_01.png","./sprites/deathray_attack.png","./sprites/deathray_idle.png","./sprites/blood_16px_08.png","./sprites/tanker_idle.png","./sprites/axeman_idle.png","./sprites/sabre_walk.png","./sprites/blade_walk.png","./sprites/healing.png","./sprites/draco_cheer.png","./sprites/hunter_walk.png","./sprites/bigpound_walk.png","./sprites/flameboi_walk.png","./sprites/bazooka_attack.png","./sprites/draco_death.png","./sprites/saucer_walk.png","./sprites/pyro_walk.png","./sprites/hunter_hit.png","./sprites/bazooka_idle.png","./sprites/cosmo_walk.png","./sprites/you_lose_loop_02.png","./sprites/flameboi_attack.png","./sprites/you_lose_loop_03.png","./sprites/blade_death.png","./sprites/saucer_cheer.png","./sprites/bigpound_death.png","./sprites/cosmo_cheer.png","./sprites/landmine.png","./sprites/you_lose_loop_01.png","./sprites/bazooka_cheer.png","./sprites/flameboi_idle.png","./sprites/hunter_idle.png","./sprites/bigpound_idle.png","./sprites/bazooka_walk.png","./sprites/pyro_idle.png","./sprites/axeman_cheer.png","./sprites/hunter_attack.png","./sprites/cosmo_idle.png","./sprites/spikes.png","./sprites/pyro_death.png","./sprites/sabre_death.png","./sprites/flameboi_death.png","./sprites/deathray_cheer.png","./sprites/saucer_idle.png","./sprites/hunter_death.png","./sprites/tanker_death.png","./sprites/poop.png","./sprites/blood_16px_02.png","./sprites/deathray_walk.png","./sprites/cosmo_death.png","./sprites/cosmo_attack.png","./sprites/saucer_attack.png","./sprites/pyro_attack.png","./sprites/blood_16px_03.png","./sprites/bazooka_death.png","./sprites/blood_16px_01.png","./sprites/draco_walk.png","./sprites/sabre_attack.png","./sprites/blade_attack.png","./sprites/bigpound_cheer.png","./sprites/blade_cheer.png","./sprites/saucer_death.png","./sprites/you_win_loop_03.png","./sprites/axeman_attack.png","./sprites/blood_16px_04.png","./sprites/explosion.png","./sprites/sabre_cheer.png","./sprites/blade_idle.png","./sprites/draco_attack.png","./sprites/hunter_cheer.png","./sprites/tanker_cheer.png","./sprites/blood_16px_05.png","./sprites/flameboi_cheer.png","./sprites/you_win_loop_02.png","./sprites/deathray_death.png","./sprites/sabre_idle.png","./sprites/blood_16px_07.png","./sprites/axeman_death.png","./sprites/tanker_walk.png","./sprites/axeman_walk.png","./sprites/pyro_cheer.png","./sprites/blood_16px_06.png","./sprites/you_win_loop_01.png",];
 
 const SHADERS = [
 
@@ -184,7 +184,6 @@ function initializeNipple(canvas) {
   nipplejs
     .create()
     .on("dir:up", (e) => {
-      console.log(e);
       if (active && active !== presses.up) {
         canvas.dispatchEvent(active.keyup);
       }
@@ -192,7 +191,6 @@ function initializeNipple(canvas) {
       active = presses.up;
     })
     .on("dir:down", (e) => {
-      console.log(e);
       if (active && active !== presses.down) {
         canvas.dispatchEvent(active.keyup);
       }
@@ -200,7 +198,6 @@ function initializeNipple(canvas) {
       active = presses.down;
     })
     .on("dir:left", (e) => {
-      console.log(e);
       if (active && active !== presses.left) {
         canvas.dispatchEvent(active.keyup);
       }
@@ -208,7 +205,6 @@ function initializeNipple(canvas) {
       active = presses.left;
     })
     .on("dir:right", (e) => {
-      console.log(e);
       if (active && active !== presses.right) {
         canvas.dispatchEvent(active.keyup);
       }
@@ -216,10 +212,11 @@ function initializeNipple(canvas) {
       active = presses.right;
     })
     .on("end", (e) => {
-      console.log(e);
       if (active) {
         canvas.dispatchEvent(active.keyup);
       }
       active = null;
     });
+    // Disable double-tap zoom on mobile
+    document.addEventListener("dblclick", (e) => e.preventDefault());
 }
