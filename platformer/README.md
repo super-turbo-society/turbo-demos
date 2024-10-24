@@ -189,7 +189,6 @@ turbo::init! {
         tiles: Vec<Tile>,
     } = {
         let mut tiles = Vec::new();
-         let mut tiles = Vec::new();
 
         //Bottom layer of tiles
         for x in 0..24 {
@@ -523,7 +522,7 @@ Save your updated code and try moving around to see the camera follow the player
 
 ### Part Four: Polishing player movement
 
-Now we have all of the core functionality needed to make a playoformer game:
+Now we have all of the core functionality needed to make a platformer game:
 1. We can move and jump.
 2. We can collide with the tile map.
 3. The camera follows the player's movement.
