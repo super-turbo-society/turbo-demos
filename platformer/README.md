@@ -30,7 +30,6 @@ TILE:
 
 Make a folder called sprites in the root of your project, and add these 3 pngs to that folder.
 
-
 And then run the game:
 ```sh
 turbo run -w
@@ -63,7 +62,7 @@ turbo::cfg! {r#"
 
 ### Part One: Render the tiles and player
 
-To start, we're going to render our player and tiles on screen. To keep our code organized, lets make a struct and impl for each. A struct holds data related to a specific object type, and an impl holds functions.
+To start, we're going to render our player and tiles on screen. To keep our code organized, lets make a struct and impl for each. A struct holds data related to a specific object type, and an impl holds functions for that struct.
 
 ```rs
 #[derive(BorshDeserialize, BorshSerialize, Debug, Clone, PartialEq)]
@@ -132,15 +131,17 @@ One thing you may have noticed is this line of code above each of the struct dec
 #[derive(BorshDeserialize, BorshSerialize, Debug, Clone, PartialEq)]
 ```
 
-In Turbo, any struct that is used in GameState needs to have these attributes. You can define your struct in Turbo::Init and it will automatically inherit them, but I find it is easier to organize your code if you move them outside.
+In Turbo, any struct that is used in GameState needs to have these attributes. You can define your struct in Turbo::Init and it will automatically inherit them, but I find it is easier to organize your code if you create your structs outside of init.
 
-When we start moving our player in Step 2, we'll use all of the variables in `struct Player` to determine how the player moves. But for now, we just need the position (x and y) to tell Turbo where to render the kiwi sprite.
+When we start moving our player in Part 2, we'll use all of the variables in `struct Player` to determine how the player moves. But for now, we just need the position (x and y) to tell Turbo where to render the player sprite.
 
 For the tiles, we are going to use a 16x16 grid to determine where they are positioned in the level. The draw position in pixel units is calculated as `grid position * TILE_SIZE`.
 
-Next, we need to add specific instances of the player and tiles to our game state inside of turbo:init. We will also define a const value for TILE_SIZE, which tells the game that our tiles are 16 pixels wide.
+Next, we need to add specific instances of the player and tiles to our game state inside of turbo:init. Player can just be a single Player object, since there is only one player in the game, but there will be lots of tiles, so lets put them all into a `Vec<Tile>` 
 
-Add this code underneath your config code
+We will also define a constant value for TILE_SIZE, which tells the game that our tiles are 16 pixels wide. We can use a const because we know the size of our tiles will never change.
+
+Add this code underneath your config code:
 
 ```rs
 const TILE_SIZE: i32 = 16;
