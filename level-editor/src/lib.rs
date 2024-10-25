@@ -10,6 +10,7 @@ turbo::cfg! {r#"
 
 const GRAY: usize = 0x808080ff;
 const LIGHT_BLUE: usize = 0xADD8E6ff;
+const MAP_BOUNDS: (f32, f32, f32, f32) = (0., 2048., 0., 2048.);
 
 turbo::init! {
     struct GameState {
@@ -35,7 +36,18 @@ turbo::go!({
         submit_tile_map(&mut state);
     }
     //handle camera panning
-
+    if gp.up.pressed() {
+        pan_camera(&mut state, (0, -1));
+    }
+    if gp.down.pressed() {
+        pan_camera(&mut state, (0, 1));
+    }
+    if gp.right.pressed() {
+        pan_camera(&mut state, (1, 0));
+    }
+    if gp.left.pressed() {
+        pan_camera(&mut state, (-1, 0));
+    }
     clear!(LIGHT_BLUE);
     //draw grid
     draw_grid();
@@ -60,24 +72,31 @@ fn submit_tile_map(gs: &mut GameState) {
 }
 
 fn place_tile(gs: &mut GameState, grid_pos: (u32, u32)) {
-    // Try to find if a tile already exists at this position
-    if let Some(index) = gs.tile_map.iter().position(|tile| tile.pos == grid_pos) {
-        // Replace existing tile
-        gs.tile_map[index] = Tile {
-            id: gs.selected_tile_id, // Assuming you have this in GameState
-            pos: grid_pos,
-        };
+    if gs.selected_tile_id == 11 {
+        // Eraser mode - remove tile if it exists
+        if let Some(index) = gs.tile_map.iter().position(|tile| tile.pos == grid_pos) {
+            gs.tile_map.remove(index);
+        }
     } else {
-        // No tile found, add new one
-        gs.tile_map.push(Tile {
-            id: gs.selected_tile_id,
-            pos: grid_pos,
-        });
+        // Normal tile placement
+        if let Some(index) = gs.tile_map.iter().position(|tile| tile.pos == grid_pos) {
+            // Replace existing tile
+            gs.tile_map[index] = Tile {
+                id: gs.selected_tile_id,
+                pos: grid_pos,
+            };
+        } else {
+            // No tile found, add new one
+            gs.tile_map.push(Tile {
+                id: gs.selected_tile_id,
+                pos: grid_pos,
+            });
+        }
     }
 }
 
 fn change_selected_tile(gs: &mut GameState, dir: i32) {
-    let num_tiles = 9;
+    let num_tiles = 11;
     let mut id = gs.selected_tile_id as i32;
     id += dir;
     if id < 0 {
@@ -88,7 +107,12 @@ fn change_selected_tile(gs: &mut GameState, dir: i32) {
     gs.selected_tile_id = id as u32;
 }
 
-fn pan_camera(gs: &mut GameState) {}
+fn pan_camera(gs: &mut GameState, dir: (i32, i32)) {
+    //TODO: lock to camera bounds first
+    let move_speed = 3;
+    let dist = (dir.0 * move_speed, dir.1 * move_speed);
+    set_cam!(x = cam!()[0] + dist.0, y = cam!()[1] + dist.1);
+}
 
 fn draw_tile_map(gs: &mut GameState) {
     for t in gs.tile_map.iter() {
@@ -137,6 +161,8 @@ fn sprite_name_from_id(id: u32) -> String {
         7 => "grass_3".to_string(),
         8 => "stone_1".to_string(),
         9 => "stone_2".to_string(),
+        10 => "stone_3".to_string(),
+        11 => "erase".to_string(),
         _ => "kiwi".to_string(), // Default case if id doesn't match any above
     }
 }
