@@ -26,7 +26,7 @@ turbo::init! {
 
 turbo::go!({
     let mut state = GameState::load();
-    //up and down to change selected tile
+    //z and x to change selected tile, space to submit map
     let gp = gamepad(0);
     if gp.a.just_pressed() {
         change_selected_tile(&mut state, 1);
@@ -34,6 +34,8 @@ turbo::go!({
         change_selected_tile(&mut state, -1);
     } else if gp.start.just_pressed() {
         submit_tile_map(&mut state);
+    } else if gp.select.just_pressed() {
+        load_tile_map(&mut state);
     }
     //handle camera panning
     if gp.up.pressed() {
@@ -49,11 +51,8 @@ turbo::go!({
         pan_camera(&mut state, (-1, 0));
     }
     clear!(LIGHT_BLUE);
-    //draw grid
     draw_grid();
-    // Get the mouse state for player 1
     let m = mouse(0);
-    // Get the mouse's x and y positions
     let [mx, my] = m.position;
     if m.left.just_pressed() {
         place_tile(&mut state, grid_pos_from_mouse_pos((mx as f32, my as f32)));
@@ -71,12 +70,34 @@ fn submit_tile_map(gs: &mut GameState) {
     //do something with turbo OS from gs.tile_map
 }
 
+fn load_tile_map(gs: &mut GameState) {
+    //do something from turbo OS to get the tile map and set it to the gs tile map
+}
+
 fn place_tile(gs: &mut GameState, grid_pos: (u32, u32)) {
     if gs.selected_tile_id == 11 {
         // Eraser mode - remove tile if it exists
         if let Some(index) = gs.tile_map.iter().position(|tile| tile.pos == grid_pos) {
             gs.tile_map.remove(index);
         }
+    } else if gs.selected_tile_id == 0 || gs.selected_tile_id == 1 {
+        // First remove any tile at the target position
+        if let Some(index) = gs.tile_map.iter().position(|tile| tile.pos == grid_pos) {
+            gs.tile_map.remove(index);
+        }
+        // Then remove any existing start/end point
+        if let Some(index) = gs
+            .tile_map
+            .iter()
+            .position(|tile| tile.id == gs.selected_tile_id)
+        {
+            gs.tile_map.remove(index);
+        }
+        // Add new start/end point
+        gs.tile_map.push(Tile {
+            id: gs.selected_tile_id,
+            pos: grid_pos,
+        });
     } else {
         // Normal tile placement
         if let Some(index) = gs.tile_map.iter().position(|tile| tile.pos == grid_pos) {
