@@ -91,6 +91,8 @@ impl Player {
     }
     fn handle_input(&mut self) {
         let gp = gamepad(0);
+        /////JUMPING LOGIC/////
+        // If the player has just pressed jump -> add min jump force
         if (gp.up.just_pressed() || gp.start.just_pressed())
             && (self.is_landed || self.coyote_timer > 0)
             && self.speed_y >= 0.
@@ -100,7 +102,8 @@ impl Player {
                 self.is_powering_jump = true;
             }
         }
-        if self.is_powering_jump && (gp.up.pressed() || gp.start.pressed()) {
+        // If they continue holding jump, continue adding jump force until they reach the maximum jump force
+        if self.is_powering_jump && (gp.up.pressed() || gp.start.pressed()) && self.speed_y < 0. {
             self.speed_y -=
                 (PLAYER_MAX_JUMP_FORCE - PLAYER_MIN_JUMP_FORCE) / (PLAYER_JUMP_POWER_DUR as f32);
             if self.speed_y <= -PLAYER_MAX_JUMP_FORCE {
@@ -144,6 +147,10 @@ impl Player {
                 self.speed_y = 0.0;
                 self.is_landed = true;
             } else {
+                //if collision down is false, but is_landed is true, then we have just left the ground
+                //by running off the ledge
+                //so we set coyote_timer to coyote_timer_dur here, to give the player a chance to jump
+                //in case they ran off the ledge a moment before they pressed the jump button
                 if self.is_landed {
                     self.is_landed = false;
                     //Set this to the maximum value when you are no longer colliding downwards
@@ -197,6 +204,7 @@ impl Player {
                 "kiwi_walking",
                 x = self.x as i32,
                 y = self.y as i32,
+                sw = 16,
                 flip_x = self.is_facing_left,
                 fps = fps::FAST
             );
@@ -205,6 +213,7 @@ impl Player {
                 "kiwi_idle",
                 x = self.x as i32,
                 y = self.y as i32,
+                sw = 16,
                 flip_x = self.is_facing_left,
                 fps = fps::MEDIUM
             );
@@ -250,7 +259,7 @@ enum Direction {
 
 //check collision betwen the player and the tilemap
 fn check_collision(player_x: f32, player_y: f32, direction: Direction, tiles: &[Tile]) -> bool {
-    //Width and height of sprite art
+    //Width and height of sprite art.
     let w: f32 = 12.;
     let h: f32 = 12.;
     //Padding between top and left for where sprite art begins

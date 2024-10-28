@@ -591,7 +591,8 @@ impl Player {
                 self.is_powering_jump = true;
             }
         }
-        if self.is_powering_jump && (gp.up.pressed() || gp.start.pressed()) {
+
+        if self.is_powering_jump && (gp.up.pressed() || gp.start.pressed()) && self.speed_y < 0. {
             self.speed_y -=
                 (PLAYER_MAX_JUMP_FORCE - PLAYER_MIN_JUMP_FORCE) / (PLAYER_JUMP_POWER_DUR as f32);
             if self.speed_y <= -PLAYER_MAX_JUMP_FORCE {
@@ -637,7 +638,6 @@ impl Player {
             } else {
                 if self.is_landed {
                     self.is_landed = false;
-                    //Set this to the maximum value when you are no longer colliding downwards
                     self.coyote_timer = PLAYER_COYOTE_TIMER_DUR;
                 }
             }
@@ -688,6 +688,7 @@ impl Player {
                 "kiwi_walking",
                 x = self.x as i32,
                 y = self.y as i32,
+                sw = 16,
                 flip_x = self.is_facing_left,
                 fps = fps::FAST
             );
@@ -696,6 +697,7 @@ impl Player {
                 "kiwi_idle",
                 x = self.x as i32,
                 y = self.y as i32,
+                sw = 16,
                 flip_x = self.is_facing_left,
                 fps = fps::MEDIUM
             );
@@ -703,10 +705,11 @@ impl Player {
     }
 }
 ```
+The logic for the proportional jump is to add a minimum jump force when you first press the jump button, and then keep adding more force as you hold it down, until you reach a maximum amount. Save your file and try tapping the jump button lightly. You should see a much smaller jump, compared to if you hold it down.
 
-Save your file and try tapping the jump button lightly. You should see a much smaller jump, compared to if you hold it down.
+The logic for coyote time is to isolate the moment the player first runs off a ledge (but without jumping), which we do in the collision check. Once we have that moment, we set coyote time to the maximum value, and then subtract 1 each subsequent frame. As long as coyote time is positive, the player will still have the chance to jump, even though they aren't touching the ground in that frame. 
 
-Coyote time can be a little harder to test. If you are having trouble seeing it, try changing the const value for PLAYER_COYOTE_TIMER_DUR to something higher. That should make it easier to see it in action.
+It can be a little harder to test. If you are having trouble seeing it, try changing the const value for PLAYER_COYOTE_TIMER_DUR to something higher. That should make it easier to see it in action.
 
 ### Conclusion and Next Steps
 You can use this as the base for making a full fledged turbo platformer game, but where you go next is up to you! Here are a few ideas:
