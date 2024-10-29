@@ -54,6 +54,7 @@ turbo::init! {
         //test variables
         auto_assign_teams: bool,
         user: UserStats,
+        last_winning_team: Option<Team>,
     } = {
         Self {
             phase: Phase::PreBattle,
@@ -75,6 +76,7 @@ turbo::init! {
             selected_team_index: 0,
             simulation_result: SimulationResult{living_units: Vec::new(), seed: 0},
             user: UserStats{points: 100},
+            last_winning_team: None,
         }
     }
 }
@@ -98,6 +100,7 @@ turbo::go!({
             state.rng = RNG::new(rand());
         }
         //if teams are not assigned, check if we should auto assign or not
+        //TODO: Rework this so it is simpler and can be done for just one team
         if state.teams.len() == 0 {
             if state.auto_assign_teams {
                 let data_store = state
@@ -161,7 +164,7 @@ turbo::go!({
                 u.update();
                 u.draw();
             }
-            show_points(state.user.points);
+            draw_points_prebattle_screen(state.user.points);
         }
 
         if !state.auto_assign_teams {
@@ -185,10 +188,17 @@ turbo::go!({
                 living_units: all_living_units(&state.units),
                 seed,
             };
+            //commit points change
+            //TODO: Make this on turbo OS
+            let is_won = winning_team.unwrap() == state.selected_team_index;
+            let points_change = calculate_points_change(is_won);
+            commit_points_change(&mut state.user, points_change);
             //reset the state here
             state = stored_state;
             //and assign the simulation result. Then we'll do the actual simulation
             state.simulation_result = simulation_result;
+            //assign the winning team to last_winning_team so it stays for the next round
+            state.last_winning_team = winning_team.map(|index| state.teams[index as usize].clone());
             //assign the rng to the same seed you used for the simulation, so it matches
             state.rng = RNG::new(seed);
         } else {
@@ -300,6 +310,9 @@ turbo::go!({
                 is_win = false;
             }
             draw_end_animation(is_win);
+            //TODO: Add some delay here
+            let points_change = calculate_points_change(is_win);
+            draw_points_end_screen(state.user.points, points_change);
             //add a restart game button here
             let restart_button = Button::new(
                 String::from("AGAIN!"),
@@ -381,7 +394,12 @@ turbo::go!({
                 state.phase = Phase::Battle;
             }
             GameEvent::RestartGame() => {
+                let t = state.last_winning_team;
                 state = GameState::default();
+                state.last_winning_team = t;
+                if state.last_winning_team.is_some() {
+                    log!("THERE IS A WINNING TEAM SAVED");
+                }
             }
         }
     }
@@ -779,11 +797,39 @@ fn lowest_health_closest_enemy_unit(
         })
 }
 
-fn show_points(points: i32) {
+//TODO: Make this based on streak or something like that
+fn calculate_points_change(is_won: bool) -> i32 {
+    if is_won {
+        return 10;
+    }
+    -10
+}
+
+fn commit_points_change(user: &mut UserStats, points_change: i32) {
+    user.points += points_change;
+    //can do some turbo OS stuff here
+}
+
+fn draw_points_prebattle_screen(points: i32) {
     //print text showing points at position
     let pos = (20.0, 160.0);
     let txt = format!("Points: {}", points);
     text!(txt.as_str(), x = pos.0, y = pos.1, font = Font::L);
+}
+
+fn draw_points_end_screen(points: i32, points_change: i32) {
+    let center_x = canvas_size!()[0] / 2;
+    let center_y = canvas_size()[1] / 2 - 16;
+    let sign = if points_change > 0 { "+" } else { "-" };
+    //draw the points under You Win/You Lose
+    let txt = format!("Points: {} {} {}", points, sign, points_change.abs());
+    text!(
+        txt.as_str(),
+        x = center_x - 64,
+        y = center_y + 24,
+        font = Font::L
+    );
+    //then draw the change (plus or minus)
 }
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]

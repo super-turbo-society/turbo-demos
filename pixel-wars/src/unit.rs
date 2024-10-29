@@ -217,6 +217,8 @@ impl Unit {
 
     pub fn start_cheering(&mut self) {
         self.state = UnitState::Cheer;
+        //turn off flee status
+        self.attack_strategy = AttackStrategy::AttackClosest;
     }
 
     pub fn is_point_in_bounds(&self, point: (f32, f32)) -> bool {
