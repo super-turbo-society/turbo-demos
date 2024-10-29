@@ -6,7 +6,6 @@ use csv::{Reader, ReaderBuilder};
 use rng::*;
 use std::cmp::{max, Ordering};
 use std::collections::HashMap;
-use std::error::Error;
 use std::fmt::{format, Display};
 use std::str::FromStr;
 use trap::*;
@@ -54,7 +53,7 @@ turbo::init! {
         simulation_result: SimulationResult,
         //test variables
         auto_assign_teams: bool,
-
+        user: UserStats,
     } = {
         Self {
             phase: Phase::PreBattle,
@@ -75,6 +74,7 @@ turbo::init! {
             auto_assign_teams: true,
             selected_team_index: 0,
             simulation_result: SimulationResult{living_units: Vec::new(), seed: 0},
+            user: UserStats{points: 100},
         }
     }
 }
@@ -161,6 +161,7 @@ turbo::go!({
                 u.update();
                 u.draw();
             }
+            show_points(state.user.points);
         }
 
         if !state.auto_assign_teams {
@@ -776,6 +777,13 @@ fn lowest_health_closest_enemy_unit(
                 None => std::cmp::Ordering::Equal,
             }
         })
+}
+
+fn show_points(points: i32) {
+    //print text showing points at position
+    let pos = (20.0, 160.0);
+    let txt = format!("Points: {}", points);
+    text!(txt.as_str(), x = pos.0, y = pos.1, font = Font::L);
 }
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
@@ -1813,4 +1821,9 @@ impl UnitDataStore {
 struct SimulationResult {
     seed: u32,
     living_units: Vec<String>,
+}
+
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
+struct UserStats {
+    points: i32,
 }
