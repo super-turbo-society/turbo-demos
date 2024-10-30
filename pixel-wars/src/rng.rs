@@ -1,7 +1,7 @@
 use crate::*;
 #[derive(BorshSerialize, BorshDeserialize, Debug, Clone, PartialEq)]
 pub struct RNG {
-    seed: u32,
+    pub seed: u32,
 }
 
 impl RNG {

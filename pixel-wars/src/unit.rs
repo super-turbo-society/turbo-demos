@@ -219,6 +219,8 @@ impl Unit {
         self.state = UnitState::Cheer;
         //turn off flee status
         self.attack_strategy = AttackStrategy::AttackClosest;
+        //turn off burning
+        self.status_effects = Vec::new();
     }
 
     pub fn is_point_in_bounds(&self, point: (f32, f32)) -> bool {

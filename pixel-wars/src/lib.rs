@@ -102,7 +102,6 @@ turbo::go!({
             state.rng = RNG::new(rand());
         }
         //if teams are not assigned, check if we should auto assign or not
-        //TODO: Rework this so it is simpler and can be done for just one team
         if state.teams.len() == 0 {
             if state.auto_assign_teams {
                 let data_store = state
@@ -196,16 +195,14 @@ turbo::go!({
             //store the state somehow
             let stored_state = state.clone();
             let mut winning_team = has_some_team_won(&state.units);
-            //TODO: get this random from turbo OS
-            let seed: u32 = rand();
-            state.rng = RNG::new(seed);
+            state.rng = RNG::new(state.rng.seed);
             while winning_team.is_none() {
                 step_through_battle(&mut state);
                 winning_team = has_some_team_won(&state.units);
             }
             let simulation_result = SimulationResult {
                 living_units: all_living_units(&state.units),
-                seed,
+                seed: state.rng.seed,
             };
             //commit points change
             //TODO: Make this on turbo OS
@@ -222,7 +219,7 @@ turbo::go!({
             //assign the winning team to last_winning_team so it stays for the next round
             state.last_winning_team = winning_team.map(|index| state.teams[index as usize].clone());
             //assign the rng to the same seed you used for the simulation, so it matches
-            state.rng = RNG::new(seed);
+            state.rng = RNG::new(state.rng.seed);
         } else {
             //after we did the simulation, step through one frame at a time until it's over
             step_through_battle(&mut state);
@@ -349,12 +346,15 @@ turbo::go!({
                     unit.start_cheering();
                 }
             }
-            // let living_units = all_living_units(&state.units);
-            // if living_units.len() == state.simulation_result.living_units.len() {
-            //     text!(" Simulation matches regular game", x = 50, y = 50);
-            // } else {
-            //     text!("SIMULATION DOES NOT MATCH", x = 50, y = 50);
-            // }
+            let living_units = all_living_units(&state.units);
+            if living_units.len() != state.simulation_result.living_units.len() {
+                text!(
+                    "SIMULATION DOES NOT MATCH",
+                    x = 50,
+                    y = 50,
+                    color = DAMAGE_TINT_RED
+                );
+            }
         }
         //TODO: clean this up
         //Draw team health bars
