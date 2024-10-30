@@ -13,6 +13,8 @@ use unit::*;
 
 const UNIT_DATA_CSV: &[u8] = include_bytes!("../resources/unit-data.csv");
 const DAMAGE_EFFECT_TIME: u32 = 12;
+//avg number of units to balance each generated team around
+const TEAM_POWER_MULTIPLIER: f32 = 25.0;
 
 const UNIT_ANIM_SPEED: i32 = 8;
 const MAX_Y_ATTACK_DISTANCE: f32 = 10.;
@@ -108,7 +110,24 @@ turbo::go!({
                     .as_ref()
                     .expect("Data store should be loaded");
 
-                let (team1, team2) = generate_balanced_teams(&data_store, &mut state.rng);
+                let (team1, team2) = if let Some(winning_team) = &state.last_winning_team {
+                    // Use winning team and generate a matching opponent
+                    (
+                        winning_team.clone(),
+                        generate_team(
+                            &data_store,
+                            &mut state.rng,
+                            Some(winning_team),
+                            "Challenger".to_string(),
+                        ),
+                    )
+                } else {
+                    // Generate two fresh teams
+                    (
+                        generate_team(&data_store, &mut state.rng, None, "Pixel Peeps".to_string()),
+                        generate_team(&data_store, &mut state.rng, None, "Battle Bois".to_string()),
+                    )
+                };
                 state
                     .unit_previews
                     .extend(create_unit_previews(&team1, false, data_store));
@@ -193,10 +212,13 @@ turbo::go!({
             let is_won = winning_team.unwrap() == state.selected_team_index;
             let points_change = calculate_points_change(is_won);
             commit_points_change(&mut state.user, points_change);
+            let u = state.user;
             //reset the state here
             state = stored_state;
             //and assign the simulation result. Then we'll do the actual simulation
             state.simulation_result = simulation_result;
+            //carry over the points change
+            state.user = u;
             //assign the winning team to last_winning_team so it stays for the next round
             state.last_winning_team = winning_team.map(|index| state.teams[index as usize].clone());
             //assign the rng to the same seed you used for the simulation, so it matches
@@ -395,11 +417,11 @@ turbo::go!({
             }
             GameEvent::RestartGame() => {
                 let t = state.last_winning_team;
+                let u = state.user;
                 state = GameState::default();
+                //retain these values between rounds
                 state.last_winning_team = t;
-                if state.last_winning_team.is_some() {
-                    log!("THERE IS A WINNING TEAM SAVED");
-                }
+                state.user = u;
             }
         }
     }
@@ -822,7 +844,7 @@ fn draw_points_end_screen(points: i32, points_change: i32) {
     let center_y = canvas_size()[1] / 2 - 16;
     let sign = if points_change > 0 { "+" } else { "-" };
     //draw the points under You Win/You Lose
-    let txt = format!("Points: {} {} {}", points, sign, points_change.abs());
+    let txt = format!("Points: {} ({}{})", points, sign, points_change.abs());
     text!(
         txt.as_str(),
         x = center_x - 64,
@@ -1608,6 +1630,61 @@ fn create_units_for_all_teams(state: &mut GameState) {
         }
     }
 }
+
+fn generate_team(
+    data_store: &UnitDataStore,
+    rng: &mut RNG,
+    match_team: Option<&Team>,
+    team_name: String,
+) -> Team {
+    // Get available unit types as Vec<&String>
+    let mut available_types: Vec<&String> = data_store.data.keys().collect();
+
+    // If matching a team, remove its unit types from available options
+    if let Some(team) = match_team {
+        available_types.retain(|unit_type| !team.units.contains(*unit_type));
+    }
+
+    // Select 2 random unit types for this team
+    let selected_types = select_random_unit_types(&available_types, 2, rng);
+
+    // Calculate all unit powers
+    let unit_powers: HashMap<String, f32> = data_store
+        .data
+        .iter()
+        .map(|(unit_type, unit_data)| (unit_type.clone(), calculate_single_unit_power(unit_data)))
+        .collect();
+
+    // Calculate target power
+    let target_power = match match_team {
+        Some(team) => get_team_total_power(team),
+        None => calculate_team_power_target(&unit_powers, TEAM_POWER_MULTIPLIER),
+    };
+
+    // Create and return the team
+    let mut team = Team::new(team_name, data_store.clone());
+    create_team(&mut team, &selected_types, &unit_powers, target_power, rng);
+    team
+}
+
+fn calculate_single_unit_power(unit_data: &UnitData) -> f32 {
+    let power_level = unit_data.max_health
+        + (unit_data.damage / (unit_data.attack_time as f32 / 60.0))
+        + unit_data.speed;
+
+    let mut final_power = power_level;
+
+    if unit_data.range > 20.0 {
+        final_power += 150.0;
+    }
+
+    if unit_data.splash_area > 0.0 {
+        final_power = final_power * 3.;
+    }
+
+    final_power
+}
+
 fn calculate_unit_power_level(data_store: &HashMap<String, UnitData>) -> HashMap<String, f32> {
     let mut power_levels = HashMap::new();
 
@@ -1650,55 +1727,67 @@ fn calculate_unit_power_level(data_store: &HashMap<String, UnitData>) -> HashMap
     power_levels
 }
 
-fn generate_balanced_teams(data: &UnitDataStore, rng: &mut RNG) -> (Team, Team) {
-    let power_levels = calculate_unit_power_level(&data.data);
-    let average_power: f32 = power_levels.values().sum::<f32>() / power_levels.len() as f32;
-    let target_team_power = average_power * 25.0;
+pub fn calculate_team_power_target(
+    power_levels: &HashMap<String, f32>,
+    team_size_multiplier: f32,
+) -> f32 {
+    let average_power = calculate_average_unit_power(power_levels);
+    average_power * team_size_multiplier
+}
 
-    let mut unit_types: Vec<&String> = power_levels.keys().collect();
-    unit_types.sort();
+pub fn calculate_average_unit_power(power_levels: &HashMap<String, f32>) -> f32 {
+    if power_levels.is_empty() {
+        return 0.0;
+    }
+    power_levels.values().sum::<f32>() / power_levels.len() as f32
+}
 
-    // Select four different unit types
+pub fn get_team_total_power(team: &Team) -> f32 {
+    team.units
+        .iter()
+        .map(|unit_type| {
+            if let Some(unit_data) = team.data.data.get(unit_type) {
+                calculate_single_unit_power(unit_data)
+            } else {
+                0.0
+            }
+        })
+        .sum()
+}
+
+fn select_random_unit_types(
+    available_types: &[&String], // Taking references as input
+    num_types: usize,
+    rng: &mut RNG,
+) -> Vec<String> {
+    // Returning owned Strings
     let mut selected_types = Vec::new();
-    while selected_types.len() < 4 {
-        let index = rng.next_in_range(0, unit_types.len() as u32 - 1) as usize;
-        let unit_type = unit_types[index];
+    let mut remaining_attempts = 100;
+
+    while selected_types.len() < num_types && remaining_attempts > 0 {
+        let index = rng.next_in_range(0, available_types.len() as u32 - 1) as usize;
+        let unit_type = available_types[index].clone(); // Clone to get owned String
+
         if !selected_types.contains(&unit_type) {
             selected_types.push(unit_type);
         }
+
+        remaining_attempts -= 1;
     }
 
-    let mut team1 = Team::new("Pixel Peeps".to_string(), data.clone());
-    let mut team2 = Team::new("Battle Bois".to_string(), data.clone());
-
-    create_team(
-        &mut team1,
-        &selected_types[0..2],
-        &power_levels,
-        target_team_power,
-        rng,
-    );
-    create_team(
-        &mut team2,
-        &selected_types[2..4],
-        &power_levels,
-        target_team_power,
-        rng,
-    );
-
-    (team1, team2)
+    selected_types
 }
 
 fn create_team(
     team: &mut Team,
-    unit_types: &[&String],
+    unit_types: &[String], // Changed from &[&String]
     power_levels: &HashMap<String, f32>,
     target_power: f32,
     rng: &mut RNG,
 ) {
     let mut current_power = 0.0;
-    let power1 = power_levels[unit_types[0]];
-    let power2 = power_levels[unit_types[1]];
+    let power1 = &power_levels[&unit_types[0]]; // Added & here
+    let power2 = &power_levels[&unit_types[1]]; // Added & here
 
     // Generate random weights for each unit type
     let weight1 = rng.next_f32();
@@ -1710,18 +1799,22 @@ fn create_team(
         // Use weighted random selection
         let use_first_type = rng.next_f32() < (weight1 / (weight1 + weight2));
 
-        if use_first_type && remaining_power >= power1 {
+        if use_first_type && remaining_power >= *power1 {
+            // Added *
             team.units.push(unit_types[0].clone());
             current_power += power1;
-        } else if !use_first_type && remaining_power >= power2 {
+        } else if !use_first_type && remaining_power >= *power2 {
+            // Added *
             team.units.push(unit_types[1].clone());
             current_power += power2;
         } else {
             // If we can't add either unit without going over, try the other unit
-            if !use_first_type && remaining_power >= power1 {
+            if !use_first_type && remaining_power >= *power1 {
+                // Added *
                 team.units.push(unit_types[0].clone());
                 current_power += power1;
-            } else if use_first_type && remaining_power >= power2 {
+            } else if use_first_type && remaining_power >= *power2 {
+                // Added *
                 team.units.push(unit_types[1].clone());
                 current_power += power2;
             } else {
@@ -1732,10 +1825,10 @@ fn create_team(
     }
 
     // Ensure at least one of each unit type
-    if !team.units.contains(unit_types[0]) {
+    if !team.units.contains(&unit_types[0]) {
         team.units.push(unit_types[0].clone());
     }
-    if !team.units.contains(unit_types[1]) {
+    if !team.units.contains(&unit_types[1]) {
         team.units.push(unit_types[1].clone());
     }
 }
