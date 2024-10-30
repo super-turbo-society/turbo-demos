@@ -15,6 +15,7 @@ const UNIT_DATA_CSV: &[u8] = include_bytes!("../resources/unit-data.csv");
 const DAMAGE_EFFECT_TIME: u32 = 12;
 //avg number of units to balance each generated team around
 const TEAM_POWER_MULTIPLIER: f32 = 25.0;
+const PREMATCH_TIME: u32 = 3600;
 
 const UNIT_ANIM_SPEED: i32 = 8;
 const MAX_Y_ATTACK_DISTANCE: f32 = 10.;
@@ -57,6 +58,7 @@ turbo::init! {
         auto_assign_teams: bool,
         user: UserStats,
         last_winning_team: Option<Team>,
+        prematch_timer: u32,
     } = {
         Self {
             phase: Phase::PreBattle,
@@ -79,6 +81,8 @@ turbo::init! {
             simulation_result: SimulationResult{living_units: Vec::new(), seed: 0},
             user: UserStats{points: 100},
             last_winning_team: None,
+            //TODO: This should maybe come from TURBO OS
+            prematch_timer: PREMATCH_TIME,
         }
     }
 }
@@ -151,30 +155,27 @@ turbo::go!({
                     .push(Team::new("Pixel Peeps".to_string(), data_store.clone()));
             }
         }
+        if state.auto_assign_teams {
+            if state.prematch_timer > 0 {
+                state.prematch_timer -= 1;
+            } else {
+                start_match(&mut state);
+            }
+            draw_prematch_timer(state.prematch_timer);
+        }
+
         let gp = gamepad(0);
         if gp.start.just_pressed() {
-            //generate units
-            create_units_for_all_teams(&mut state);
-            //generate any traps
-
-            state.phase = Phase::Battle;
-            //reset camera here
-            set_cam!(x = 192, y = 108);
-            //SET ANY UNITS TO TEST ATTACK STRATEGIES
-            // for u in state.units.iter_mut() {
-            //     if u.id % 3 == 0 {
-            //         u.attack_strategy = AttackStrategy::SeekTarget;
-            //     } else if u.id + 1 % 3 == 0 {
-            //         u.attack_strategy = AttackStrategy::Flank;
-            //     }
-            // }
+            start_match(&mut state);
         }
+
         //move camera if you press up and down
         if gp.down.pressed() {
             set_cam!(y = cam!().1 + 3);
         } else if gp.up.pressed() {
             set_cam!(y = cam!().1 - 3);
         }
+
         if state.auto_assign_teams {
             //draw each unit based on the teams
             draw_assigned_team_info(&mut state);
@@ -184,7 +185,6 @@ turbo::go!({
             }
             draw_points_prebattle_screen(state.user.points);
         }
-
         if !state.auto_assign_teams {
             draw_team_info_and_buttons(&mut state);
         }
@@ -412,8 +412,9 @@ turbo::go!({
             }
             GameEvent::ChooseTeam(team_num) => {
                 state.selected_team_index = team_num;
-                create_units_for_all_teams(&mut state);
-                state.phase = Phase::Battle;
+                //TODO: Do something with turbo OS here
+                // create_units_for_all_teams(&mut state);
+                // state.phase = Phase::Battle;
             }
             GameEvent::RestartGame() => {
                 let t = state.last_winning_team;
@@ -987,6 +988,12 @@ pub fn shuffle<T>(rng: &mut RNG, array: &mut [T]) {
     }
 }
 
+pub fn start_match(state: &mut GameState) {
+    create_units_for_all_teams(state);
+    state.phase = Phase::Battle;
+    set_cam!(x = 192, y = 108);
+}
+
 fn closest_enemy_unit(units: &Vec<Unit>, team: i32, pos: (f32, f32)) -> Option<&Unit> {
     units
         .iter()
@@ -1089,6 +1096,20 @@ fn all_living_units(units: &Vec<Unit>) -> Vec<String> {
     living_units
 }
 
+fn draw_prematch_timer(time: u32) {
+    //turn ticks into seconds format
+    let text = format_time(time);
+    let text = format!("Match Starts in: {}", text);
+    text!(text.as_str(), x = 90, y = 10, font = Font::L);
+}
+
+fn format_time(ticks: u32) -> String {
+    let total_seconds = ticks / 60; // Convert ticks to seconds
+    let minutes = total_seconds / 60;
+    let remaining_seconds = total_seconds % 60;
+
+    format!("{}:{:02}", minutes, remaining_seconds)
+}
 fn draw_assigned_team_info(state: &mut GameState) {
     let pos_0 = 20;
     let pos_1 = 200;
@@ -1604,7 +1625,7 @@ fn create_units_for_all_teams(state: &mut GameState) {
         let mut x_start = if team_index == 0 { 70.0 } else { 270.0 }; // Adjusted starting x for team 1
         let mut y_pos = 60.0;
 
-        for (i, unit_type) in team.units.iter().enumerate() {
+        for (_i, unit_type) in team.units.iter().enumerate() {
             if y_pos > max_y {
                 y_pos = 60.0;
 
@@ -1667,6 +1688,7 @@ fn generate_team(
     team
 }
 
+//TODO: Make this system more fair
 fn calculate_single_unit_power(unit_data: &UnitData) -> f32 {
     let power_level = unit_data.max_health
         + (unit_data.damage / (unit_data.attack_time as f32 / 60.0))
@@ -1685,47 +1707,47 @@ fn calculate_single_unit_power(unit_data: &UnitData) -> f32 {
     final_power
 }
 
-fn calculate_unit_power_level(data_store: &HashMap<String, UnitData>) -> HashMap<String, f32> {
-    let mut power_levels = HashMap::new();
+// fn calculate_unit_power_level(data_store: &HashMap<String, UnitData>) -> HashMap<String, f32> {
+//     let mut power_levels = HashMap::new();
 
-    // Find max values for normalization
-    let max_health = data_store
-        .values()
-        .map(|u| u.max_health)
-        .max_by(|a, b| a.partial_cmp(b).unwrap())
-        .unwrap_or(1.0);
-    let max_dps = data_store
-        .values()
-        .map(|u| u.damage / (u.attack_time as f32 / 60.0))
-        .max_by(|a, b| a.partial_cmp(b).unwrap())
-        .unwrap_or(1.0);
-    let max_speed = data_store
-        .values()
-        .map(|u| u.speed)
-        .max_by(|a, b| a.partial_cmp(b).unwrap())
-        .unwrap_or(1.0);
+//     // Find max values for normalization
+//     let max_health = data_store
+//         .values()
+//         .map(|u| u.max_health)
+//         .max_by(|a, b| a.partial_cmp(b).unwrap())
+//         .unwrap_or(1.0);
+//     let max_dps = data_store
+//         .values()
+//         .map(|u| u.damage / (u.attack_time as f32 / 60.0))
+//         .max_by(|a, b| a.partial_cmp(b).unwrap())
+//         .unwrap_or(1.0);
+//     let max_speed = data_store
+//         .values()
+//         .map(|u| u.speed)
+//         .max_by(|a, b| a.partial_cmp(b).unwrap())
+//         .unwrap_or(1.0);
 
-    for (unit_type, unit_data) in data_store {
-        let normalized_health = (unit_data.max_health / max_health) * 50.0;
-        let dps = unit_data.damage / (unit_data.attack_time as f32 / 60.0);
-        let normalized_dps = (dps / max_dps) * 100.0;
-        let normalized_speed = (unit_data.speed / max_speed) * 10.0;
+//     for (unit_type, unit_data) in data_store {
+//         let normalized_health = (unit_data.max_health / max_health) * 50.0;
+//         let dps = unit_data.damage / (unit_data.attack_time as f32 / 60.0);
+//         let normalized_dps = (dps / max_dps) * 100.0;
+//         let normalized_speed = (unit_data.speed / max_speed) * 10.0;
 
-        let mut power_level = normalized_health + normalized_dps + normalized_speed;
+//         let mut power_level = normalized_health + normalized_dps + normalized_speed;
 
-        if unit_data.range > 20.0 {
-            power_level += 150.0;
-        }
+//         if unit_data.range > 20.0 {
+//             power_level += 150.0;
+//         }
 
-        if unit_data.splash_area > 0.0 {
-            power_level = power_level * 3.;
-        }
+//         if unit_data.splash_area > 0.0 {
+//             power_level = power_level * 3.;
+//         }
 
-        power_levels.insert(unit_type.clone(), power_level);
-    }
+//         power_levels.insert(unit_type.clone(), power_level);
+//     }
 
-    power_levels
-}
+//     power_levels
+// }
 
 pub fn calculate_team_power_target(
     power_levels: &HashMap<String, f32>,
@@ -1965,4 +1987,9 @@ struct SimulationResult {
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 struct UserStats {
     points: i32,
+}
+
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
+struct MatchData {
+    timer: u32,
 }
