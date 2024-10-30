@@ -128,6 +128,7 @@ turbo::go!({
                     // Generate two fresh teams
                     (
                         generate_team(&data_store, &mut state.rng, None, "Pixel Peeps".to_string()),
+                        //TODO: This team needs to ensure it isn't including same unit type as the other team
                         generate_team(&data_store, &mut state.rng, None, "Battle Bois".to_string()),
                     )
                 };
@@ -162,21 +163,6 @@ turbo::go!({
                 start_match(&mut state);
             }
             draw_prematch_timer(state.prematch_timer);
-        }
-
-        let gp = gamepad(0);
-        if gp.start.just_pressed() {
-            start_match(&mut state);
-        }
-
-        //move camera if you press up and down
-        if gp.down.pressed() {
-            set_cam!(y = cam!().1 + 3);
-        } else if gp.up.pressed() {
-            set_cam!(y = cam!().1 - 3);
-        }
-
-        if state.auto_assign_teams {
             //draw each unit based on the teams
             draw_assigned_team_info(&mut state);
             for u in &mut state.unit_previews {
@@ -187,6 +173,17 @@ turbo::go!({
         }
         if !state.auto_assign_teams {
             draw_team_info_and_buttons(&mut state);
+        }
+        let gp = gamepad(0);
+        if gp.start.just_pressed() {
+            start_match(&mut state);
+        }
+
+        //move camera if you press up and down
+        if gp.down.pressed() {
+            set_cam!(y = cam!().1 + 3);
+        } else if gp.up.pressed() {
+            set_cam!(y = cam!().1 - 3);
         }
     } else if state.phase == Phase::Battle {
         //run the simulation once.
@@ -988,7 +985,7 @@ pub fn shuffle<T>(rng: &mut RNG, array: &mut [T]) {
     }
 }
 
-pub fn start_match(state: &mut GameState) {
+fn start_match(state: &mut GameState) {
     create_units_for_all_teams(state);
     state.phase = Phase::Battle;
     set_cam!(x = 192, y = 108);
@@ -1148,6 +1145,20 @@ fn draw_assigned_team_info(state: &mut GameState) {
         );
         team_button.draw();
         team_button.handle_click(state);
+        //check if it is the selected team, and if it is put a border around it
+        if *team_index == state.selected_team_index as usize {
+            //draw highlight around button
+            rect!(
+                x = *pos,
+                y = y_pos + 20,
+                w = button_width,
+                h = button_height,
+                border_radius = 3,
+                border_width = 1,
+                border_color = 0xe6e7f0ff,
+                color = 0x00000000,
+            );
+        }
     }
     text!(
         "VS.",
