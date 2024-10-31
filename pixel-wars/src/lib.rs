@@ -53,7 +53,7 @@ turbo::init! {
         craters: Vec<AnimatedSprite>,
         game_over_anim: AnimatedSprite,
         selected_team_index: i32,
-        simulation_result: SimulationResult,
+        simulation_result: Option<SimulationResult>,
         //test variables
         auto_assign_teams: bool,
         user: UserStats,
@@ -61,7 +61,7 @@ turbo::init! {
         prematch_timer: u32,
     } = {
         Self {
-            phase: Phase::PreBattle,
+            phase: Phase::SelectionScreen,
             units: Vec::new(),
             //this starts at 1 so if any unit has 0 id it is unassigned or a bug.
             next_id: 1,
@@ -78,7 +78,7 @@ turbo::init! {
             data_store: None,
             auto_assign_teams: true,
             selected_team_index: 0,
-            simulation_result: SimulationResult{living_units: Vec::new(), seed: 0},
+            simulation_result: None,
             user: UserStats{points: 100},
             last_winning_team: None,
             //TODO: This should maybe come from TURBO OS
@@ -90,7 +90,7 @@ turbo::init! {
 turbo::go!({
     let mut state = GameState::load();
     clear!(0x8f8cacff);
-    if state.phase == Phase::PreBattle {
+    if state.phase == Phase::SelectionScreen {
         //initialize the data store if it is blank
         if state.data_store.is_none() {
             match UnitDataStore::load_from_csv(UNIT_DATA_CSV) {
@@ -188,35 +188,40 @@ turbo::go!({
     } else if state.phase == Phase::Battle {
         //run the simulation once.
         //TODO: This might explode if there's a tie so lets find a better way to do this
-        if state.simulation_result.living_units.len() == 0 {
-            //store the state somehow
-            let stored_state = state.clone();
-            let mut winning_team = has_some_team_won(&state.units);
-            state.rng = RNG::new(state.rng.seed);
-            while winning_team.is_none() {
-                step_through_battle(&mut state);
-                winning_team = has_some_team_won(&state.units);
-            }
-            let simulation_result = SimulationResult {
-                living_units: all_living_units(&state.units),
-                seed: state.rng.seed,
-            };
-            //commit points change
-            //TODO: Make this on turbo OS
-            let is_won = winning_team.unwrap() == state.selected_team_index;
-            let points_change = calculate_points_change(is_won);
-            commit_points_change(&mut state.user, points_change);
-            let u = state.user;
-            //reset the state here
-            state = stored_state;
-            //and assign the simulation result. Then we'll do the actual simulation
-            state.simulation_result = simulation_result;
-            //carry over the points change
-            state.user = u;
-            //assign the winning team to last_winning_team so it stays for the next round
-            state.last_winning_team = winning_team.map(|index| state.teams[index as usize].clone());
-            //assign the rng to the same seed you used for the simulation, so it matches
-            state.rng = RNG::new(state.rng.seed);
+        if state.simulation_result.is_none() {
+            simulate_battle(&mut state);
+            // //store the state somehow
+            // let stored_state = state.clone();
+            // let mut winning_team = None;
+            // state.rng = RNG::new(state.rng.seed);
+
+            // while winning_team.is_none() {
+            //     step_through_battle(&mut state);
+            //     winning_team = has_some_team_won(&state.units);
+            // }
+            // let simulation_result = SimulationResult {
+            //     living_units: all_living_units(&state.units),
+            //     seed: state.rng.seed,
+            // };
+            // //commit points change
+            // //TODO: Make this on turbo OS
+            // let is_won = winning_team.unwrap() == state.selected_team_index;
+            // let points_change = calculate_points_change(is_won);
+            // commit_points_change(&mut state.user, points_change);
+            // let u = state.user;
+            // //reset the state here
+            // state = stored_state;
+            // //and assign the simulation result. Then we'll do the actual simulation
+            // state.simulation_result = simulation_result;
+            // //carry over the points change
+            // state.user = u;
+            // //assign the winning team to last_winning_team so it stays for the next round
+            // state.last_winning_team = winning_team.map(|index| state.teams[index as usize].clone());
+            // if let Some(winning_team) = &mut state.last_winning_team {
+            //     winning_team.win_streak += 1;
+            // }
+            // //assign the rng to the same seed you used for the simulation, so it matches
+            // state.rng = RNG::new(state.rng.seed);
         } else {
             //after we did the simulation, step through one frame at a time until it's over
             step_through_battle(&mut state);
@@ -344,13 +349,15 @@ turbo::go!({
                 }
             }
             let living_units = all_living_units(&state.units);
-            if living_units.len() != state.simulation_result.living_units.len() {
-                text!(
-                    "SIMULATION DOES NOT MATCH",
-                    x = 50,
-                    y = 50,
-                    color = DAMAGE_TINT_RED
-                );
+            if let Some(sim_result) = &state.simulation_result {
+                if living_units.len() != sim_result.living_units.len() {
+                    text!(
+                        "SIMULATION DOES NOT MATCH",
+                        x = 50,
+                        y = 50,
+                        color = DAMAGE_TINT_RED
+                    );
+                }
             }
         }
         //TODO: clean this up
@@ -486,6 +493,49 @@ fn draw_end_animation(is_win: bool) {
     }
 }
 
+fn simulate_battle(state: &mut GameState) {
+    // Store initial state
+    let initial_state = state.clone();
+
+    // Run simulation with fresh RNG
+    state.rng = RNG::new(state.rng.seed);
+
+    let winning_team_index = loop {
+        step_through_battle(state);
+        if let Some(winner_idx) = has_some_team_won(&state.units) {
+            break winner_idx;
+        }
+    };
+
+    // Create simulation result
+    let simulation_result = SimulationResult {
+        living_units: all_living_units(&state.units),
+        seed: state.rng.seed,
+    };
+
+    // Handle points
+    let is_won = winning_team_index == state.selected_team_index;
+    let points_change = calculate_points_change(is_won);
+    commit_points_change(&mut state.user, points_change);
+    let updated_user = state.user.clone();
+
+    // Reset state but keep necessary changes
+    *state = initial_state;
+    state.simulation_result = Some(simulation_result);
+    state.user = updated_user;
+
+    // Store winning team data using the index
+    state.last_winning_team = Some(state.teams[winning_team_index as usize].clone());
+
+    // Update win streak
+    if let Some(winning_team) = &mut state.last_winning_team {
+        winning_team.win_streak += 1;
+    }
+
+    // Reset RNG to match simulation
+    state.rng = RNG::new(state.rng.seed);
+}
+
 fn step_through_battle(state: &mut GameState) {
     let units_clone = state.units.clone();
     //=== MOVEMENT AND ATTACKING ===
@@ -564,7 +614,12 @@ fn step_through_battle(state: &mut GameState) {
                             } else {
                                 target_pos.1 = MAP_BOUNDS.3;
                             }
-                            target_pos.0 = unit.pos.0;
+                            //give a small adjust to unit.pos so they don't go backwards
+                            if unit.pos.0 < 100. {
+                                target_pos.0 = unit.pos.0 + 10.;
+                            } else {
+                                target_pos.0 = unit.pos.0 - 10.;
+                            }
                         } else {
                             target_pos.1 = unit.pos.1;
                         }
@@ -854,6 +909,7 @@ fn draw_points_end_screen(points: i32, points_change: i32) {
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 enum Phase {
+    SelectionScreen,
     PreBattle,
     Battle,
     WrapUp,
@@ -1096,7 +1152,7 @@ fn all_living_units(units: &Vec<Unit>) -> Vec<String> {
 fn draw_prematch_timer(time: u32) {
     //turn ticks into seconds format
     let text = format_time(time);
-    let text = format!("Match Starts in: {}", text);
+    let text = format!("Next Battle in: {}", text);
     text!(text.as_str(), x = 90, y = 10, font = Font::L);
 }
 
@@ -1127,6 +1183,16 @@ fn draw_assigned_team_info(state: &mut GameState) {
             font = Font::L,
             color = 0xADD8E6ff
         );
+        if team.win_streak > 0 {
+            let streak_text = format!("{} Win Streak", team.win_streak);
+            text!(
+                streak_text.as_str(),
+                x = *pos,
+                y = y_pos + 10,
+                font = Font::L,
+                color = ACID_GREEN,
+            );
+        }
         let team_summary = team.get_unit_summary();
         for (unit_type, count) in team_summary {
             let text = format!("{} {}s", count, unit_type);
@@ -1390,6 +1456,7 @@ struct Team {
     name: String,
     units: Vec<String>,
     data: UnitDataStore,
+    win_streak: u32,
 }
 
 impl Team {
@@ -1398,6 +1465,7 @@ impl Team {
             name,
             units: Vec::new(),
             data,
+            win_streak: 0,
         }
     }
 
