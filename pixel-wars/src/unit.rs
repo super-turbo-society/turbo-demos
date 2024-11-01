@@ -61,13 +61,23 @@ impl Unit {
             animator: Animator::new(Animation {
                 name: "placeholder".to_string(),
                 s_w: data.sprite_width,
-                num_frames: 4,
+                num_frames: 0,
                 loops_per_frame: UNIT_ANIM_SPEED,
                 is_looping: true,
             }),
         }
     }
     pub fn update(&mut self) {
+        if self.state == UnitState::MarchingIn {
+            //move towards target
+            self.pos = self.move_towards_target();
+            //if you reached the target,
+            if self.reached_target() {
+                self.pos = self.target_pos;
+                self.state = UnitState::Idle;
+            }
+            //set your position to the target and switch to idle
+        }
         if self.state == UnitState::Moving {
             //move toward taget pos at some speed
             self.pos = self.move_towards_target();
@@ -107,7 +117,7 @@ impl Unit {
             loops_per_frame: UNIT_ANIM_SPEED,
             is_looping: true,
         };
-        if self.state == UnitState::Moving {
+        if self.state == UnitState::Moving || self.state == UnitState::MarchingIn {
             new_anim.name += "_walk";
             self.animator.set_cur_anim(new_anim);
         } else if self.state == UnitState::Dead {
@@ -141,6 +151,7 @@ impl Unit {
                 is_looping: true,
             };
             self.animator.set_next_anim(Some(next_anim));
+            //self.animator.set_cur_anim(new_anim);
         } else if self.state == UnitState::Cheer {
             self.animator.cur_anim.is_looping = false;
             let next_anim = Animation {
@@ -195,6 +206,17 @@ impl Unit {
             //self.draw_strategy_icon();
             self.draw_status_effects();
         }
+    }
+
+    pub fn set_march_position(&mut self) {
+        //set target pos as pos
+        self.target_pos = self.pos;
+        if self.pos.0 > 100. {
+            self.pos.0 += 40.;
+        } else {
+            self.pos.0 -= 40.;
+        }
+        self.state = UnitState::MarchingIn;
     }
 
     pub fn set_starting_strategy(&mut self, rng: &mut RNG) {
@@ -741,6 +763,7 @@ impl UnitData {
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 pub enum UnitState {
+    MarchingIn,
     Moving,
     Attacking,
     Idle,

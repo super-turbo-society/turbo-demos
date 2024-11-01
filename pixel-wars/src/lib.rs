@@ -15,7 +15,8 @@ const UNIT_DATA_CSV: &[u8] = include_bytes!("../resources/unit-data.csv");
 const DAMAGE_EFFECT_TIME: u32 = 12;
 //avg number of units to balance each generated team around
 const TEAM_POWER_MULTIPLIER: f32 = 25.0;
-const PREMATCH_TIME: u32 = 3600;
+const TEAM_SELECTION_TIME: u32 = 3600;
+const BATTLE_COUNTDOWN_TIME: u32 = 180;
 
 const UNIT_ANIM_SPEED: i32 = 8;
 const MAX_Y_ATTACK_DISTANCE: f32 = 10.;
@@ -58,7 +59,8 @@ turbo::init! {
         auto_assign_teams: bool,
         user: UserStats,
         last_winning_team: Option<Team>,
-        prematch_timer: u32,
+        team_selection_timer: u32,
+        battle_countdown_timer: u32,
     } = {
         Self {
             phase: Phase::SelectionScreen,
@@ -73,7 +75,7 @@ turbo::init! {
             explosions: Vec::new(),
             craters: Vec::new(),
             game_over_anim: AnimatedSprite::new((0.,100.), false),
-            //replace this number with a program number later
+            //replace this number with a TURBO OS number later
             rng: RNG::new(12345),
             data_store: None,
             auto_assign_teams: true,
@@ -81,8 +83,8 @@ turbo::init! {
             simulation_result: None,
             user: UserStats{points: 100},
             last_winning_team: None,
-            //TODO: This should maybe come from TURBO OS
-            prematch_timer: PREMATCH_TIME,
+            team_selection_timer: TEAM_SELECTION_TIME,//TODO: This should come from TURBO OS
+            battle_countdown_timer: BATTLE_COUNTDOWN_TIME,
         }
     }
 }
@@ -90,321 +92,313 @@ turbo::init! {
 turbo::go!({
     let mut state = GameState::load();
     clear!(0x8f8cacff);
-    if state.phase == Phase::SelectionScreen {
-        //initialize the data store if it is blank
-        if state.data_store.is_none() {
-            match UnitDataStore::load_from_csv(UNIT_DATA_CSV) {
-                Ok(loaded_store) => {
-                    state.data_store = Some(loaded_store);
+    match state.phase {
+        Phase::SelectionScreen => {
+            //initialize the data store if it is blank
+            if state.data_store.is_none() {
+                match UnitDataStore::load_from_csv(UNIT_DATA_CSV) {
+                    Ok(loaded_store) => {
+                        state.data_store = Some(loaded_store);
+                    }
+                    Err(e) => {
+                        eprintln!("Failed to load UnitDataStore: {}", e);
+                        state.data_store = Some(UnitDataStore::new());
+                    }
                 }
-                Err(e) => {
-                    eprintln!("Failed to load UnitDataStore: {}", e);
-                    state.data_store = Some(UnitDataStore::new());
-                }
+                //set the seed for the rng as a random number. TODO: get this from turbo os
+                state.rng = RNG::new(rand());
             }
-            //set the seed for the rng as a random number. TODO: get this from turbo os
-            state.rng = RNG::new(rand());
-        }
-        //if teams are not assigned, check if we should auto assign or not
-        if state.teams.len() == 0 {
-            if state.auto_assign_teams {
-                let data_store = state
-                    .data_store
-                    .as_ref()
-                    .expect("Data store should be loaded");
+            //if teams are not assigned, check if we should auto assign or not
+            if state.teams.len() == 0 {
+                if state.auto_assign_teams {
+                    let data_store = state
+                        .data_store
+                        .as_ref()
+                        .expect("Data store should be loaded");
 
-                let (team1, team2) = if let Some(winning_team) = &state.last_winning_team {
-                    // Use winning team and generate a matching opponent
-                    (
-                        winning_team.clone(),
-                        generate_team(
-                            &data_store,
-                            &mut state.rng,
-                            Some(winning_team),
-                            "Challenger".to_string(),
-                        ),
-                    )
+                    let (team1, team2) = if let Some(winning_team) = &state.last_winning_team {
+                        // Use winning team and generate a matching opponent
+                        (
+                            winning_team.clone(),
+                            generate_team(
+                                &data_store,
+                                &mut state.rng,
+                                Some(winning_team),
+                                "Challenger".to_string(),
+                            ),
+                        )
+                    } else {
+                        // Generate two fresh teams
+                        (
+                            generate_team(
+                                &data_store,
+                                &mut state.rng,
+                                None,
+                                "Pixel Peeps".to_string(),
+                            ),
+                            //TODO: This team needs to ensure it isn't including same unit type as the other team
+                            generate_team(
+                                &data_store,
+                                &mut state.rng,
+                                None,
+                                "Battle Bois".to_string(),
+                            ),
+                        )
+                    };
+                    state
+                        .unit_previews
+                        .extend(create_unit_previews(&team1, false, data_store));
+                    state
+                        .unit_previews
+                        .extend(create_unit_previews(&team2, true, data_store));
+                    state.teams = Vec::new();
+                    state.teams.push(team1);
+                    state.teams.push(team2);
                 } else {
-                    // Generate two fresh teams
-                    (
-                        generate_team(&data_store, &mut state.rng, None, "Pixel Peeps".to_string()),
-                        //TODO: This team needs to ensure it isn't including same unit type as the other team
-                        generate_team(&data_store, &mut state.rng, None, "Battle Bois".to_string()),
-                    )
-                };
-                state
-                    .unit_previews
-                    .extend(create_unit_previews(&team1, false, data_store));
-                state
-                    .unit_previews
-                    .extend(create_unit_previews(&team2, true, data_store));
-                state.teams = Vec::new();
-                state.teams.push(team1);
-                state.teams.push(team2);
-            } else {
-                //make two blank teams
-                let data_store = state
-                    .data_store
-                    .as_ref()
-                    .expect("Data store should be loaded");
+                    //make two blank teams
+                    let data_store = state
+                        .data_store
+                        .as_ref()
+                        .expect("Data store should be loaded");
 
-                state
-                    .teams
-                    .push(Team::new("Battle Bois".to_string(), data_store.clone()));
-                state
-                    .teams
-                    .push(Team::new("Pixel Peeps".to_string(), data_store.clone()));
+                    state
+                        .teams
+                        .push(Team::new("Battle Bois".to_string(), data_store.clone()));
+                    state
+                        .teams
+                        .push(Team::new("Pixel Peeps".to_string(), data_store.clone()));
+                }
             }
-        }
-        if state.auto_assign_teams {
-            if state.prematch_timer > 0 {
-                state.prematch_timer -= 1;
-            } else {
+            if state.auto_assign_teams {
+                if state.team_selection_timer > 0 {
+                    state.team_selection_timer -= 1;
+                } else {
+                    start_match(&mut state);
+                }
+                draw_team_selection_timer(state.team_selection_timer);
+                //draw each unit based on the teams
+                draw_assigned_team_info(&mut state);
+                for u in &mut state.unit_previews {
+                    u.update();
+                    u.draw();
+                }
+                draw_points_prebattle_screen(state.user.points);
+            }
+            if !state.auto_assign_teams {
+                draw_team_info_and_buttons(&mut state);
+            }
+            let gp = gamepad(0);
+            if gp.start.just_pressed() {
                 start_match(&mut state);
             }
-            draw_prematch_timer(state.prematch_timer);
-            //draw each unit based on the teams
-            draw_assigned_team_info(&mut state);
-            for u in &mut state.unit_previews {
-                u.update();
-                u.draw();
+
+            //move camera if you press up and down
+            if gp.down.pressed() {
+                set_cam!(y = cam!().1 + 3);
+            } else if gp.up.pressed() {
+                set_cam!(y = cam!().1 - 3);
             }
-            draw_points_prebattle_screen(state.user.points);
+            if gp.right.just_pressed() {
+                state = GameState::default();
+                state.auto_assign_teams = false;
+            }
+            if gp.left.just_pressed() {
+                state = GameState::default();
+                state.auto_assign_teams = true;
+            }
         }
-        if !state.auto_assign_teams {
-            draw_team_info_and_buttons(&mut state);
+        Phase::PreBattle => {
+            if state.simulation_result.is_none() {
+                simulate_battle(&mut state);
+            } else {
+                state.phase = Phase::Battle;
+            }
         }
-        let gp = gamepad(0);
-        if gp.start.just_pressed() {
-            start_match(&mut state);
-        }
+        Phase::Battle => {
+            //create a countdown timer
+            //add a timer
+            //show text in center of screen
+            //subtract from timer
+            //do step through battle only after the timer is done
 
-        //move camera if you press up and down
-        if gp.down.pressed() {
-            set_cam!(y = cam!().1 + 3);
-        } else if gp.up.pressed() {
-            set_cam!(y = cam!().1 - 3);
-        }
-    } else if state.phase == Phase::Battle {
-        //run the simulation once.
-        //TODO: This might explode if there's a tie so lets find a better way to do this
-        if state.simulation_result.is_none() {
-            simulate_battle(&mut state);
-            // //store the state somehow
-            // let stored_state = state.clone();
-            // let mut winning_team = None;
-            // state.rng = RNG::new(state.rng.seed);
+            if state.battle_countdown_timer > 0 {
+                //march units into place or set them to cheering
+                if state.battle_countdown_timer == BATTLE_COUNTDOWN_TIME {
+                    for u in &mut state.units {
+                        if u.pos.0 > 100. {
+                            u.is_facing_left = true;
+                        }
+                        //Do any special sequencing stuff here
+                        //u.set_march_position();
+                        //probably give them a target, set to moving, and give them a new state like (marching in),
+                    }
+                }
+                for u in &mut state.units {
+                    u.update();
+                }
+                state.battle_countdown_timer -= 1;
 
-            // while winning_team.is_none() {
-            //     step_through_battle(&mut state);
-            //     winning_team = has_some_team_won(&state.units);
-            // }
-            // let simulation_result = SimulationResult {
-            //     living_units: all_living_units(&state.units),
-            //     seed: state.rng.seed,
-            // };
-            // //commit points change
-            // //TODO: Make this on turbo OS
-            // let is_won = winning_team.unwrap() == state.selected_team_index;
-            // let points_change = calculate_points_change(is_won);
-            // commit_points_change(&mut state.user, points_change);
-            // let u = state.user;
-            // //reset the state here
-            // state = stored_state;
-            // //and assign the simulation result. Then we'll do the actual simulation
-            // state.simulation_result = simulation_result;
-            // //carry over the points change
-            // state.user = u;
-            // //assign the winning team to last_winning_team so it stays for the next round
-            // state.last_winning_team = winning_team.map(|index| state.teams[index as usize].clone());
-            // if let Some(winning_team) = &mut state.last_winning_team {
-            //     winning_team.win_streak += 1;
-            // }
-            // //assign the rng to the same seed you used for the simulation, so it matches
-            // state.rng = RNG::new(state.rng.seed);
-        } else {
-            //after we did the simulation, step through one frame at a time until it's over
-            step_through_battle(&mut state);
-        }
-        //some testing code to try out attack strategies
-        let gp = gamepad(0);
-        if gp.a.just_pressed() {
-            //get the units on team 1 and make them flee
+                //show text
+                draw_prematch_timer(state.battle_countdown_timer);
+            } else {
+                step_through_battle(&mut state);
+            }
+
+            /////////////
+            //Draw Code//
+            /////////////
+
+            //Draw craters beneath everything
+            for c in &state.craters {
+                c.draw();
+            }
+            //sprite!("crater_01", x=100, y=100, color = 0xFFFFFF80);
+            //Draw footprints beneath units
             for u in &mut state.units {
-                if u.team == 1 {
-                    u.attack_strategy = AttackStrategy::Flee { timer: 3 };
-                    //u.attack_strategy = AttackStrategy::AttackClosest;
+                for fp in &mut u.footprints {
+                    fp.draw();
+                    //format!()
                 }
             }
-        }
 
-        //temp code to create traps
-        // let gp = gamepad(0);
-        // if gp.a.just_pressed() {
-        //     state.traps.push(create_trap(&mut state.rng));
-        // }
-        // if gp.b.just_pressed() {
-        //     state.traps.push(create_trap(&mut state.rng));
-        //     state.traps.push(create_trap(&mut state.rng));
-        //     state.traps.push(create_trap(&mut state.rng));
-        //     state.traps.push(create_trap(&mut state.rng));
-        //     state.traps.push(create_trap(&mut state.rng));
-        //     state.traps.push(create_trap(&mut state.rng));
-        //     state.traps.push(create_trap(&mut state.rng));
-        //     state.traps.push(create_trap(&mut state.rng));
-        //     state.traps.push(create_trap(&mut state.rng));
-        //     state.traps.push(create_trap(&mut state.rng));
-        // }
-        ///////////////DRAW CODE//////////////
+            //DRAW UNITS
+            let mut indices: Vec<usize> = (0..state.units.len()).collect();
 
-        //Draw craters beneath everything
-        for c in &state.craters {
-            c.draw();
-        }
-        //sprite!("crater_01", x=100, y=100, color = 0xFFFFFF80);
-        //Draw footprints beneath units
-        for u in &mut state.units {
-            for fp in &mut u.footprints {
-                fp.draw();
-                //format!()
+            indices.sort_by(|&a, &b| {
+                let unit_a = &state.units[a];
+                let unit_b = &state.units[b];
+
+                // First, sort by dead/alive status
+                match (
+                    unit_a.state == UnitState::Dead,
+                    unit_b.state == UnitState::Dead,
+                ) {
+                    (true, false) => return Ordering::Less,
+                    (false, true) => return Ordering::Greater,
+                    _ => {}
+                }
+
+                // If both are alive or both are dead, sort by y-position
+                if unit_a.state != UnitState::Dead {
+                    unit_a
+                        .pos
+                        .1
+                        .partial_cmp(&unit_b.pos.1)
+                        .unwrap_or(Ordering::Equal)
+                } else {
+                    Ordering::Equal
+                }
+            });
+
+            // Draw units in the sorted order
+            for &index in &indices {
+                state.units[index].draw();
             }
-        }
-
-        //DRAW UNITS
-        let mut indices: Vec<usize> = (0..state.units.len()).collect();
-
-        indices.sort_by(|&a, &b| {
-            let unit_a = &state.units[a];
-            let unit_b = &state.units[b];
-
-            // First, sort by dead/alive status
-            match (
-                unit_a.state == UnitState::Dead,
-                unit_b.state == UnitState::Dead,
-            ) {
-                (true, false) => return Ordering::Less,
-                (false, true) => return Ordering::Greater,
-                _ => {}
+            //draw explosions
+            state.explosions.retain_mut(|explosion| {
+                explosion.update();
+                !explosion.animator.is_done()
+            });
+            for explosion in &mut state.explosions {
+                explosion.draw();
             }
 
-            // If both are alive or both are dead, sort by y-position
-            if unit_a.state != UnitState::Dead {
-                unit_a
-                    .pos
-                    .1
-                    .partial_cmp(&unit_b.pos.1)
-                    .unwrap_or(Ordering::Equal)
-            } else {
-                Ordering::Equal
+            //draw health bar on hover
+            //get mouse posisiton
+            let m = mouse(0);
+            let mpos = (m.position[0] as f32, m.position[1] as f32);
+            //for unit, if mouse position is in bounds, then draw health bar
+            for u in &mut state.units {
+                if u.state != UnitState::Dead && u.is_point_in_bounds(mpos) {
+                    u.draw_health_bar();
+                }
             }
-        });
+            // Draw end game state
+            if let Some(winner_idx) = has_some_team_won(&state.units) {
+                let is_win = winner_idx as usize == state.selected_team_index as usize;
 
-        // Draw units in the sorted order
-        for &index in &indices {
-            state.units[index].draw();
-        }
-        //draw explosions
-        state.explosions.retain_mut(|explosion| {
-            explosion.update();
-            !explosion.animator.is_done()
-        });
-        for explosion in &mut state.explosions {
-            explosion.draw();
-        }
+                // Draw end game visuals
+                draw_end_animation(is_win);
+                draw_points_end_screen(state.user.points, calculate_points_change(is_win));
 
-        //draw health bar on hover
-        //get mouse posisiton
-        let m = mouse(0);
-        let mpos = (m.position[0] as f32, m.position[1] as f32);
-        //for unit, if mouse position is in bounds, then draw health bar
-        for u in &mut state.units {
-            if u.state != UnitState::Dead && u.is_point_in_bounds(mpos) {
-                u.draw_health_bar();
+                // Draw and handle restart button
+                let restart_button = Button::new(
+                    String::from("AGAIN!"),
+                    (20., 175.),
+                    (50., 25.),
+                    GameEvent::RestartGame(),
+                );
+                restart_button.draw();
+                restart_button.handle_click(&mut state);
+
+                // Start victory animations for living units
+                state
+                    .units
+                    .iter_mut()
+                    .filter(|unit| unit.state != UnitState::Dead)
+                    .for_each(|unit| unit.start_cheering());
+
+                // Check if simulation matches
+                let living_units = all_living_units(&state.units);
+                if let Some(sim_result) = &state.simulation_result {
+                    if living_units.len() != sim_result.living_units.len() {
+                        text!(
+                            "SIMULATION DOES NOT MATCH",
+                            x = 50,
+                            y = 50,
+                            color = DAMAGE_TINT_RED
+                        );
+                    }
+                }
             }
-        }
-        //draw end game text
-        let mut winning_team = has_some_team_won(&state.units);
-        if winning_team.is_some() {
-            let index: usize = winning_team.take().unwrap_or(-1) as usize;
-            let mut is_win = true;
-            if index != state.selected_team_index as usize {
-                is_win = false;
+            //TODO: clean this up
+            //Draw team health bars
+            let mut team0_base_health = 0.0;
+            let mut team0_current_health = 0.0;
+            let mut team1_base_health = 0.0;
+            let mut team1_current_health = 0.0;
+
+            for unit in &state.units {
+                if unit.team == 0 {
+                    team0_base_health += unit.data.max_health as f32;
+                    team0_current_health += unit.health as f32;
+                } else {
+                    team1_base_health += unit.data.max_health as f32;
+                    team1_current_health += unit.health as f32;
+                }
             }
-            draw_end_animation(is_win);
-            //TODO: Add some delay here
-            let points_change = calculate_points_change(is_win);
-            draw_points_end_screen(state.user.points, points_change);
-            //add a restart game button here
-            let restart_button = Button::new(
-                String::from("AGAIN!"),
-                (20., 175.),
-                (50., 25.),
-                GameEvent::RestartGame(),
+            let mut is_chosen_team = false;
+            if state.selected_team_index == 0 {
+                is_chosen_team = true;
+            }
+            let (team_0_pos, team_1_pos) = ((24.0, 20.0), (232.0, 20.0));
+            // Draw health bar for team 0
+            draw_team_health_bar(
+                team0_base_health,
+                team0_current_health,
+                team_0_pos,
+                &state.teams[0].name.to_uppercase(),
+                true,
+                is_chosen_team,
             );
-            restart_button.draw();
-            restart_button.handle_click(&mut state);
-            for unit in &mut state.units {
-                if unit.state != UnitState::Dead {
-                    unit.start_cheering();
-                }
+            is_chosen_team = false;
+            if state.selected_team_index == 1 {
+                is_chosen_team = true;
             }
-            let living_units = all_living_units(&state.units);
-            if let Some(sim_result) = &state.simulation_result {
-                if living_units.len() != sim_result.living_units.len() {
-                    text!(
-                        "SIMULATION DOES NOT MATCH",
-                        x = 50,
-                        y = 50,
-                        color = DAMAGE_TINT_RED
-                    );
-                }
-            }
+            // Draw health bar for team 1
+            draw_team_health_bar(
+                team1_base_health,
+                team1_current_health,
+                team_1_pos,
+                &state.teams[1].name.to_uppercase(),
+                false,
+                is_chosen_team,
+            );
         }
-        //TODO: clean this up
-        //Draw team health bars
-        let mut team0_base_health = 0.0;
-        let mut team0_current_health = 0.0;
-        let mut team1_base_health = 0.0;
-        let mut team1_current_health = 0.0;
-
-        for unit in &state.units {
-            if unit.team == 0 {
-                team0_base_health += unit.data.max_health as f32;
-                team0_current_health += unit.health as f32;
-            } else {
-                team1_base_health += unit.data.max_health as f32;
-                team1_current_health += unit.health as f32;
-            }
+        Phase::WrapUp => {
+            // Post-battle cleanup and results
         }
-        let mut is_chosen_team = false;
-        if state.selected_team_index == 0 {
-            is_chosen_team = true;
-        }
-        let (team_0_pos, team_1_pos) = ((24.0, 20.0), (232.0, 20.0));
-        // Draw health bar for team 0
-        draw_team_health_bar(
-            team0_base_health,
-            team0_current_health,
-            team_0_pos,
-            &state.teams[0].name.to_uppercase(),
-            true,
-            is_chosen_team,
-        );
-        is_chosen_team = false;
-        if state.selected_team_index == 1 {
-            is_chosen_team = true;
-        }
-        // Draw health bar for team 1
-        draw_team_health_bar(
-            team1_base_health,
-            team1_current_health,
-            team_1_pos,
-            &state.teams[1].name.to_uppercase(),
-            false,
-            is_chosen_team,
-        );
     }
-
     //handle event queue
     while let Some(event) = state.event_queue.pop() {
         match event {
@@ -430,15 +424,7 @@ turbo::go!({
             }
         }
     }
-    let gp = gamepad(0);
-    if gp.right.just_pressed() {
-        state = GameState::default();
-        state.auto_assign_teams = false;
-    }
-    if gp.left.just_pressed() {
-        state = GameState::default();
-        state.auto_assign_teams = true;
-    }
+
     state.save();
 });
 
@@ -1043,7 +1029,7 @@ pub fn shuffle<T>(rng: &mut RNG, array: &mut [T]) {
 
 fn start_match(state: &mut GameState) {
     create_units_for_all_teams(state);
-    state.phase = Phase::Battle;
+    state.phase = Phase::PreBattle;
     set_cam!(x = 192, y = 108);
 }
 
@@ -1150,6 +1136,12 @@ fn all_living_units(units: &Vec<Unit>) -> Vec<String> {
 }
 
 fn draw_prematch_timer(time: u32) {
+    let text = time / 60;
+    let text = format!("BATTLE STARTS IN: {}", text);
+    text!(text.as_str(), x = 90, y = 80, font = Font::L);
+}
+
+fn draw_team_selection_timer(time: u32) {
     //turn ticks into seconds format
     let text = format_time(time);
     let text = format!("Next Battle in: {}", text);
