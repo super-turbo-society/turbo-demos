@@ -215,14 +215,7 @@ turbo::go!({
             }
         }
         Phase::Battle => {
-            //create a countdown timer
-            //add a timer
-            //show text in center of screen
-            //subtract from timer
-            //do step through battle only after the timer is done
-
             if state.battle_countdown_timer > 0 {
-                //march units into place or set them to cheering
                 if state.battle_countdown_timer == BATTLE_COUNTDOWN_TIME {
                     for u in &mut state.units {
                         if u.pos.0 > 100. {
@@ -706,50 +699,27 @@ fn step_through_battle(state: &mut GameState) {
             }
         }
     }
-    //go through attacks and update, then draw
-    state.attacks.retain_mut(|attack| {
-        let should_keep = !attack.update(&units_clone);
-        //attack.draw();
 
-        if !should_keep {
-            //deal the actual damage here
-            if attack.splash_area == 0. {
-                if let Some(unit_index) = state
-                    .units
-                    .iter()
-                    .position(|u| u.id == attack.target_unit_id)
-                {
-                    let unit = &mut state.units[unit_index];
-                    unit.take_damage(&attack, &mut state.rng);
-                    if unit.health <= 0. {
-                        if unit.data.has_attribute(&Attribute::ExplodeOnDeath) {
-                            let mut explosion_offset = (-24., -24.);
-                            if unit.flip_x() {
-                                explosion_offset.0 = -24.;
-                            }
-                            let explosion_pos = (
-                                unit.pos.0 + explosion_offset.0,
-                                unit.pos.1 + explosion_offset.1,
-                            );
-                            let mut explosion = AnimatedSprite::new(explosion_pos, false);
-                            explosion.set_anim("explosion".to_string(), 32, 14, 5, false);
-                            state.explosions.push(explosion);
-                        }
-                    }
-                }
-            }
-            //if it has splash area, then look for all enemy units within range
-            if attack.splash_area > 0. {
-                let team = find_unit_by_id(&state.units, Some(attack.target_unit_id))
-                    .unwrap()
-                    .team;
-                for unit in &mut state.units {
-                    if distance_between(attack.pos, unit.pos) <= attack.splash_area
-                        && unit.state != UnitState::Dead
-                        && unit.team == team
+    if let Some(_winning_team) = has_some_team_won(&state.units) {
+        //clear all attacks if there's a winner so we don't kill someone after the simulation ended.
+        state.attacks.clear();
+    } else {
+        //go through attacks and update, then draw
+        state.attacks.retain_mut(|attack| {
+            let should_keep = !attack.update(&units_clone);
+            //attack.draw();
+
+            if !should_keep {
+                //deal the actual damage here
+                if attack.splash_area == 0. {
+                    if let Some(unit_index) = state
+                        .units
+                        .iter()
+                        .position(|u| u.id == attack.target_unit_id)
                     {
+                        let unit = &mut state.units[unit_index];
                         unit.take_damage(&attack, &mut state.rng);
-                        if unit.health <= 0.0 {
+                        if unit.health <= 0. {
                             if unit.data.has_attribute(&Attribute::ExplodeOnDeath) {
                                 let mut explosion_offset = (-24., -24.);
                                 if unit.flip_x() {
@@ -766,29 +736,58 @@ fn step_through_battle(state: &mut GameState) {
                         }
                     }
                 }
-            }
-            if attack.attributes.contains(&Attribute::ExplosiveAttack) {
-                //create explosion
-                let explosion_offset = (-24., -24.);
-                let explosion_pos = (
-                    attack.pos.0 + explosion_offset.0,
-                    attack.pos.1 + explosion_offset.1,
-                );
-                let mut explosion = AnimatedSprite::new(explosion_pos, false);
-                explosion.set_anim("explosion".to_string(), 32, 14, 5, false);
-                state.explosions.push(explosion);
-                //make a crater
-                let crater_pos = (explosion_pos.0 + 16., explosion_pos.1 + 16.);
-                let mut crater = AnimatedSprite::new(crater_pos, false);
+                //if it has splash area, then look for all enemy units within range
+                if attack.splash_area > 0. {
+                    let team = find_unit_by_id(&state.units, Some(attack.target_unit_id))
+                        .unwrap()
+                        .team;
+                    for unit in &mut state.units {
+                        if distance_between(attack.pos, unit.pos) <= attack.splash_area
+                            && unit.state != UnitState::Dead
+                            && unit.team == team
+                        {
+                            unit.take_damage(&attack, &mut state.rng);
+                            if unit.health <= 0.0 {
+                                if unit.data.has_attribute(&Attribute::ExplodeOnDeath) {
+                                    let mut explosion_offset = (-24., -24.);
+                                    if unit.flip_x() {
+                                        explosion_offset.0 = -24.;
+                                    }
+                                    let explosion_pos = (
+                                        unit.pos.0 + explosion_offset.0,
+                                        unit.pos.1 + explosion_offset.1,
+                                    );
+                                    let mut explosion = AnimatedSprite::new(explosion_pos, false);
+                                    explosion.set_anim("explosion".to_string(), 32, 14, 5, false);
+                                    state.explosions.push(explosion);
+                                }
+                            }
+                        }
+                    }
+                }
+                if attack.attributes.contains(&Attribute::ExplosiveAttack) {
+                    //create explosion
+                    let explosion_offset = (-24., -24.);
+                    let explosion_pos = (
+                        attack.pos.0 + explosion_offset.0,
+                        attack.pos.1 + explosion_offset.1,
+                    );
+                    let mut explosion = AnimatedSprite::new(explosion_pos, false);
+                    explosion.set_anim("explosion".to_string(), 32, 14, 5, false);
+                    state.explosions.push(explosion);
+                    //make a crater
+                    let crater_pos = (explosion_pos.0 + 16., explosion_pos.1 + 16.);
+                    let mut crater = AnimatedSprite::new(crater_pos, false);
 
-                crater.set_anim("crater_01".to_string(), 16, 1, 1, true);
-                crater.animator.change_tint_color(0xFFFFFF80);
-                state.craters.push(crater);
+                    crater.set_anim("crater_01".to_string(), 16, 1, 1, true);
+                    crater.animator.change_tint_color(0xFFFFFF80);
+                    state.craters.push(crater);
+                }
             }
-        }
 
-        should_keep
-    });
+            should_keep
+        });
+    }
     //go through traps, update and draw
     for trap in &mut state.traps {
         trap.update();
