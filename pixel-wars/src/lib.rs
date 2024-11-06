@@ -153,22 +153,22 @@ turbo::go!({
                             ),
                         )
                     } else {
-                        // Generate two fresh teams
-                        (
-                            generate_team(
-                                &data_store,
-                                &mut state.rng,
-                                None,
-                                "Pixel Peeps".to_string(),
-                            ),
-                            //TODO: This team needs to ensure it isn't including same unit type as the other team
-                            generate_team(
-                                &data_store,
-                                &mut state.rng,
-                                None,
-                                "Battle Bois".to_string(),
-                            ),
-                        )
+                        //Generate two fresh teams
+                        let team1 = generate_team(
+                            &data_store,
+                            &mut state.rng,
+                            None,
+                            "Pixel Peeps".to_string(),
+                        );
+
+                        let team2 = generate_team(
+                            &data_store,
+                            &mut state.rng,
+                            Some(&team1),
+                            "Battle Bois".to_string(),
+                        );
+
+                        (team1, team2)
                     };
                     state
                         .unit_previews
