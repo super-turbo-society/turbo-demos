@@ -840,6 +840,52 @@ impl UnitPreview {
         let d_y = -0.5 * self.data.bounding_box.3 as f32 - self.data.bounding_box.1 as f32;
         (self.pos.0 + d_x, self.pos.1 + d_y)
     }
+
+    pub fn is_point_in_bounds(&self, point: (f32, f32)) -> bool {
+        //get four corners of box
+        let left = self.pos.0 - (0.5 * self.data.bounding_box.2 as f32);
+        let right = left + self.data.bounding_box.2 as f32;
+        let top = self.pos.1 - (0.5 * self.data.bounding_box.3 as f32);
+        let bottom = top + self.data.bounding_box.3 as f32;
+        // circ!(x = left, y = top, d = 1, color = 0x000000ff);
+        // circ!(x = right, y = top, d = 1, color = 0x000000ff);
+        // circ!(x = left, y = bottom, d = 1, color = 0x000000ff);
+        // circ!(x = right, y = bottom, d = 1, color = 0x000000ff);
+        point.0 >= left && point.0 <= right && point.1 >= top && point.1 <= bottom
+    }
+
+    pub fn draw_unit_details(&self) {
+        //create a panel
+        let pw = 100; // Made panel wider to accommodate text
+        let ph = 80;
+        let border_color = OFF_BLACK;
+        let panel_color = LIGHT_GRAY;
+        //TODO: Make this calculate based on actual sprite bounding box width
+        let px = self.pos.0 + 20.;
+        let py = self.pos.1;
+        rect!(
+            x = px,
+            y = py,
+            h = ph,
+            w = pw,
+            color = panel_color,
+            border_color = border_color,
+            border_radius = 2,
+            border_width = 2
+        );
+
+        // Header
+        text!("UNIT DETAILS", x = px + 5., y = py + 5.);
+
+        // Stats rows - each line is 15 pixels apart
+        let damage_text = format!("DAMAGE: {}", self.data.damage);
+        let speed_text = format!("SPEED: {}", self.data.speed);
+        let health_text = format!("HEALTH: {}", self.data.max_health);
+
+        text!(&damage_text, x = px + 5., y = py + 25.);
+        text!(&speed_text, x = px + 5., y = py + 35.);
+        text!(&health_text, x = px + 5., y = py + 45.);
+    }
 }
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 pub struct Footprint {

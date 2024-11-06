@@ -17,6 +17,20 @@ const DAMAGE_EFFECT_TIME: u32 = 12;
 const TEAM_POWER_MULTIPLIER: f32 = 25.0;
 const TEAM_SELECTION_TIME: u32 = 3600;
 const BATTLE_COUNTDOWN_TIME: u32 = 180;
+const TEAM_NAMES: [&str; 12] = [
+    "Pixel Peeps",
+    "Battle Bois",
+    "Mighty Militia",
+    "Combat Crew",
+    "Warrior Wreckers",
+    "Fighting Fellas",
+    "Savage Squad",
+    "Rowdy Raiders",
+    "Brawling Bunch",
+    "Tragic Troops",
+    "Danger Dudes",
+    "Rumble Rookies",
+];
 
 const UNIT_ANIM_SPEED: i32 = 8;
 const MAX_Y_ATTACK_DISTANCE: f32 = 10.;
@@ -28,6 +42,8 @@ const POO_BROWN: usize = 0x654321FF;
 const ACID_GREEN: usize = 0x32CD32FF;
 const WHITE: usize = 0xffffffff;
 const DAMAGE_TINT_RED: usize = 0xb9451dff;
+const OFF_BLACK: u32 = 0x1A1A1AFF;
+const LIGHT_GRAY: u32 = 0xA6A6A6FF;
 
 turbo::cfg! {r#"
     name = "Pixel Wars"
@@ -117,6 +133,15 @@ turbo::go!({
                         .expect("Data store should be loaded");
 
                     let (team1, team2) = if let Some(winning_team) = &state.last_winning_team {
+                        // Generate random index for team name
+                        let mut challenger_name_index =
+                            state.rng.next_in_range(0, (TEAM_NAMES.len() - 1) as u32) as usize;
+
+                        // If we randomly picked the same name as the winning team, pick the next name in the list
+                        if TEAM_NAMES[challenger_name_index] == winning_team.name {
+                            challenger_name_index = (challenger_name_index + 1) % TEAM_NAMES.len();
+                        }
+
                         // Use winning team and generate a matching opponent
                         (
                             winning_team.clone(),
@@ -124,7 +149,7 @@ turbo::go!({
                                 &data_store,
                                 &mut state.rng,
                                 Some(winning_team),
-                                "Challenger".to_string(),
+                                TEAM_NAMES[challenger_name_index].to_string(),
                             ),
                         )
                     } else {
@@ -182,6 +207,17 @@ turbo::go!({
                     u.update();
                     u.draw();
                 }
+                //draw health bar on hover
+                //get mouse posisiton
+                let m = mouse(0);
+                let mpos = (m.position[0] as f32, m.position[1] as f32);
+                //for unit, if mouse position is in bounds, then draw health bar
+                for u in &mut state.unit_previews {
+                    if u.is_point_in_bounds(mpos) {
+                        u.draw_unit_details();
+                    }
+                }
+
                 draw_points_prebattle_screen(state.user.points);
             }
             if !state.auto_assign_teams {
