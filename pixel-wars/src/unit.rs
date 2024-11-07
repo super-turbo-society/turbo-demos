@@ -536,8 +536,7 @@ impl Unit {
         self.damage_effect_timer = DAMAGE_EFFECT_TIME;
     }
 
-    //TODO: Rename this to take_attack or something
-    pub fn take_damage(&mut self, attack: &Attack, rng: &mut RNG) {
+    pub fn take_attack(&mut self, attack: &Attack, rng: &mut RNG) {
         if self.state != UnitState::Dead {
             self.apply_damage(attack.damage);
             //apply terrifying effect to cause units to flee

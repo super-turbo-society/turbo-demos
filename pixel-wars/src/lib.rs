@@ -380,7 +380,6 @@ turbo::go!({
                     }
                 }
             }
-            //TODO: clean this up
             //Draw team health bars
             let mut team0_base_health = 0.0;
             let mut team0_current_health = 0.0;
@@ -617,7 +616,7 @@ fn step_through_battle(state: &mut GameState) {
                     let max_dist = 20.0;
                     if target_unit.is_none() || target_unit.unwrap().health == 0. {
                         target_unit =
-                            lowest_health_closest_enemy_unit(&units_clone, unit.team, unit.pos);
+                            lowest_health_ranged_enemy_unit(&units_clone, unit.team, unit.pos);
                     }
                     if target_unit.is_some() {
                         //if you have a target, move to a position at the bottom of the screen, underneath it
@@ -648,6 +647,9 @@ fn step_through_battle(state: &mut GameState) {
                                 unit.attack_strategy = AttackStrategy::TargetLowestHealth;
                             }
                         }
+                        //if there is no ranged unit on the enemy team, then just go for lowest health.
+                    } else {
+                        unit.attack_strategy = AttackStrategy::TargetLowestHealth;
                     }
                 }
                 AttackStrategy::SeekTarget => {
@@ -712,7 +714,7 @@ fn step_through_battle(state: &mut GameState) {
                     unit.footprint_status = FootprintStatus::Poopy;
                 } else if trap.trap_type == TrapType::Acidleak {
                     let attack = Attack::new(unit.id, 1., trap.pos, trap.damage, 0., 1, Vec::new());
-                    unit.take_damage(&attack, &mut state.rng);
+                    unit.take_attack(&attack, &mut state.rng);
                     unit.footprint_status = FootprintStatus::Acid;
                 } else if trap.trap_type == TrapType::Landmine {
                     if let Some(closest_unit_index) =
@@ -754,7 +756,7 @@ fn step_through_battle(state: &mut GameState) {
                         .position(|u| u.id == attack.target_unit_id)
                     {
                         let unit = &mut state.units[unit_index];
-                        unit.take_damage(&attack, &mut state.rng);
+                        unit.take_attack(&attack, &mut state.rng);
                         if unit.health <= 0. {
                             if unit.data.has_attribute(&Attribute::ExplodeOnDeath) {
                                 let mut explosion_offset = (-24., -24.);
@@ -782,7 +784,7 @@ fn step_through_battle(state: &mut GameState) {
                             && unit.state != UnitState::Dead
                             && unit.team == team
                         {
-                            unit.take_damage(&attack, &mut state.rng);
+                            unit.take_attack(&attack, &mut state.rng);
                             if unit.health <= 0.0 {
                                 if unit.data.has_attribute(&Attribute::ExplodeOnDeath) {
                                     let mut explosion_offset = (-24., -24.);
@@ -877,6 +879,32 @@ fn lowest_health_closest_enemy_unit(
     units
         .iter()
         .filter(|unit| unit.team != team && unit.health > 0.0)
+        .min_by(|&a, &b| {
+            match a.data.max_health.partial_cmp(&b.data.max_health) {
+                Some(std::cmp::Ordering::Equal) => {
+                    // If health is equal, compare distances
+                    let dist_a = distance_between(pos, a.pos);
+                    let dist_b = distance_between(pos, b.pos);
+                    dist_a
+                        .partial_cmp(&dist_b)
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                }
+                Some(ordering) => ordering,
+                None => std::cmp::Ordering::Equal,
+            }
+        })
+}
+
+fn lowest_health_ranged_enemy_unit(units: &Vec<Unit>, team: i32, pos: (f32, f32)) -> Option<&Unit> {
+    if units.is_empty() {
+        return None;
+    }
+
+    units
+        .iter()
+        .filter(|unit| {
+            unit.team != team && unit.health > 0.0 && unit.data.has_attribute(&Attribute::Ranged)
+        })
         .min_by(|&a, &b| {
             match a.data.max_health.partial_cmp(&b.data.max_health) {
                 Some(std::cmp::Ordering::Equal) => {
