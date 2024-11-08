@@ -1,6 +1,20 @@
 use crate::*;
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
+pub struct UnitDisplay {
+    //visual
+    pub animator: Animator,
+    pub damage_effect_timer: u32,
+    pub blood_splatter: Option<AnimatedSprite>,
+    pub is_facing_left: bool,
+
+    //foot print status
+    pub footprints: Vec<Footprint>,
+    pub footprint_status: FootprintStatus,
+    pub footprint_timer: i32,
+}
+
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 pub struct Unit {
     pub unit_type: String,
     pub data: UnitData,
@@ -14,16 +28,7 @@ pub struct Unit {
     pub attack_strategy: AttackStrategy,
     pub attack_timer: i32,
     pub status_effects: Vec<Status>,
-
-    pub animator: Animator,
-    pub damage_effect_timer: u32,
-    pub blood_splatter: Option<AnimatedSprite>,
-    pub is_facing_left: bool,
-
-    //foot print status
-    pub footprints: Vec<Footprint>,
-    pub footprint_status: FootprintStatus,
-    pub footprint_timer: i32,
+    pub display: Option<UnitDisplay>,
 }
 
 impl Unit {
@@ -51,19 +56,21 @@ impl Unit {
             attack_strategy: AttackStrategy::AttackClosest,
             attack_timer: 0,
             status_effects: Vec::new(),
-            damage_effect_timer: 0,
-            blood_splatter: None,
-            footprints: Vec::new(),
-            footprint_status: FootprintStatus::Clean,
-            footprint_timer: 20,
-            is_facing_left: false,
-            //placeholder, gets overwritten when they are drawn, but I can't figure out how to do it more logically than this
-            animator: Animator::new(Animation {
-                name: "placeholder".to_string(),
-                s_w: data.sprite_width,
-                num_frames: 0,
-                loops_per_frame: UNIT_ANIM_SPEED,
-                is_looping: true,
+            display: Some(UnitDisplay {
+                damage_effect_timer: 0,
+                blood_splatter: None,
+                footprints: Vec::new(),
+                footprint_status: FootprintStatus::Clean,
+                footprint_timer: 20,
+                is_facing_left: false,
+                //placeholder, gets overwritten when they are drawn, but I can't figure out how to do it more logically than this
+                animator: Animator::new(Animation {
+                    name: "placeholder".to_string(),
+                    s_w: data.sprite_width,
+                    num_frames: 0,
+                    loops_per_frame: UNIT_ANIM_SPEED,
+                    is_looping: true,
+                }),
             }),
         }
     }
@@ -98,11 +105,11 @@ impl Unit {
         }
 
         if self.state != UnitState::Dead {
-            if self.footprint_status != FootprintStatus::Clean {
-                self.footprint_timer -= 1;
-                if self.footprint_timer == 0 {
+            if self.display.as_ref().unwrap().footprint_status != FootprintStatus::Clean {
+                self.display.as_mut().unwrap().footprint_timer -= 1;
+                if self.display.as_ref().unwrap().footprint_timer == 0 {
                     self.create_footprint();
-                    self.footprint_timer = 20;
+                    self.display.as_mut().unwrap().footprint_timer = 20;
                 }
             }
             self.apply_status_effects();
@@ -119,19 +126,31 @@ impl Unit {
         };
         if self.state == UnitState::Moving || self.state == UnitState::MarchingIn {
             new_anim.name += "_walk";
-            self.animator.set_cur_anim(new_anim);
+            self.display
+                .as_mut()
+                .unwrap()
+                .animator
+                .set_cur_anim(new_anim);
         } else if self.state == UnitState::Dead {
             new_anim.name += "_death";
             new_anim.is_looping = false;
-            self.animator.set_cur_anim(new_anim);
-            self.animator.next_anim = None;
+            self.display
+                .as_mut()
+                .unwrap()
+                .animator
+                .set_cur_anim(new_anim);
+            self.display.as_mut().unwrap().animator.next_anim = None;
         } else if self.state == UnitState::Attacking {
             //only set this once, when the attack starts.
             //That way when attack ends, they will idle (could change to reload or something later)
             if self.attack_timer == self.data.attack_time - 1 {
                 new_anim.name += "_attack";
                 new_anim.is_looping = false;
-                self.animator.set_cur_anim(new_anim);
+                self.display
+                    .as_mut()
+                    .unwrap()
+                    .animator
+                    .set_cur_anim(new_anim);
                 let next_anim = Animation {
                     name: self.unit_type.to_lowercase() + "_idle",
                     s_w: self.data.sprite_width,
@@ -139,10 +158,14 @@ impl Unit {
                     loops_per_frame: UNIT_ANIM_SPEED,
                     is_looping: true,
                 };
-                self.animator.set_next_anim(Some(next_anim));
+                self.display
+                    .as_mut()
+                    .unwrap()
+                    .animator
+                    .set_next_anim(Some(next_anim));
             }
         } else if self.state == UnitState::Idle {
-            self.animator.cur_anim.is_looping = false;
+            self.display.as_mut().unwrap().animator.cur_anim.is_looping = false;
             let next_anim = Animation {
                 name: self.unit_type.to_lowercase() + "_idle",
                 s_w: self.data.sprite_width,
@@ -150,10 +173,14 @@ impl Unit {
                 loops_per_frame: UNIT_ANIM_SPEED,
                 is_looping: true,
             };
-            self.animator.set_next_anim(Some(next_anim));
+            self.display
+                .as_mut()
+                .unwrap()
+                .animator
+                .set_next_anim(Some(next_anim));
             //self.animator.set_cur_anim(new_anim);
         } else if self.state == UnitState::Cheer {
-            self.animator.cur_anim.is_looping = false;
+            self.display.as_mut().unwrap().animator.cur_anim.is_looping = false;
             let next_anim = Animation {
                 name: self.unit_type.to_lowercase() + "_cheer",
                 s_w: self.data.sprite_width,
@@ -161,21 +188,35 @@ impl Unit {
                 loops_per_frame: UNIT_ANIM_SPEED,
                 is_looping: true,
             };
-            self.animator.set_next_anim(Some(next_anim));
+            self.display
+                .as_mut()
+                .unwrap()
+                .animator
+                .set_next_anim(Some(next_anim));
         }
 
-        if self.damage_effect_timer > 0 {
-            self.animator.change_tint_color(DAMAGE_TINT_RED);
-            self.damage_effect_timer -= 1;
+        if self.display.as_mut().unwrap().damage_effect_timer > 0 {
+            self.display
+                .as_mut()
+                .unwrap()
+                .animator
+                .change_tint_color(DAMAGE_TINT_RED);
+            self.display.as_mut().unwrap().damage_effect_timer -= 1;
         } else {
-            self.animator.change_tint_color(WHITE);
+            self.display
+                .as_mut()
+                .unwrap()
+                .animator
+                .change_tint_color(WHITE);
         }
-        self.animator.update();
-        self.animator.draw(self.draw_position(), self.flip_x());
-        if let Some(ref mut splatter) = self.blood_splatter {
+        self.display.as_mut().unwrap().animator.update();
+        let dp = self.draw_position();
+        let flip_x = self.flip_x();
+        self.display.as_mut().unwrap().animator.draw(dp, flip_x);
+        if let Some(ref mut splatter) = self.display.as_mut().unwrap().blood_splatter {
             splatter.update();
             if splatter.animator.is_done() {
-                self.blood_splatter = None;
+                self.display.as_mut().unwrap().blood_splatter = None;
             } else {
                 splatter.draw();
             }
@@ -395,9 +436,9 @@ impl Unit {
         let dir_y = target.1 - self.pos.1;
 
         if dir_x > 0. {
-            self.is_facing_left = false;
+            self.display.as_mut().unwrap().is_facing_left = false;
         } else if dir_x < 0. {
-            self.is_facing_left = true;
+            self.display.as_mut().unwrap().is_facing_left = true;
         }
         //if you are already in range on the x axis, only move on the y axis
         //This looks better, especially for ranged units
@@ -454,9 +495,18 @@ impl Unit {
         let norm_dir_x = dir_x / length;
         let norm_dir_y = dir_y / length;
         // Calculate new position
-        let new_x = self.pos.0 + norm_dir_x * self.calculated_speed() / 20.;
-        let new_y = self.pos.1 + norm_dir_y * self.calculated_speed() / 20.;
-
+        let mut new_x = self.pos.0 + norm_dir_x * self.calculated_speed() / 20.;
+        let mut new_y = self.pos.1 + norm_dir_y * self.calculated_speed() / 20.;
+        if dir_x > 0. {
+            new_x = new_x.min(self.target_pos.0);
+        } else {
+            new_x = new_x.max(self.target_pos.0);
+        }
+        if dir_y > 0. {
+            new_y = new_y.min(self.target_pos.1);
+        } else {
+            new_y = new_y.max(self.target_pos.1);
+        }
         (new_x, new_y)
     }
 
@@ -533,7 +583,7 @@ impl Unit {
     pub fn apply_damage(&mut self, damage: f32) {
         self.health -= damage;
         self.health = self.health.max(0.);
-        self.damage_effect_timer = DAMAGE_EFFECT_TIME;
+        self.display.as_mut().unwrap().damage_effect_timer = DAMAGE_EFFECT_TIME;
     }
 
     pub fn take_attack(&mut self, attack: &Attack, rng: &mut RNG) {
@@ -566,7 +616,7 @@ impl Unit {
                 let new_status = Status::Burn { timer: (300) };
                 self.status_effects.push(new_status);
             }
-            if self.blood_splatter.is_none() {
+            if self.display.as_ref().unwrap().blood_splatter.is_none() {
                 //make the splatter position the top-middle of the sprite
                 let mut splat_pos = self.pos;
                 //TODO: Figure out something better to do with these numbers, they do sort of just work for now
@@ -580,7 +630,7 @@ impl Unit {
                 let num = rand() % 8 + 1;
                 let name = format!("blood_16px_0{}", num);
                 new_splatter.set_anim(name, 16, 4, UNIT_ANIM_SPEED, false);
-                self.blood_splatter = Some(new_splatter);
+                self.display.as_mut().unwrap().blood_splatter = Some(new_splatter);
             }
         }
     }
@@ -604,7 +654,7 @@ impl Unit {
 
     pub fn create_footprint(&mut self) {
         let mut color = POO_BROWN;
-        match self.footprint_status {
+        match self.display.as_ref().unwrap().footprint_status {
             FootprintStatus::Clean => {
                 //do nothing
             }
@@ -620,7 +670,7 @@ impl Unit {
             color: color as u32,
             lifetime: FOOTPRINT_LIFETIME,
         };
-        self.footprints.push(fp);
+        self.display.as_mut().unwrap().footprints.push(fp);
     }
 
     pub fn distance_to(&self, pos: &(f32, f32)) -> f32 {
@@ -659,7 +709,7 @@ impl Unit {
     }
     pub fn flip_x(&self) -> bool {
         //self.team == 1
-        self.is_facing_left
+        self.display.as_ref().unwrap().is_facing_left
     }
 
     pub fn calculated_speed(&self) -> f32 {
