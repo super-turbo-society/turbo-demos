@@ -3,6 +3,7 @@ mod trap;
 mod unit;
 
 use csv::{Reader, ReaderBuilder};
+use os::server;
 use rng::*;
 use std::cmp::{max, Ordering};
 use std::collections::HashMap;
@@ -15,8 +16,8 @@ const UNIT_DATA_CSV: &[u8] = include_bytes!("../resources/unit-data.csv");
 const DAMAGE_EFFECT_TIME: u32 = 12;
 //avg number of units to balance each generated team around
 const TEAM_POWER_MULTIPLIER: f32 = 25.0;
-const TEAM_SELECTION_TIME: u32 = 120;
-const BATTLE_COUNTDOWN_TIME: u32 = 180;
+const TEAM_SELECTION_TIME: u32 = 3600;
+const BATTLE_COUNTDOWN_TIME: u32 = 120;
 const TEAM_NAMES: [&str; 12] = [
     "Pixel Peeps",
     "Battle Bois",
@@ -110,6 +111,13 @@ turbo::init! {
 turbo::go!({
     let mut state = GameState::load();
     clear!(0x8f8cacff);
+    let gp = gamepad(0);
+    if gp.select.just_pressed() {
+        os::client::exec("pixel_wars", "simulate_battle_with_team_seed", &[]);
+    }
+    if gp.a.just_pressed() {
+        os::client::exec("pixel_wars", "generate_team_seed", &[]);
+    }
     match state.phase {
         Phase::SelectionScreen => {
             //initialize the data store if it is blank
@@ -274,7 +282,14 @@ turbo::go!({
                 //show text
                 draw_prematch_timer(state.battle_countdown_timer);
             } else {
-                step_through_battle(&mut state);
+                step_through_battle(
+                    &mut state.units,
+                    &mut state.attacks,
+                    &mut state.traps,
+                    &mut state.explosions,
+                    &mut state.craters,
+                    &mut state.rng,
+                );
             }
 
             /////////////
@@ -457,6 +472,19 @@ turbo::go!({
         }
     }
 
+    //alert drawing
+    // Watch for alerts
+    if let Some(event) = os::client::watch_events("pixel_wars", Some("alert")).data {
+        // Display an alert banner for notifications that are < 10s old
+        let duration = 10_000;
+        let millis_since_event = time::now() - event.created_at * 1000;
+        if millis_since_event < duration {
+            if let Ok(msg) = std::str::from_utf8(&event.data) {
+                text!(msg, x = 10, y = 100, font = Font::L);
+            }
+        }
+    }
+
     state.save();
 });
 
@@ -511,6 +539,110 @@ fn draw_end_animation(is_win: bool) {
     }
 }
 
+#[export_name = "turbo/generate_team_seed"]
+unsafe extern "C" fn generate_teams_os() -> usize {
+    let seed: u32 = os::server::random_number();
+    let Ok(_) = os::server::write_file("team_seed", &seed.to_le_bytes()) else {
+        return os::server::CANCEL;
+    };
+    os::server::log!("SEED: {}", seed);
+    return os::server::COMMIT;
+}
+
+#[export_name = "turbo/simulate_battle_with_team_seed"]
+unsafe extern "C" fn simulate_battle_with_team_seed() -> usize {
+    let seed: u32 = os::server::random_number();
+    let mut simulation_rng = RNG::new(seed);
+    let team_seed = os::server::read!(u32, "team_seed");
+    let mut team_rng = RNG::new(team_seed);
+    let Ok(data_store) = UnitDataStore::load_from_csv(UNIT_DATA_CSV) else {
+        return os::server::CANCEL;
+    };
+    let team_1 = generate_team(&data_store, &mut team_rng, None, "Pixel Peeps".to_string());
+    let team_2 = generate_team(
+        &data_store,
+        &mut team_rng,
+        Some(&team_1),
+        "Battle Bois".to_string(),
+    );
+    let mut teams = vec![team_1, team_2];
+    let mut units = create_units_for_all_teams(&mut teams, &mut simulation_rng, &data_store);
+    let mut attacks = Vec::new();
+    let mut traps = Vec::new();
+    let mut craters = Vec::new();
+    let mut explosions = Vec::new();
+    let mut i = 0;
+    let winning_team_index = loop {
+        step_through_battle(
+            &mut units,
+            &mut attacks,
+            &mut traps,
+            &mut explosions,
+            &mut craters,
+            &mut simulation_rng,
+        );
+        i += 1;
+        if let Some(winner_idx) = has_some_team_won(&units) {
+            break winner_idx;
+        }
+    };
+
+    os::server::log!("Battle Seed: {}", seed);
+    os::server::log!("Team Seed: {}", team_seed);
+    os::server::log!("Winning Team: {:?}", winning_team_index);
+    os::server::log!("Frames: {}", i);
+
+    os::server::alert!("Winning Team: {:?}", winning_team_index);
+
+    os::server::COMMIT
+}
+
+#[export_name = "turbo/simulate_battle_os"]
+unsafe extern "C" fn simulate_battle_os() -> usize {
+    let seed: u32 = os::server::random_number();
+    let mut rng = RNG::new(seed);
+
+    let Ok(data_store) = UnitDataStore::load_from_csv(UNIT_DATA_CSV) else {
+        return os::server::CANCEL;
+    };
+    let team_1 = generate_team(&data_store, &mut rng, None, "Pixel Peeps".to_string());
+    let team_2 = generate_team(
+        &data_store,
+        &mut rng,
+        Some(&team_1),
+        "Battle Bois".to_string(),
+    );
+    let mut teams = vec![team_1, team_2];
+    let mut units = create_units_for_all_teams(&mut teams, &mut rng, &data_store);
+    let mut attacks = Vec::new();
+    let mut traps = Vec::new();
+    let mut craters = Vec::new();
+    let mut explosions = Vec::new();
+    let mut i = 0;
+    let winning_team_index = loop {
+        step_through_battle(
+            &mut units,
+            &mut attacks,
+            &mut traps,
+            &mut explosions,
+            &mut craters,
+            &mut rng,
+        );
+        i += 1;
+        if let Some(winner_idx) = has_some_team_won(&units) {
+            break winner_idx;
+        }
+    };
+
+    os::server::log!("Seed: {}", seed);
+    os::server::log!("Winning Team: {:?}", winning_team_index);
+    os::server::log!("Frames: {}", i);
+
+    os::server::alert!("Winning Team: {:?}", winning_team_index);
+
+    os::server::COMMIT
+}
+
 fn simulate_battle(state: &mut GameState) {
     // Store initial state
     let initial_state = state.clone();
@@ -520,10 +652,16 @@ fn simulate_battle(state: &mut GameState) {
     // turbo::println!("BYTES: {}", initial_state.units.try_to_vec().unwrap().len());
     // Run simulation with fresh RNG
     state.rng = RNG::new(state.rng.seed);
-    turbo::println!("SEED: {}", state.rng.seed);
     let mut i = 1;
     let winning_team_index = loop {
-        step_through_battle(state);
+        step_through_battle(
+            &mut state.units,
+            &mut state.attacks,
+            &mut state.traps,
+            &mut state.explosions, //look into a callback to replace this
+            &mut state.craters,    //look into a callback to replace this
+            &mut state.rng,
+        );
         i += 1;
         if i > 10000 {
             log!("Simulation is taking too long!!");
@@ -562,18 +700,25 @@ fn simulate_battle(state: &mut GameState) {
     state.rng = RNG::new(state.rng.seed);
 }
 
-fn step_through_battle(state: &mut GameState) {
-    let units_clone = state.units.clone();
+fn step_through_battle(
+    units: &mut Vec<Unit>,
+    attacks: &mut Vec<Attack>,
+    traps: &mut Vec<Trap>,
+    explosions: &mut Vec<AnimatedSprite>,
+    craters: &mut Vec<AnimatedSprite>,
+    rng: &mut RNG,
+) {
+    let units_clone = units.clone();
     //=== MOVEMENT AND ATTACKING ===
     //go through each unit, see what it wants to do, and handle all actions from here
-    for unit in &mut state.units {
+    for unit in &mut *units {
         if unit.state == UnitState::Idle {
             match unit.attack_strategy {
                 AttackStrategy::AttackClosest => {
                     //find closest enemy
                     if let Some(index) = closest_enemy_index(&unit, &units_clone) {
                         if unit.is_unit_in_range(&units_clone[index]) {
-                            state.attacks.push(unit.start_attack(units_clone[index].id));
+                            attacks.push(unit.start_attack(units_clone[index].id));
                             if unit.pos.0 > units_clone[index].pos.0 {
                                 if let Some(display) = unit.display.as_mut() {
                                     display.is_facing_left = true;
@@ -584,10 +729,7 @@ fn step_through_battle(state: &mut GameState) {
                                 }
                             }
                         } else {
-                            unit.set_new_target_move_position(
-                                &units_clone[index].pos,
-                                &mut state.rng,
-                            );
+                            unit.set_new_target_move_position(&units_clone[index].pos, rng);
                         }
                         unit.target_id = units_clone[index].id;
                     }
@@ -597,9 +739,7 @@ fn step_through_battle(state: &mut GameState) {
                     let mut target_unit = find_unit_by_id(&units_clone, Some(unit.target_id));
                     if target_unit.is_some() && target_unit.unwrap().health > 0. {
                         if unit.is_unit_in_range(&target_unit.unwrap()) {
-                            state
-                                .attacks
-                                .push(unit.start_attack(target_unit.unwrap().id));
+                            attacks.push(unit.start_attack(target_unit.unwrap().id));
                             //assign the units target id as this unit now
                             unit.target_id = target_unit.unwrap().id;
                             if unit.pos.0 > target_unit.unwrap().pos.0 {
@@ -612,20 +752,14 @@ fn step_through_battle(state: &mut GameState) {
                                 }
                             }
                         } else {
-                            unit.set_new_target_move_position(
-                                &target_unit.unwrap().pos,
-                                &mut state.rng,
-                            );
+                            unit.set_new_target_move_position(&target_unit.unwrap().pos, rng);
                         }
                     } else {
                         //find a unit with lowest health and set it as your target and move toward that position
                         target_unit =
                             lowest_health_closest_enemy_unit(&units_clone, unit.team, unit.pos);
                         if target_unit.is_some() {
-                            unit.set_new_target_move_position(
-                                &target_unit.unwrap().pos,
-                                &mut state.rng,
-                            );
+                            unit.set_new_target_move_position(&target_unit.unwrap().pos, rng);
                             unit.target_id = target_unit.unwrap().id;
                         }
                     }
@@ -659,7 +793,7 @@ fn step_through_battle(state: &mut GameState) {
                         }
 
                         if distance_between(unit.pos, target_pos) > max_dist {
-                            unit.set_new_target_move_position(&target_pos, &mut state.rng);
+                            unit.set_new_target_move_position(&target_pos, rng);
                         } else {
                             if *stage == FlankStage::Vertical {
                                 *stage = FlankStage::Horizontal;
@@ -686,9 +820,7 @@ fn step_through_battle(state: &mut GameState) {
                     //if you already have a target unit, then try to fight it
                     else {
                         if unit.is_unit_in_range(&target_unit.unwrap()) {
-                            state
-                                .attacks
-                                .push(unit.start_attack(target_unit.unwrap().id));
+                            attacks.push(unit.start_attack(target_unit.unwrap().id));
                             //assign the units target id as this unit now
                             unit.target_id = target_unit.unwrap().id;
                             if unit.pos.0 > target_unit.unwrap().pos.0 {
@@ -701,10 +833,7 @@ fn step_through_battle(state: &mut GameState) {
                                 }
                             }
                         } else {
-                            unit.set_new_target_move_position(
-                                &target_unit.unwrap().pos,
-                                &mut state.rng,
-                            );
+                            unit.set_new_target_move_position(&target_unit.unwrap().pos, rng);
                         }
                     }
                 }
@@ -721,7 +850,7 @@ fn step_through_battle(state: &mut GameState) {
                         //TODO: add some extra randomness to the Y value here
                         let new_target = (unit.pos.0 + flee_dist as f32, unit.pos.1);
                         //move to that target position
-                        unit.set_new_target_move_position(&new_target, &mut state.rng);
+                        unit.set_new_target_move_position(&new_target, rng);
                     }
                 }
 
@@ -732,7 +861,7 @@ fn step_through_battle(state: &mut GameState) {
         }
         unit.update();
         //check if the unit is on top of a trap
-        for trap in &mut state.traps {
+        for trap in &mut *traps {
             if distance_between(unit.foot_position(), trap.pos) < (trap.size / 2.)
                 && trap.is_active()
             {
@@ -742,7 +871,7 @@ fn step_through_battle(state: &mut GameState) {
                     }
                 } else if trap.trap_type == TrapType::Acidleak {
                     let attack = Attack::new(unit.id, 1., trap.pos, trap.damage, 0., 1, Vec::new());
-                    unit.take_attack(&attack, &mut state.rng);
+                    unit.take_attack(&attack, rng);
                     if let Some(display) = unit.display.as_mut() {
                         display.footprint_status = FootprintStatus::Acid;
                     }
@@ -759,7 +888,7 @@ fn step_through_battle(state: &mut GameState) {
                             1,
                             Vec::new(),
                         );
-                        state.attacks.push(attack);
+                        attacks.push(attack);
                         trap.set_inactive();
                         turbo::println!("TRAP POS {}, {}", trap.pos.0, trap.pos.1);
                     }
@@ -768,25 +897,23 @@ fn step_through_battle(state: &mut GameState) {
         }
     }
 
-    if let Some(_winning_team) = has_some_team_won(&state.units) {
+    if let Some(_winning_team) = has_some_team_won(units) {
         //clear all attacks if there's a winner so we don't kill someone after the simulation ended.
-        state.attacks.clear();
+        attacks.clear();
     } else {
         //go through attacks and update, then draw
-        state.attacks.retain_mut(|attack| {
+        attacks.retain_mut(|attack| {
             let should_keep = !attack.update(&units_clone);
             //attack.draw();
 
             if !should_keep {
                 //deal the actual damage here
                 if attack.splash_area == 0. {
-                    if let Some(unit_index) = state
-                        .units
-                        .iter()
-                        .position(|u| u.id == attack.target_unit_id)
+                    if let Some(unit_index) =
+                        units.iter().position(|u| u.id == attack.target_unit_id)
                     {
-                        let unit = &mut state.units[unit_index];
-                        unit.take_attack(&attack, &mut state.rng);
+                        let unit = &mut units[unit_index];
+                        unit.take_attack(&attack, rng);
                         if unit.health <= 0. {
                             if unit.data.has_attribute(&Attribute::ExplodeOnDeath) {
                                 let mut explosion_offset = (-24., -24.);
@@ -799,22 +926,22 @@ fn step_through_battle(state: &mut GameState) {
                                 );
                                 let mut explosion = AnimatedSprite::new(explosion_pos, false);
                                 explosion.set_anim("explosion".to_string(), 32, 14, 5, false);
-                                state.explosions.push(explosion);
+                                explosions.push(explosion);
                             }
                         }
                     }
                 }
                 //if it has splash area, then look for all enemy units within range
                 if attack.splash_area > 0. {
-                    let team = find_unit_by_id(&state.units, Some(attack.target_unit_id))
+                    let team = find_unit_by_id(units, Some(attack.target_unit_id))
                         .unwrap()
                         .team;
-                    for unit in &mut state.units {
+                    for unit in &mut *units {
                         if distance_between(attack.pos, unit.pos) <= attack.splash_area
                             && unit.state != UnitState::Dead
                             && unit.team == team
                         {
-                            unit.take_attack(&attack, &mut state.rng);
+                            unit.take_attack(&attack, rng);
                             if unit.health <= 0.0 {
                                 if unit.data.has_attribute(&Attribute::ExplodeOnDeath) {
                                     let mut explosion_offset = (-24., -24.);
@@ -827,7 +954,7 @@ fn step_through_battle(state: &mut GameState) {
                                     );
                                     let mut explosion = AnimatedSprite::new(explosion_pos, false);
                                     explosion.set_anim("explosion".to_string(), 32, 14, 5, false);
-                                    state.explosions.push(explosion);
+                                    explosions.push(explosion);
                                 }
                             }
                         }
@@ -842,14 +969,14 @@ fn step_through_battle(state: &mut GameState) {
                     );
                     let mut explosion = AnimatedSprite::new(explosion_pos, false);
                     explosion.set_anim("explosion".to_string(), 32, 14, 5, false);
-                    state.explosions.push(explosion);
+                    explosions.push(explosion);
                     //make a crater
                     let crater_pos = (explosion_pos.0 + 16., explosion_pos.1 + 16.);
                     let mut crater = AnimatedSprite::new(crater_pos, false);
 
                     crater.set_anim("crater_01".to_string(), 16, 1, 1, true);
                     crater.animator.change_tint_color(0xFFFFFF80);
-                    state.craters.push(crater);
+                    craters.push(crater);
                 }
             }
 
@@ -857,7 +984,7 @@ fn step_through_battle(state: &mut GameState) {
         });
     }
     //go through traps, update and draw
-    for trap in &mut state.traps {
+    for trap in traps {
         trap.update();
         trap.draw();
     }
@@ -1121,7 +1248,12 @@ pub fn shuffle<T>(rng: &mut RNG, array: &mut [T]) {
 }
 
 fn start_match(state: &mut GameState) {
-    create_units_for_all_teams(state);
+    state.units = create_units_for_all_teams(
+        &mut state.teams,
+        &mut state.rng,
+        state.data_store.as_ref().unwrap(),
+    );
+
     state.phase = Phase::PreBattle;
     set_cam!(x = 192, y = 108);
 }
@@ -1771,21 +1903,23 @@ impl Button {
 }
 
 //POWER LEVEL AND TEAM CREATION
-fn create_units_for_all_teams(state: &mut GameState) {
+fn create_units_for_all_teams(
+    teams: &mut Vec<Team>,
+    rng: &mut RNG,
+    data_store: &UnitDataStore,
+) -> Vec<Unit> {
     //generate units
+    let mut units = Vec::new();
     let row_height = 16.0;
     let row_width = 20.0;
     let max_y = 200.0;
-    let data_store = state
-        .data_store
-        .as_ref()
-        .expect("Data store should be loaded");
+    let mut id = 1;
     //shuffle the units in each team
-    for team in &mut state.teams {
-        shuffle(&mut state.rng, &mut team.units);
+    for team in teams.iter_mut() {
+        shuffle(rng, &mut team.units);
     }
 
-    for (team_index, team) in state.teams.iter().enumerate() {
+    for (team_index, team) in teams.iter().enumerate() {
         let mut x_start = if team_index == 0 { 70.0 } else { 270.0 }; // Adjusted starting x for team 1
         let mut y_pos = 60.0;
 
@@ -1800,20 +1934,15 @@ fn create_units_for_all_teams(state: &mut GameState) {
                 }
             }
             let pos = (x_start, y_pos);
-            let mut unit = Unit::new(
-                unit_type.clone(),
-                pos,
-                team_index as i32,
-                &data_store,
-                state.next_id,
-            );
-            unit.set_starting_strategy(&mut state.rng);
-            state.units.push(unit);
-            state.next_id += 1;
+            let mut unit = Unit::new(unit_type.clone(), pos, team_index as i32, &data_store, id);
+            unit.set_starting_strategy(rng);
+            units.push(unit);
+            id += 1;
             //let unit = Unit::new(UnitType::Axeman, (0.0, 0.0), 0, &unit_type_store);
             y_pos += row_height;
         }
     }
+    units
 }
 
 fn generate_team(
