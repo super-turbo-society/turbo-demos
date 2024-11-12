@@ -227,8 +227,15 @@ turbo::go!({
                         u.draw_unit_details();
                     }
                 }
+                let userid = os::client::user_id();
 
-                draw_points_prebattle_screen(state.user.points);
+                let file_path = format!("users/{}/stats", userid.unwrap());
+                let stats = os::client::watch_file("pixel_wars", &file_path)
+                    .data
+                    .and_then(|file| UserStats::try_from_slice(&file.contents).ok())
+                    .unwrap_or(UserStats { points: 100 });
+
+                draw_points_prebattle_screen(stats.points);
             }
             if !state.auto_assign_teams {
                 draw_team_info_and_buttons(&mut state);
@@ -367,7 +374,14 @@ turbo::go!({
 
                 // Draw end game visuals
                 draw_end_animation(is_win);
-                draw_points_end_screen(state.user.points, calculate_points_change(is_win));
+                let userid = os::client::user_id();
+
+                let file_path = format!("users/{}/stats", userid.unwrap());
+                let stats = os::client::watch_file("pixel_wars", &file_path)
+                    .data
+                    .and_then(|file| UserStats::try_from_slice(&file.contents).ok())
+                    .unwrap_or(UserStats { points: 100 });
+                draw_points_end_screen(stats.points, calculate_points_change(is_win));
 
                 // Draw and handle restart button
                 let restart_button = Button::new(
