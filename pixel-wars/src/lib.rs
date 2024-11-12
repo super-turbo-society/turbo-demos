@@ -458,8 +458,7 @@ turbo::go!({
             GameEvent::ChooseTeam(team_num) => {
                 state.selected_team_index = team_num;
                 //TODO: Do something with turbo OS here
-                // create_units_for_all_teams(&mut state);
-                // state.phase = Phase::Battle;
+                os::client::exec("pixel_wars", "choose_team", &team_num.to_le_bytes());
             }
             GameEvent::RestartGame() => {
                 let t = state.last_winning_team;
@@ -539,6 +538,40 @@ fn draw_end_animation(is_win: bool) {
     }
 }
 
+#[export_name = "turbo/choose_team"]
+unsafe extern "C" fn choose_team_os() -> usize {
+    //write to a file that you chose that team
+    let userid = os::server::get_user_id();
+    let team_num = os::server::command!(i32);
+    let file_path = format!("users/{}/choice", userid);
+    let Ok(_) = os::server::write_file(&file_path, &team_num.to_le_bytes()) else {
+        return os::server::CANCEL;
+    };
+    os::server::log!("Choice: {}", team_num);
+    return os::server::COMMIT;
+}
+
+#[export_name = "turbo/commit_points"]
+unsafe extern "C" fn commit_points() -> usize {
+    //check if/what the user picked
+    let is_win = os::server::command!(bool);
+    let userid = os::server::get_user_id();
+    let file_path = format!("users/{}/stats", userid);
+    //read from the file
+    let mut stats = os::server::read_or!(UserStats, &file_path, UserStats { points: 100 });
+    //check if it matches the winning team
+    if is_win {
+        stats.points += 10;
+    } else {
+        stats.points -= 10;
+    }
+    let Ok(_) = os::server::write!(&file_path, stats) else {
+        return os::server::CANCEL;
+    };
+    os::server::log!("Points: {}", stats.points);
+    return os::server::COMMIT;
+}
+
 #[export_name = "turbo/generate_team_seed"]
 unsafe extern "C" fn generate_teams_os() -> usize {
     let seed: u32 = os::server::random_number();
@@ -597,51 +630,51 @@ unsafe extern "C" fn simulate_battle_with_team_seed() -> usize {
     os::server::COMMIT
 }
 
-#[export_name = "turbo/simulate_battle_os"]
-unsafe extern "C" fn simulate_battle_os() -> usize {
-    let seed: u32 = os::server::random_number();
-    let mut rng = RNG::new(seed);
+// #[export_name = "turbo/simulate_battle_os"]
+// unsafe extern "C" fn simulate_battle_os() -> usize {
+//     let seed: u32 = os::server::random_number();
+//     let mut rng = RNG::new(seed);
 
-    let Ok(data_store) = UnitDataStore::load_from_csv(UNIT_DATA_CSV) else {
-        return os::server::CANCEL;
-    };
-    let team_1 = generate_team(&data_store, &mut rng, None, "Pixel Peeps".to_string());
-    let team_2 = generate_team(
-        &data_store,
-        &mut rng,
-        Some(&team_1),
-        "Battle Bois".to_string(),
-    );
-    let mut teams = vec![team_1, team_2];
-    let mut units = create_units_for_all_teams(&mut teams, &mut rng, &data_store);
-    let mut attacks = Vec::new();
-    let mut traps = Vec::new();
-    let mut craters = Vec::new();
-    let mut explosions = Vec::new();
-    let mut i = 0;
-    let winning_team_index = loop {
-        step_through_battle(
-            &mut units,
-            &mut attacks,
-            &mut traps,
-            &mut explosions,
-            &mut craters,
-            &mut rng,
-        );
-        i += 1;
-        if let Some(winner_idx) = has_some_team_won(&units) {
-            break winner_idx;
-        }
-    };
+//     let Ok(data_store) = UnitDataStore::load_from_csv(UNIT_DATA_CSV) else {
+//         return os::server::CANCEL;
+//     };
+//     let team_1 = generate_team(&data_store, &mut rng, None, "Pixel Peeps".to_string());
+//     let team_2 = generate_team(
+//         &data_store,
+//         &mut rng,
+//         Some(&team_1),
+//         "Battle Bois".to_string(),
+//     );
+//     let mut teams = vec![team_1, team_2];
+//     let mut units = create_units_for_all_teams(&mut teams, &mut rng, &data_store);
+//     let mut attacks = Vec::new();
+//     let mut traps = Vec::new();
+//     let mut craters = Vec::new();
+//     let mut explosions = Vec::new();
+//     let mut i = 0;
+//     let winning_team_index = loop {
+//         step_through_battle(
+//             &mut units,
+//             &mut attacks,
+//             &mut traps,
+//             &mut explosions,
+//             &mut craters,
+//             &mut rng,
+//         );
+//         i += 1;
+//         if let Some(winner_idx) = has_some_team_won(&units) {
+//             break winner_idx;
+//         }
+//     };
 
-    os::server::log!("Seed: {}", seed);
-    os::server::log!("Winning Team: {:?}", winning_team_index);
-    os::server::log!("Frames: {}", i);
+//     os::server::log!("Seed: {}", seed);
+//     os::server::log!("Winning Team: {:?}", winning_team_index);
+//     os::server::log!("Frames: {}", i);
 
-    os::server::alert!("Winning Team: {:?}", winning_team_index);
+//     os::server::alert!("Winning Team: {:?}", winning_team_index);
 
-    os::server::COMMIT
-}
+//     os::server::COMMIT
+// }
 
 fn simulate_battle(state: &mut GameState) {
     // Store initial state
@@ -681,7 +714,7 @@ fn simulate_battle(state: &mut GameState) {
     // Handle points
     let is_won = winning_team_index == state.selected_team_index;
     let points_change = calculate_points_change(is_won);
-    commit_points_change(&mut state.user, points_change);
+    commit_points_change(&mut state.user, is_won);
     let updated_user = state.user.clone();
 
     // Reset state
@@ -1086,9 +1119,9 @@ fn calculate_points_change(is_won: bool) -> i32 {
     -10
 }
 
-fn commit_points_change(user: &mut UserStats, points_change: i32) {
-    user.points += points_change;
-    //can do some turbo OS stuff here
+fn commit_points_change(user: &mut UserStats, is_win: bool) {
+    //user.points += points_change;
+    os::client::exec("pixel_wars", "commit_points", &[is_win as u8]);
 }
 
 fn draw_points_prebattle_screen(points: i32) {
