@@ -72,17 +72,20 @@ turbo::init! {
         explosions: Vec<AnimatedSprite>,
         craters: Vec<AnimatedSprite>,
         game_over_anim: AnimatedSprite,
-        selected_team_index: i32,
+        selected_team_index: Option<i32>,
         simulation_result: Option<SimulationResult>,
         //test variables
         auto_assign_teams: bool,
         user: UserStats,
         last_winning_team: Option<Team>,
         team_selection_timer: u32,
+        team_generation_requested: bool,
+        previous_battle: Option<Battle>,
         battle_countdown_timer: u32,
+        battle_simulation_requested: bool,
     } = {
         Self {
-            phase: Phase::SelectionScreen,
+            phase: Phase::TeamSetUp,
             units: Vec::new(),
             //this starts at 1 so if any unit has 0 id it is unassigned or a bug.
             next_id: 1,
@@ -98,12 +101,15 @@ turbo::init! {
             rng: RNG::new(12345),
             data_store: None,
             auto_assign_teams: true,
-            selected_team_index: 0,
+            selected_team_index: None,
             simulation_result: None,
             user: UserStats{points: 100},
             last_winning_team: None,
             team_selection_timer: TEAM_SELECTION_TIME,//TODO: This should come from TURBO OS
+            team_generation_requested: false,
+            previous_battle: None,
             battle_countdown_timer: BATTLE_COUNTDOWN_TIME,
+            battle_simulation_requested: false,
         }
     }
 }
@@ -113,14 +119,21 @@ turbo::go!({
     clear!(0x8f8cacff);
     let gp = gamepad(0);
     if gp.select.just_pressed() {
-        os::client::exec("pixel_wars", "simulate_battle_with_team_seed", &[]);
+        os::client::exec("pixel_wars", "simulate_battle", &[]);
     }
     if gp.a.just_pressed() {
         os::client::exec("pixel_wars", "generate_team_seed", &[]);
     }
     match state.phase {
-        Phase::SelectionScreen => {
-            //initialize the data store if it is blank
+        //TODO:
+        //Add a new phase called setup
+        //ask the server to generate teams
+        //no draw code in setup
+        //then once the new teams aren't the same as the old teams, make the unit previews
+        //and go to selection screen
+        //then look into how to change game modes, i think it should be fairly easy from there.
+        Phase::TeamSetUp => {
+            //get the data store
             if state.data_store.is_none() {
                 match UnitDataStore::load_from_csv(UNIT_DATA_CSV) {
                     Ok(loaded_store) => {
@@ -131,88 +144,90 @@ turbo::go!({
                         state.data_store = Some(UnitDataStore::new());
                     }
                 }
-                //set the seed for the rng as a random number. TODO: get this from turbo os
-                state.rng = RNG::new(rand());
+                state.previous_battle = os::client::watch_file("pixel_wars", "current_battle")
+                    .data
+                    .and_then(|file| Battle::try_from_slice(&file.contents).ok());
             }
-            //if teams are not assigned, check if we should auto assign or not
-            if state.teams.len() == 0 {
-                if state.auto_assign_teams {
-                    let data_store = state
-                        .data_store
-                        .as_ref()
-                        .expect("Data store should be loaded");
-
-                    let (team1, team2) = if let Some(winning_team) = &state.last_winning_team {
-                        // Generate random index for team name
-                        let mut challenger_name_index =
-                            state.rng.next_in_range(0, (TEAM_NAMES.len() - 1) as u32) as usize;
-
-                        // If we randomly picked the same name as the winning team, pick the next name in the list
-                        if TEAM_NAMES[challenger_name_index] == winning_team.name {
-                            challenger_name_index = (challenger_name_index + 1) % TEAM_NAMES.len();
-                        }
-
-                        // Use winning team and generate a matching opponent
-                        (
-                            winning_team.clone(),
-                            generate_team(
-                                &data_store,
-                                &mut state.rng,
-                                Some(winning_team),
-                                TEAM_NAMES[challenger_name_index].to_string(),
-                            ),
-                        )
-                    } else {
-                        //Generate two fresh teams
-                        let team1 = generate_team(
-                            &data_store,
-                            &mut state.rng,
-                            None,
-                            "Pixel Peeps".to_string(),
-                        );
-
-                        let team2 = generate_team(
-                            &data_store,
-                            &mut state.rng,
-                            Some(&team1),
-                            "Battle Bois".to_string(),
-                        );
-
-                        (team1, team2)
-                    };
-                    state
-                        .unit_previews
-                        .extend(create_unit_previews(&team1, false, data_store));
-                    state
-                        .unit_previews
-                        .extend(create_unit_previews(&team2, true, data_store));
-                    state.teams = Vec::new();
-                    state.teams.push(team1);
-                    state.teams.push(team2);
-                } else {
-                    //make two blank teams
-                    let data_store = state
-                        .data_store
-                        .as_ref()
-                        .expect("Data store should be loaded");
-
-                    state
-                        .teams
-                        .push(Team::new("Battle Bois".to_string(), data_store.clone()));
-                    state
-                        .teams
-                        .push(Team::new("Pixel Peeps".to_string(), data_store.clone()));
+            if state.auto_assign_teams {
+                //generate teams one time
+                if !state.team_generation_requested {
+                    os::client::exec("pixel_wars", "generate_teams", &[]);
+                    state.team_generation_requested = true;
                 }
+                //now wait until we have new teams, and if we do, create the unit previews
+                let data_store = state
+                    .data_store
+                    .as_ref()
+                    .expect("Data store should be loaded");
+                let battle = match os::client::watch_file("pixel_wars", "current_battle")
+                    .data
+                    .and_then(|file| Battle::try_from_slice(&file.contents).ok())
+                {
+                    Some(battle) => battle,
+                    None => {
+                        //TODO: Figure out what to do
+                        //if you can't find a battle for some reason
+                        //should not happen though
+                        return;
+                    }
+                };
+                let battle_clone = battle.clone();
+                if Some(battle) != state.previous_battle {
+                    let team_0 = battle_clone.team_0;
+                    let team_1 = battle_clone.team_1;
+                    state
+                        .unit_previews
+                        .extend(create_unit_previews(&team_0, false, data_store));
+                    state
+                        .unit_previews
+                        .extend(create_unit_previews(&team_1, true, data_store));
+                    state.teams = Vec::new();
+                    state.teams.push(team_0);
+                    state.teams.push(team_1);
+                    state.phase = Phase::SelectionScreen;
+                }
+            } else {
+                //make two blank teams
+                let data_store = state
+                    .data_store
+                    .as_ref()
+                    .expect("Data store should be loaded");
+
+                state
+                    .teams
+                    .push(Team::new("Battle Bois".to_string(), data_store.clone()));
+                state
+                    .teams
+                    .push(Team::new("Pixel Peeps".to_string(), data_store.clone()));
+                state.phase = Phase::SelectionScreen;
             }
+        }
+
+        Phase::SelectionScreen => {
+            //initialize the data store if it is blank
+
+            //set the seed for the rng as a random number. TODO: get this from turbo os
+
+            //TODO: get teams from turbo OS if you are in OS mode
+
             if state.auto_assign_teams {
                 if state.team_selection_timer > 0 {
                     state.team_selection_timer -= 1;
                 } else {
-                    start_match(&mut state);
+                    state.phase = Phase::PreBattle;
                 }
                 draw_team_selection_timer(state.team_selection_timer);
                 //draw each unit based on the teams
                 draw_assigned_team_info(&mut state);
+                //get team choice counter from server
+                let choices = os::client::watch_file("pixel_wars", "global_choice_counter")
+                    .data
+                    .and_then(|file| TeamChoiceCounter::try_from_slice(&file.contents).ok())
+                    .unwrap_or(TeamChoiceCounter {
+                        team_0: 0,
+                        team_1: 0,
+                    });
+                draw_team_choice_numbers(choices);
                 for u in &mut state.unit_previews {
                     u.update();
                     u.draw();
@@ -242,7 +257,7 @@ turbo::go!({
             }
             let gp = gamepad(0);
             if gp.start.just_pressed() {
-                start_match(&mut state);
+                state.phase = Phase::PreBattle;
             }
 
             //move camera if you press up and down
@@ -261,10 +276,31 @@ turbo::go!({
             }
         }
         Phase::PreBattle => {
-            if state.simulation_result.is_none() {
-                simulate_battle(&mut state);
+            //TODO: Write simulation result to a different file and
+            //compare to make sure it is working
+            if !state.battle_simulation_requested {
+                //TODO: This will move to some other system once the cron is working
+                os::client::exec("pixel_wars", "simulate_battle", &[]);
+                state.battle_simulation_requested = true;
             } else {
-                state.phase = Phase::Battle;
+                if let Some(battle) = os::client::watch_file("pixel_wars", "current_battle")
+                    .data
+                    .and_then(|file| Battle::try_from_slice(&file.contents).ok())
+                {
+                    if battle.battle_seed.is_some() {
+                        state.rng = RNG::new(battle.battle_seed.unwrap());
+                        state.units = create_units_for_all_teams(
+                            &mut state.teams,
+                            &mut state.rng,
+                            state.data_store.as_ref().unwrap(),
+                        );
+                        set_cam!(x = 192, y = 108);
+                        state.phase = Phase::Battle;
+                        state.battle_simulation_requested = false; // Reset for next time
+                    } else {
+                        log!("WAITING FOR SIM RESULT");
+                    }
+                }
             }
         }
         Phase::Battle => {
@@ -369,8 +405,11 @@ turbo::go!({
                 }
             }
             // Draw end game state
+            //TODO: we need to update this so it handles the case where you didn't pick
             if let Some(winner_idx) = has_some_team_won(&state.units) {
-                let is_win = winner_idx as usize == state.selected_team_index as usize;
+                let is_win = state
+                    .selected_team_index
+                    .map_or(false, |selected| winner_idx as usize == selected as usize);
 
                 // Draw end game visuals
                 draw_end_animation(is_win);
@@ -402,17 +441,34 @@ turbo::go!({
 
                 // Check if simulation matches
                 let living_units = all_living_units(&state.units);
-                if let Some(sim_result) = &state.simulation_result {
-                    if living_units.len() != sim_result.living_units.len() {
-                        text!(
-                            "SIMULATION DOES NOT MATCH",
-                            x = 50,
-                            y = 50,
-                            color = DAMAGE_TINT_RED
-                        );
+                // "current_result"
+                //watch current result file
+                let sim_result = match os::client::watch_file("pixel_wars", "current_result")
+                    .data
+                    .and_then(|file| SimulationResult::try_from_slice(&file.contents).ok())
+                {
+                    Some(sim_result) => sim_result,
+                    None => {
+                        //TODO: Figure out what to do
+                        //if you can't find a battle for some reason
+                        //should not happen though
+                        return;
                     }
+                };
+                //and check to make sure it matches our result
+
+                if living_units.len() != sim_result.living_units.len() {
+                    text!(
+                        "SIMULATION DOES NOT MATCH",
+                        x = 50,
+                        y = 50,
+                        color = DAMAGE_TINT_RED
+                    );
+                    // turbo::println!("{}", living_units.len());
+                    // turbo::println!("{}", sim_result.living_units.len());
                 }
             }
+
             //Draw team health bars
             let mut team0_base_health = 0.0;
             let mut team0_current_health = 0.0;
@@ -429,7 +485,7 @@ turbo::go!({
                 }
             }
             let mut is_chosen_team = false;
-            if state.selected_team_index == 0 {
+            if state.selected_team_index == Some(0) {
                 is_chosen_team = true;
             }
             let (team_0_pos, team_1_pos) = ((24.0, 20.0), (232.0, 20.0));
@@ -443,7 +499,7 @@ turbo::go!({
                 is_chosen_team,
             );
             is_chosen_team = false;
-            if state.selected_team_index == 1 {
+            if state.selected_team_index == Some(1) {
                 is_chosen_team = true;
             }
             // Draw health bar for team 1
@@ -470,17 +526,49 @@ turbo::go!({
                 state.teams[team_index].remove_unit(unit_type);
             }
             GameEvent::ChooseTeam(team_num) => {
-                state.selected_team_index = team_num;
+                let mut team_choice_counter = TeamChoiceCounter {
+                    team_0: 0,
+                    team_1: 0,
+                };
+                if state.selected_team_index.is_some() {
+                    if state.selected_team_index == Some(0) && team_num == 1 {
+                        team_choice_counter.team_0 = -1;
+                        team_choice_counter.team_1 = 1;
+                    } else if state.selected_team_index == Some(1) && team_num == 0 {
+                        team_choice_counter.team_0 = 1;
+                        team_choice_counter.team_1 = -1;
+                    }
+                } else {
+                    if team_num == 0 {
+                        team_choice_counter.team_0 = 1;
+                        team_choice_counter.team_1 = 0;
+                    } else if team_num == 1 {
+                        team_choice_counter.team_0 = 0;
+                        team_choice_counter.team_1 = 1;
+                    }
+                }
+                state.selected_team_index = Some(team_num);
+                let bytes = borsh::to_vec(&team_choice_counter).unwrap();
                 //TODO: Do something with turbo OS here
-                os::client::exec("pixel_wars", "choose_team", &team_num.to_le_bytes());
+                os::client::exec("pixel_wars", "choose_team", &bytes);
             }
             GameEvent::RestartGame() => {
                 let t = state.last_winning_team;
                 let u = state.user;
+                let battle = match os::client::watch_file("pixel_wars", "current_battle")
+                    .data
+                    .and_then(|file| Battle::try_from_slice(&file.contents).ok())
+                {
+                    Some(battle) => battle,
+                    None => {
+                        return;
+                    }
+                };
                 state = GameState::default();
                 //retain these values between rounds
                 state.last_winning_team = t;
                 state.user = u;
+                state.previous_battle = Some(battle);
             }
         }
     }
@@ -555,13 +643,24 @@ fn draw_end_animation(is_win: bool) {
 #[export_name = "turbo/choose_team"]
 unsafe extern "C" fn choose_team_os() -> usize {
     //write to a file that you chose that team
-    let userid = os::server::get_user_id();
-    let team_num = os::server::command!(i32);
-    let file_path = format!("users/{}/choice", userid);
-    let Ok(_) = os::server::write_file(&file_path, &team_num.to_le_bytes()) else {
+    let choice_data = os::server::command!(TeamChoiceCounter);
+    let file_path = format!("global_choice_counter");
+    let mut all_choices = os::server::read_or!(
+        TeamChoiceCounter,
+        &file_path,
+        TeamChoiceCounter {
+            team_0: 0,
+            team_1: 0
+        }
+    );
+    all_choices.team_0 += choice_data.team_0;
+    all_choices.team_1 += choice_data.team_1;
+    let data = borsh::to_vec(&all_choices).unwrap();
+
+    let Ok(_) = os::server::write_file(&file_path, &data) else {
         return os::server::CANCEL;
     };
-    os::server::log!("Choice: {}", team_num);
+    os::server::log!("Choice: {:?}", all_choices);
     return os::server::COMMIT;
 }
 
@@ -586,33 +685,55 @@ unsafe extern "C" fn commit_points() -> usize {
     return os::server::COMMIT;
 }
 
-#[export_name = "turbo/generate_team_seed"]
+#[export_name = "turbo/generate_teams"]
 unsafe extern "C" fn generate_teams_os() -> usize {
     let seed: u32 = os::server::random_number();
-    let Ok(_) = os::server::write_file("team_seed", &seed.to_le_bytes()) else {
-        return os::server::CANCEL;
-    };
-    os::server::log!("SEED: {}", seed);
-    return os::server::COMMIT;
-}
-
-#[export_name = "turbo/simulate_battle_with_team_seed"]
-unsafe extern "C" fn simulate_battle_with_team_seed() -> usize {
-    let seed: u32 = os::server::random_number();
-    let mut simulation_rng = RNG::new(seed);
-    let team_seed = os::server::read!(u32, "team_seed");
-    let mut team_rng = RNG::new(team_seed);
+    let mut team_rng = RNG::new(seed);
     let Ok(data_store) = UnitDataStore::load_from_csv(UNIT_DATA_CSV) else {
         return os::server::CANCEL;
     };
-    let team_1 = generate_team(&data_store, &mut team_rng, None, "Pixel Peeps".to_string());
-    let team_2 = generate_team(
+    let team_0 = generate_team(&data_store, &mut team_rng, None, "Pixel Peeps".to_string());
+    let team_1 = generate_team(
         &data_store,
         &mut team_rng,
-        Some(&team_1),
+        Some(&team_0),
         "Battle Bois".to_string(),
     );
-    let mut teams = vec![team_1, team_2];
+    let battle = Battle {
+        team_0,
+        team_1,
+        team_seed: seed,
+        battle_seed: None,
+    };
+    let bytes = battle.try_to_vec().unwrap();
+    let Ok(_) = os::server::write_file("current_battle", &bytes) else {
+        return os::server::CANCEL;
+    };
+    let t = battle.team_0;
+    let num = t.units.len();
+    os::server::log!("SEED: {}", seed);
+    os::server::log!("Team_0: {:?}", num);
+    return os::server::COMMIT;
+}
+
+#[export_name = "turbo/simulate_battle"]
+unsafe extern "C" fn simulate_battle_os() -> usize {
+    let seed: u32 = os::server::random_number();
+    let mut simulation_rng = RNG::new(seed);
+    let Ok(data_store) = UnitDataStore::load_from_csv(UNIT_DATA_CSV) else {
+        return os::server::CANCEL;
+    };
+    //add the battle seed to the current battle
+    let mut battle = os::server::read!(Battle, "current_battle");
+    battle.battle_seed = Some(seed);
+    let bytes = battle.try_to_vec().unwrap();
+    let Ok(_) = os::server::write_file("current_battle", &bytes) else {
+        return os::server::CANCEL;
+    };
+
+    let team_0 = battle.team_0;
+    let team_1 = battle.team_1;
+    let mut teams = vec![team_0, team_1];
     let mut units = create_units_for_all_teams(&mut teams, &mut simulation_rng, &data_store);
     let mut attacks = Vec::new();
     let mut traps = Vec::new();
@@ -633,12 +754,15 @@ unsafe extern "C" fn simulate_battle_with_team_seed() -> usize {
             break winner_idx;
         }
     };
-
+    //write a simulation result to a file
+    let living_units = all_living_units(&units);
+    let sim_result = SimulationResult { seed, living_units };
+    let bytes = sim_result.try_to_vec().unwrap();
+    let Ok(_) = os::server::write_file("current_result", &bytes) else {
+        return os::server::CANCEL;
+    };
     os::server::log!("Battle Seed: {}", seed);
-    os::server::log!("Team Seed: {}", team_seed);
-    os::server::log!("Winning Team: {:?}", winning_team_index);
     os::server::log!("Frames: {}", i);
-
     os::server::alert!("Winning Team: {:?}", winning_team_index);
 
     os::server::COMMIT
@@ -726,15 +850,16 @@ fn simulate_battle(state: &mut GameState) {
     };
 
     // Handle points
-    let is_won = winning_team_index == state.selected_team_index;
-    let points_change = calculate_points_change(is_won);
-    commit_points_change(&mut state.user, is_won);
-    let updated_user = state.user.clone();
-
+    if state.selected_team_index.is_some() {
+        let is_won = state.selected_team_index == Some(winning_team_index);
+        //let points_change = calculate_points_change(is_won);
+        commit_points_change(&mut state.user, is_won);
+    }
+    //let updated_user = state.user.clone();
     // Reset state
     *state = initial_state;
     state.simulation_result = Some(simulation_result);
-    state.user = updated_user;
+    //state.user = updated_user;
 
     state.last_winning_team = Some(state.teams[winning_team_index as usize].clone());
 
@@ -1162,6 +1287,7 @@ fn draw_points_end_screen(points: i32, points_change: i32) {
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 enum Phase {
+    TeamSetUp, //get the teams from the server
     SelectionScreen,
     PreBattle,
     Battle,
@@ -1294,16 +1420,16 @@ pub fn shuffle<T>(rng: &mut RNG, array: &mut [T]) {
     }
 }
 
-fn start_match(state: &mut GameState) {
-    state.units = create_units_for_all_teams(
-        &mut state.teams,
-        &mut state.rng,
-        state.data_store.as_ref().unwrap(),
-    );
+// fn start_match(state: &mut GameState) {
+//     state.units = create_units_for_all_teams(
+//         &mut state.teams,
+//         &mut state.rng,
+//         state.data_store.as_ref().unwrap(),
+//     );
 
-    state.phase = Phase::PreBattle;
-    set_cam!(x = 192, y = 108);
-}
+//     state.phase = Phase::PreBattle;
+//     set_cam!(x = 192, y = 108);
+// }
 
 fn closest_enemy_unit(units: &Vec<Unit>, team: i32, pos: (f32, f32)) -> Option<&Unit> {
     units
@@ -1424,9 +1550,9 @@ fn format_time(ticks: u32) -> String {
     let total_seconds = ticks / 60; // Convert ticks to seconds
     let minutes = total_seconds / 60;
     let remaining_seconds = total_seconds % 60;
-
     format!("{}:{:02}", minutes, remaining_seconds)
 }
+
 fn draw_assigned_team_info(state: &mut GameState) {
     let pos_0 = 20;
     let pos_1 = 200;
@@ -1476,18 +1602,20 @@ fn draw_assigned_team_info(state: &mut GameState) {
         team_button.draw();
         team_button.handle_click(state);
         //check if it is the selected team, and if it is put a border around it
-        if *team_index == state.selected_team_index as usize {
-            //draw highlight around button
-            rect!(
-                x = *pos,
-                y = y_pos + 20,
-                w = button_width,
-                h = button_height,
-                border_radius = 3,
-                border_width = 1,
-                border_color = 0xe6e7f0ff,
-                color = 0x00000000,
-            );
+        if let Some(selected) = state.selected_team_index {
+            if *team_index == selected as usize {
+                //draw highlight around button
+                rect!(
+                    x = *pos,
+                    y = y_pos + 20,
+                    w = button_width,
+                    h = button_height,
+                    border_radius = 3,
+                    border_width = 1,
+                    border_color = 0xe6e7f0ff,
+                    color = 0x00000000,
+                );
+            }
         }
     }
     text!(
@@ -1497,6 +1625,16 @@ fn draw_assigned_team_info(state: &mut GameState) {
         font = Font::L,
         color = 0xADD8E6ff
     );
+}
+
+fn draw_team_choice_numbers(choices: TeamChoiceCounter) {
+    //print text for each choice at the correct position
+    let team_0_text = format!("Backed by {} players", choices.team_0);
+    let team_1_text = format!("Backed by {} players", choices.team_1);
+    let (x_0, x_1) = (20, 200);
+    let y = 134;
+    text!(&team_0_text, x = x_0, y = y);
+    text!(&team_1_text, x = x_1, y = y);
 }
 
 fn draw_team_info_and_buttons(state: &mut GameState) {
@@ -2325,6 +2463,14 @@ struct SimulationResult {
 }
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
+struct Battle {
+    team_0: Team,
+    team_1: Team,
+    team_seed: u32,
+    battle_seed: Option<u32>,
+}
+
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 struct UserStats {
     points: i32,
 }
@@ -2332,4 +2478,10 @@ struct UserStats {
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 struct MatchData {
     timer: u32,
+}
+
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
+struct TeamChoiceCounter {
+    pub team_0: i32,
+    pub team_1: i32,
 }
