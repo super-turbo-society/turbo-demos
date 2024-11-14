@@ -152,6 +152,7 @@ turbo::go!({
                 //generate teams one time
                 if !state.team_generation_requested {
                     os::client::exec("pixel_wars", "generate_teams", &[]);
+                    os::client::exec("pixel_wars", "reset_choice_data", &[]);
                     state.team_generation_requested = true;
                 }
                 //now wait until we have new teams, and if we do, create the unit previews
@@ -211,11 +212,20 @@ turbo::go!({
             //TODO: get teams from turbo OS if you are in OS mode
 
             if state.auto_assign_teams {
+                //run the timer
                 if state.team_selection_timer > 0 {
                     state.team_selection_timer -= 1;
                 } else {
                     state.phase = Phase::PreBattle;
                 }
+                let userid = os::client::user_id();
+                let file_path = format!("users/{}/choice", userid.unwrap());
+                //TODO: This won't support not picking
+                let num: i32 = os::client::watch_file("pixel_wars", &file_path)
+                    .data
+                    .and_then(|file| i32::try_from_slice(&file.contents).ok())
+                    .unwrap_or(0);
+                state.selected_team_index = Some(num);
                 draw_team_selection_timer(state.team_selection_timer);
                 //draw each unit based on the teams
                 draw_assigned_team_info(&mut state);
@@ -228,20 +238,22 @@ turbo::go!({
                         team_1: 0,
                     });
                 draw_team_choice_numbers(choices);
+
                 for u in &mut state.unit_previews {
                     u.update();
                     u.draw();
                 }
-                //draw health bar on hover
-                //get mouse posisiton
+
+                //Draw healthbar when you hover the unit
                 let m = mouse(0);
                 let mpos = (m.position[0] as f32, m.position[1] as f32);
-                //for unit, if mouse position is in bounds, then draw health bar
+
                 for u in &mut state.unit_previews {
                     if u.is_point_in_bounds(mpos) {
                         u.draw_unit_details();
                     }
                 }
+
                 let userid = os::client::user_id();
 
                 let file_path = format!("users/{}/stats", userid.unwrap());
@@ -252,9 +264,11 @@ turbo::go!({
 
                 draw_points_prebattle_screen(stats.points);
             }
+
             if !state.auto_assign_teams {
                 draw_team_info_and_buttons(&mut state);
             }
+            //input
             let gp = gamepad(0);
             if gp.start.just_pressed() {
                 state.phase = Phase::PreBattle;
@@ -547,7 +561,7 @@ turbo::go!({
                         team_choice_counter.team_1 = 1;
                     }
                 }
-                state.selected_team_index = Some(team_num);
+
                 let bytes = borsh::to_vec(&team_choice_counter).unwrap();
                 //TODO: Do something with turbo OS here
                 os::client::exec("pixel_wars", "choose_team", &bytes);
@@ -640,10 +654,25 @@ fn draw_end_animation(is_win: bool) {
     }
 }
 
+#[export_name = "turbo/reset_choice_data"]
+unsafe extern "C" fn reset_choice_data_os() -> usize {
+    let file_path = format!("global_choice_counter");
+    let choices = TeamChoiceCounter {
+        team_0: 0,
+        team_1: 0,
+    };
+    let data = borsh::to_vec(&choices).unwrap();
+    let Ok(_) = os::server::write_file(&file_path, &data) else {
+        return os::server::CANCEL;
+    };
+    return os::server::COMMIT;
+}
+
 #[export_name = "turbo/choose_team"]
 unsafe extern "C" fn choose_team_os() -> usize {
     //write to a file that you chose that team
     let choice_data = os::server::command!(TeamChoiceCounter);
+    let userid = os::server::get_user_id();
     let file_path = format!("global_choice_counter");
     let mut all_choices = os::server::read_or!(
         TeamChoiceCounter,
@@ -656,7 +685,16 @@ unsafe extern "C" fn choose_team_os() -> usize {
     all_choices.team_0 += choice_data.team_0;
     all_choices.team_1 += choice_data.team_1;
     let data = borsh::to_vec(&all_choices).unwrap();
-
+    let Ok(_) = os::server::write_file(&file_path, &data) else {
+        return os::server::CANCEL;
+    };
+    //TODO: turn the file paths into constants
+    let file_path = format!("users/{}/choice", userid);
+    let mut num: i32 = 0;
+    if choice_data.team_1 == 1 {
+        num = 1;
+    }
+    let data = num.to_le_bytes();
     let Ok(_) = os::server::write_file(&file_path, &data) else {
         return os::server::CANCEL;
     };
