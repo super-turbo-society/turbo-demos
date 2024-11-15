@@ -206,12 +206,6 @@ turbo::go!({
         }
 
         Phase::SelectionScreen => {
-            //initialize the data store if it is blank
-
-            //set the seed for the rng as a random number. TODO: get this from turbo os
-
-            //TODO: get teams from turbo OS if you are in OS mode
-
             if state.auto_assign_teams {
                 //run the timer
                 if state.team_selection_timer > 0 {
@@ -220,9 +214,9 @@ turbo::go!({
                     state.phase = Phase::PreBattle;
                 }
                 let userid = os::client::user_id();
-                let file_path = format!("users/{}/choice", userid.unwrap());
+                let seed = get_seed_from_turbo_os();
+                let file_path = format!("users/{}/choice/{}", userid.unwrap(), seed);
                 //TODO: This won't support not picking
-                //TODO: after adding seed to end of file, change filepath to read from the seed.
                 //if there is no file, then set it as none.
                 let num: i32 = os::client::watch_file("pixel_wars", &file_path)
                     .data
@@ -838,6 +832,14 @@ unsafe extern "C" fn simulate_battle_os() -> usize {
     os::server::alert!("Winning Team: {:?}", winning_team_index);
 
     os::server::COMMIT
+}
+
+fn get_seed_from_turbo_os() -> u32 {
+    let battle = os::client::watch_file("pixel_wars", "current_battle")
+        .data
+        .and_then(|file| Battle::try_from_slice(&file.contents).ok());
+    let seed = battle.unwrap().team_seed;
+    seed
 }
 
 //Local simulation - not using anymore
