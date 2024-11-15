@@ -1,7 +1,9 @@
+mod backend;
 mod rng;
 mod trap;
 mod unit;
 
+use backend::*;
 use csv::{Reader, ReaderBuilder};
 use os::server;
 use rng::*;
@@ -125,13 +127,6 @@ turbo::go!({
         os::client::exec("pixel_wars", "generate_team_seed", &[]);
     }
     match state.phase {
-        //TODO:
-        //Add a new phase called setup
-        //ask the server to generate teams
-        //no draw code in setup
-        //then once the new teams aren't the same as the old teams, make the unit previews
-        //and go to selection screen
-        //then look into how to change game modes, i think it should be fairly easy from there.
         Phase::TeamSetUp => {
             //get the data store
             if state.data_store.is_none() {
@@ -216,13 +211,10 @@ turbo::go!({
                 let userid = os::client::user_id();
                 let seed = get_seed_from_turbo_os();
                 let file_path = format!("users/{}/choice/{}", userid.unwrap(), seed);
-                //TODO: This won't support not picking
-                //if there is no file, then set it as none.
-                let num: i32 = os::client::watch_file("pixel_wars", &file_path)
+                let num: Option<i32> = os::client::watch_file("pixel_wars", &file_path)
                     .data
-                    .and_then(|file| i32::try_from_slice(&file.contents).ok())
-                    .unwrap_or(0);
-                state.selected_team_index = Some(num);
+                    .and_then(|file| i32::try_from_slice(&file.contents).ok());
+                state.selected_team_index = num;
                 draw_team_selection_timer(state.team_selection_timer);
                 //draw each unit based on the teams
                 draw_assigned_team_info(&mut state);
@@ -287,8 +279,6 @@ turbo::go!({
             }
         }
         Phase::PreBattle => {
-            //TODO: Write simulation result to a different file and
-            //compare to make sure it is working
             if !state.battle_simulation_requested {
                 //TODO: This will move to some other system once the cron is working
                 os::client::exec("pixel_wars", "simulate_battle", &[]);
@@ -418,7 +408,6 @@ turbo::go!({
                 }
             }
             // Draw end game state
-            //TODO: we need to update this so it handles the case where you didn't pick
             if let Some(winner_idx) = has_some_team_won(&state.units) {
                 let sim_result = os::client::watch_file("pixel_wars", "current_result")
                     .data
@@ -431,9 +420,13 @@ turbo::go!({
                 let choice = os::client::watch_file("pixel_wars", &file_path)
                     .data
                     .and_then(|file| i32::try_from_slice(&file.contents).ok());
-                let mut is_win = false;
-                if choice == winning_team_index {
-                    is_win = true;
+                let mut is_win: Option<bool> = None;
+                if choice.is_some() {
+                    if choice == winning_team_index {
+                        is_win = Some(true);
+                    } else {
+                        is_win = Some(false);
+                    }
                 }
                 // Draw end game visuals
                 draw_end_animation(is_win);
@@ -573,7 +566,6 @@ turbo::go!({
                 }
 
                 let bytes = borsh::to_vec(&team_choice_counter).unwrap();
-                //TODO: Do something with turbo OS here
                 os::client::exec("pixel_wars", "choose_team", &bytes);
             }
             GameEvent::RestartGame() => {
@@ -613,233 +605,57 @@ turbo::go!({
     state.save();
 });
 
-fn draw_end_animation(is_win: bool) {
-    let center_x = canvas_size!()[0] / 2;
-    let center_y = canvas_size()[1] / 2 - 16;
-    if is_win {
-        sprite!(
-            "you_win_loop_01",
-            x = center_x - 48,
-            y = center_y,
-            sw = 32,
-            fps = fps::FAST
-        );
-        sprite!(
-            "you_win_loop_02",
-            x = center_x - 16,
-            y = center_y,
-            scale = 2.0,
-            sw = 32,
-            fps = fps::FAST
-        );
-        sprite!(
-            "you_win_loop_03",
-            x = center_x + 16,
-            y = center_y,
-            sw = 32,
-            fps = fps::FAST
-        );
-    } else {
-        sprite!(
-            "you_lose_loop_01",
-            x = center_x - 48,
-            y = center_y,
-            sw = 32,
-            fps = fps::FAST
-        );
-        sprite!(
-            "you_lose_loop_02",
-            x = center_x - 16,
-            y = center_y,
-            sw = 32,
-            fps = fps::FAST
-        );
-        sprite!(
-            "you_lose_loop_03",
-            x = center_x + 16,
-            y = center_y,
-            sw = 32,
-            fps = fps::FAST
-        );
-    }
-}
-
-#[export_name = "turbo/reset_choice_data"]
-unsafe extern "C" fn reset_choice_data_os() -> usize {
-    let file_path = format!("global_choice_counter");
-    let choices = TeamChoiceCounter {
-        team_0: 0,
-        team_1: 0,
-    };
-    let data = borsh::to_vec(&choices).unwrap();
-    let Ok(_) = os::server::write_file(&file_path, &data) else {
-        return os::server::CANCEL;
-    };
-    return os::server::COMMIT;
-}
-
-#[export_name = "turbo/choose_team"]
-unsafe extern "C" fn choose_team_os() -> usize {
-    //write to a file that you chose that team
-    let choice_data = os::server::command!(TeamChoiceCounter);
-    let userid = os::server::get_user_id();
-    let file_path = format!("global_choice_counter");
-    let mut all_choices = os::server::read_or!(
-        TeamChoiceCounter,
-        &file_path,
-        TeamChoiceCounter {
-            team_0: 0,
-            team_1: 0
+fn draw_end_animation(is_win: Option<bool>) {
+    if is_win.is_some() {
+        let center_x = canvas_size!()[0] / 2;
+        let center_y = canvas_size()[1] / 2 - 16;
+        if is_win.unwrap() {
+            sprite!(
+                "you_win_loop_01",
+                x = center_x - 48,
+                y = center_y,
+                sw = 32,
+                fps = fps::FAST
+            );
+            sprite!(
+                "you_win_loop_02",
+                x = center_x - 16,
+                y = center_y,
+                scale = 2.0,
+                sw = 32,
+                fps = fps::FAST
+            );
+            sprite!(
+                "you_win_loop_03",
+                x = center_x + 16,
+                y = center_y,
+                sw = 32,
+                fps = fps::FAST
+            );
+        } else {
+            sprite!(
+                "you_lose_loop_01",
+                x = center_x - 48,
+                y = center_y,
+                sw = 32,
+                fps = fps::FAST
+            );
+            sprite!(
+                "you_lose_loop_02",
+                x = center_x - 16,
+                y = center_y,
+                sw = 32,
+                fps = fps::FAST
+            );
+            sprite!(
+                "you_lose_loop_03",
+                x = center_x + 16,
+                y = center_y,
+                sw = 32,
+                fps = fps::FAST
+            );
         }
-    );
-    all_choices.team_0 += choice_data.team_0;
-    all_choices.team_1 += choice_data.team_1;
-    let data = borsh::to_vec(&all_choices).unwrap();
-    let Ok(_) = os::server::write_file(&file_path, &data) else {
-        return os::server::CANCEL;
-    };
-    //TODO: turn the file paths into constants
-    let battle = os::server::read!(Battle, "current_battle");
-    let seed = battle.team_seed;
-    let file_path = format!("users/{}/choice/{}", userid, seed);
-    let mut num: i32 = 0;
-    if choice_data.team_1 == 1 {
-        num = 1;
     }
-    let data = num.to_le_bytes();
-    let Ok(_) = os::server::write_file(&file_path, &data) else {
-        return os::server::CANCEL;
-    };
-    os::server::log!("Choice: {:?}", all_choices);
-    return os::server::COMMIT;
-}
-
-#[export_name = "turbo/commit_points"]
-unsafe extern "C" fn commit_points() -> usize {
-    //watch file to get sim result
-    let sim_result = os::server::read!(SimulationResult, "current_result");
-
-    let winning_team_index = sim_result.winning_team;
-    let seed = sim_result.seed;
-    //watch file to get the user choice
-    let userid = os::server::get_user_id();
-    let file_path = format!("users/{}/choice/{}", userid, seed);
-    let choice = os::server::read!(i32, &file_path);
-    let mut is_win = false;
-    //TODO: cancel out of here in some cases
-    if choice == winning_team_index.unwrap() {
-        is_win = true;
-    }
-    let file_path = format!("users/{}/stats", userid);
-    //read from the file
-    let mut stats = os::server::read_or!(UserStats, &file_path, UserStats { points: 100 });
-    //check if it matches the winning team
-    if is_win {
-        stats.points += 10;
-    } else {
-        stats.points -= 10;
-    }
-    let Ok(_) = os::server::write!(&file_path, stats) else {
-        return os::server::CANCEL;
-    };
-    os::server::log!("Points: {}", stats.points);
-    return os::server::COMMIT;
-}
-
-#[export_name = "turbo/generate_teams"]
-unsafe extern "C" fn generate_teams_os() -> usize {
-    let seed: u32 = os::server::random_number();
-    let mut team_rng = RNG::new(seed);
-    let Ok(data_store) = UnitDataStore::load_from_csv(UNIT_DATA_CSV) else {
-        return os::server::CANCEL;
-    };
-    let team_0 = generate_team(&data_store, &mut team_rng, None, "Pixel Peeps".to_string());
-    let team_1 = generate_team(
-        &data_store,
-        &mut team_rng,
-        Some(&team_0),
-        "Battle Bois".to_string(),
-    );
-    let battle = Battle {
-        team_0,
-        team_1,
-        team_seed: seed,
-        battle_seed: None,
-    };
-    let bytes = battle.try_to_vec().unwrap();
-    let Ok(_) = os::server::write_file("current_battle", &bytes) else {
-        return os::server::CANCEL;
-    };
-    let t = battle.team_0;
-    let num = t.units.len();
-    os::server::log!("SEED: {}", seed);
-    os::server::log!("Team_0: {:?}", num);
-    return os::server::COMMIT;
-}
-
-#[export_name = "turbo/simulate_battle"]
-unsafe extern "C" fn simulate_battle_os() -> usize {
-    let seed: u32 = os::server::random_number();
-    let mut simulation_rng = RNG::new(seed);
-    let Ok(data_store) = UnitDataStore::load_from_csv(UNIT_DATA_CSV) else {
-        return os::server::CANCEL;
-    };
-    //add the battle seed to the current battle
-    let mut battle = os::server::read!(Battle, "current_battle");
-    battle.battle_seed = Some(seed);
-    let bytes = battle.try_to_vec().unwrap();
-    let Ok(_) = os::server::write_file("current_battle", &bytes) else {
-        return os::server::CANCEL;
-    };
-
-    let team_0 = battle.team_0;
-    let team_1 = battle.team_1;
-    let mut teams = vec![team_0, team_1];
-    let mut units = create_units_for_all_teams(&mut teams, &mut simulation_rng, &data_store);
-    let mut attacks = Vec::new();
-    let mut traps = Vec::new();
-    let mut craters = Vec::new();
-    let mut explosions = Vec::new();
-    let mut i = 0;
-    let winning_team_index = loop {
-        step_through_battle(
-            &mut units,
-            &mut attacks,
-            &mut traps,
-            &mut explosions,
-            &mut craters,
-            &mut simulation_rng,
-        );
-        i += 1;
-        if let Some(winner_idx) = has_some_team_won(&units) {
-            break winner_idx;
-        }
-    };
-    //write a simulation result to a file
-    let living_units = all_living_units(&units);
-    let sim_result = SimulationResult {
-        seed: battle.team_seed,
-        living_units,
-        winning_team: Some(winning_team_index),
-    };
-    let bytes = sim_result.try_to_vec().unwrap();
-    let Ok(_) = os::server::write_file("current_result", &bytes) else {
-        return os::server::CANCEL;
-    };
-    //TODO: Do something that checks the players choice on this seed, and if they have a choice, then commit points
-    os::server::log!("Battle Seed: {}", seed);
-    os::server::log!("Frames: {}", i);
-    os::server::alert!("Winning Team: {:?}", winning_team_index);
-
-    os::server::COMMIT
-}
-
-fn get_seed_from_turbo_os() -> u32 {
-    let battle = os::client::watch_file("pixel_wars", "current_battle")
-        .data
-        .and_then(|file| Battle::try_from_slice(&file.contents).ok());
-    let seed = battle.unwrap().team_seed;
-    seed
 }
 
 //Local simulation - not using anymore
@@ -1281,11 +1097,15 @@ fn lowest_health_ranged_enemy_unit(units: &Vec<Unit>, team: i32, pos: (f32, f32)
 }
 
 //TODO: Make this based on streak or something like that
-fn calculate_points_change(is_won: bool) -> i32 {
-    if is_won {
-        return 10;
+fn calculate_points_change(is_won: Option<bool>) -> i32 {
+    if is_won.is_some() {
+        if is_won.unwrap() {
+            return 10;
+        } else {
+            return -10;
+        }
     }
-    -10
+    0
 }
 
 fn commit_points_change(user: &mut UserStats, is_win: bool) {
@@ -1303,7 +1123,7 @@ fn draw_points_prebattle_screen(points: i32) {
 fn draw_points_end_screen(points: i32, points_change: i32) {
     let center_x = canvas_size!()[0] / 2;
     let center_y = canvas_size()[1] / 2 - 16;
-    let sign = if points_change > 0 { "+" } else { "-" };
+    let sign = if points_change >= 0 { "+" } else { "-" };
     //draw the points under You Win/You Lose
     let txt = format!("Points: {} ({}{})", points, sign, points_change.abs());
     text!(
