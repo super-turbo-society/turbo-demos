@@ -152,6 +152,7 @@ turbo::go!({
                 //generate teams one time
                 if !state.team_generation_requested {
                     os::client::exec("pixel_wars", "generate_teams", &[]);
+                    //TODO: Ask josiah if this is bad form bc you don't know what finished first
                     os::client::exec("pixel_wars", "reset_choice_data", &[]);
                     state.team_generation_requested = true;
                 }
@@ -221,6 +222,8 @@ turbo::go!({
                 let userid = os::client::user_id();
                 let file_path = format!("users/{}/choice", userid.unwrap());
                 //TODO: This won't support not picking
+                //TODO: after adding seed to end of file, change filepath to read from the seed.
+                //if there is no file, then set it as none.
                 let num: i32 = os::client::watch_file("pixel_wars", &file_path)
                     .data
                     .and_then(|file| i32::try_from_slice(&file.contents).ok())
@@ -310,7 +313,9 @@ turbo::go!({
                         );
                         set_cam!(x = 192, y = 108);
                         state.phase = Phase::Battle;
-                        state.battle_simulation_requested = false; // Reset for next time
+                        state.battle_simulation_requested = false;
+                        //commit points
+                        os::client::exec("pixel_wars", "commit_points", &[]);
                     } else {
                         log!("WAITING FOR SIM RESULT");
                     }
@@ -421,10 +426,21 @@ turbo::go!({
             // Draw end game state
             //TODO: we need to update this so it handles the case where you didn't pick
             if let Some(winner_idx) = has_some_team_won(&state.units) {
-                let is_win = state
-                    .selected_team_index
-                    .map_or(false, |selected| winner_idx as usize == selected as usize);
-
+                let sim_result = os::client::watch_file("pixel_wars", "current_result")
+                    .data
+                    .and_then(|file| SimulationResult::try_from_slice(&file.contents).ok());
+                let result = sim_result.unwrap();
+                let seed = result.seed;
+                let winning_team_index = result.winning_team;
+                let userid = os::client::user_id();
+                let file_path = format!("users/{}/choice/{}", userid.unwrap(), seed);
+                let choice = os::client::watch_file("pixel_wars", &file_path)
+                    .data
+                    .and_then(|file| i32::try_from_slice(&file.contents).ok());
+                let mut is_win = false;
+                if choice == winning_team_index {
+                    is_win = true;
+                }
                 // Draw end game visuals
                 draw_end_animation(is_win);
                 let userid = os::client::user_id();
@@ -689,7 +705,9 @@ unsafe extern "C" fn choose_team_os() -> usize {
         return os::server::CANCEL;
     };
     //TODO: turn the file paths into constants
-    let file_path = format!("users/{}/choice", userid);
+    let battle = os::server::read!(Battle, "current_battle");
+    let seed = battle.team_seed;
+    let file_path = format!("users/{}/choice/{}", userid, seed);
     let mut num: i32 = 0;
     if choice_data.team_1 == 1 {
         num = 1;
@@ -704,9 +722,20 @@ unsafe extern "C" fn choose_team_os() -> usize {
 
 #[export_name = "turbo/commit_points"]
 unsafe extern "C" fn commit_points() -> usize {
-    //check if/what the user picked
-    let is_win = os::server::command!(bool);
+    //watch file to get sim result
+    let sim_result = os::server::read!(SimulationResult, "current_result");
+
+    let winning_team_index = sim_result.winning_team;
+    let seed = sim_result.seed;
+    //watch file to get the user choice
     let userid = os::server::get_user_id();
+    let file_path = format!("users/{}/choice/{}", userid, seed);
+    let choice = os::server::read!(i32, &file_path);
+    let mut is_win = false;
+    //TODO: cancel out of here in some cases
+    if choice == winning_team_index.unwrap() {
+        is_win = true;
+    }
     let file_path = format!("users/{}/stats", userid);
     //read from the file
     let mut stats = os::server::read_or!(UserStats, &file_path, UserStats { points: 100 });
@@ -794,11 +823,16 @@ unsafe extern "C" fn simulate_battle_os() -> usize {
     };
     //write a simulation result to a file
     let living_units = all_living_units(&units);
-    let sim_result = SimulationResult { seed, living_units };
+    let sim_result = SimulationResult {
+        seed: battle.team_seed,
+        living_units,
+        winning_team: Some(winning_team_index),
+    };
     let bytes = sim_result.try_to_vec().unwrap();
     let Ok(_) = os::server::write_file("current_result", &bytes) else {
         return os::server::CANCEL;
     };
+    //TODO: Do something that checks the players choice on this seed, and if they have a choice, then commit points
     os::server::log!("Battle Seed: {}", seed);
     os::server::log!("Frames: {}", i);
     os::server::alert!("Winning Team: {:?}", winning_team_index);
@@ -806,53 +840,8 @@ unsafe extern "C" fn simulate_battle_os() -> usize {
     os::server::COMMIT
 }
 
-// #[export_name = "turbo/simulate_battle_os"]
-// unsafe extern "C" fn simulate_battle_os() -> usize {
-//     let seed: u32 = os::server::random_number();
-//     let mut rng = RNG::new(seed);
-
-//     let Ok(data_store) = UnitDataStore::load_from_csv(UNIT_DATA_CSV) else {
-//         return os::server::CANCEL;
-//     };
-//     let team_1 = generate_team(&data_store, &mut rng, None, "Pixel Peeps".to_string());
-//     let team_2 = generate_team(
-//         &data_store,
-//         &mut rng,
-//         Some(&team_1),
-//         "Battle Bois".to_string(),
-//     );
-//     let mut teams = vec![team_1, team_2];
-//     let mut units = create_units_for_all_teams(&mut teams, &mut rng, &data_store);
-//     let mut attacks = Vec::new();
-//     let mut traps = Vec::new();
-//     let mut craters = Vec::new();
-//     let mut explosions = Vec::new();
-//     let mut i = 0;
-//     let winning_team_index = loop {
-//         step_through_battle(
-//             &mut units,
-//             &mut attacks,
-//             &mut traps,
-//             &mut explosions,
-//             &mut craters,
-//             &mut rng,
-//         );
-//         i += 1;
-//         if let Some(winner_idx) = has_some_team_won(&units) {
-//             break winner_idx;
-//         }
-//     };
-
-//     os::server::log!("Seed: {}", seed);
-//     os::server::log!("Winning Team: {:?}", winning_team_index);
-//     os::server::log!("Frames: {}", i);
-
-//     os::server::alert!("Winning Team: {:?}", winning_team_index);
-
-//     os::server::COMMIT
-// }
-
-fn simulate_battle(state: &mut GameState) {
+//Local simulation - not using anymore
+fn _simulate_battle(state: &mut GameState) {
     // Store initial state
     let initial_state = state.clone();
     // for u in &mut initial_state.units {
@@ -885,6 +874,7 @@ fn simulate_battle(state: &mut GameState) {
     let simulation_result = SimulationResult {
         living_units: all_living_units(&state.units),
         seed: state.rng.seed,
+        winning_team: Some(winning_team_index),
     };
 
     // Handle points
@@ -2498,6 +2488,7 @@ impl UnitDataStore {
 struct SimulationResult {
     seed: u32,
     living_units: Vec<String>,
+    winning_team: Option<i32>,
 }
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
