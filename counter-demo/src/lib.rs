@@ -34,12 +34,14 @@ turbo::go!({
         color = BUTTON_TEXT_COLOR
     );
     let m = mouse(0);
-    //subtract 1 if the button is clicked
+
+    //subtract 1 if the minus button is clicked
     if m.left.just_pressed() && button_contains_pos(m.position[0], m.position[1], w, h, x, y) {
         let delta: i32 = -1;
         let bytes = delta.to_le_bytes();
         os::client::exec("counter", "increment_counter", &bytes);
     }
+
     //draw the plus button
     let (x, y) = (82, 180);
     draw_button(w, h, x, y);
@@ -50,12 +52,14 @@ turbo::go!({
         font = Font::L,
         color = BUTTON_TEXT_COLOR
     );
-    //Add one if button is clicked
+
+    //Add one to the counter if plus button is clicked
     if m.left.just_pressed() && button_contains_pos(m.position[0], m.position[1], w, h, x, y) {
         let delta: i32 = 1;
         let bytes = delta.to_le_bytes();
         os::client::exec("counter", "increment_counter", &bytes);
     }
+
     //draw texts on top of screen
     let userid = os::client::user_id();
     if let Some(ref id) = userid {
