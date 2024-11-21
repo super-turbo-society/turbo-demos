@@ -13,15 +13,12 @@ turbo::cfg! {r#"
 
 const BOARD_SIZE: u8 = 16;
 const CARD_SIZE: (u8, u8) = (16, 24);
-const NUM_ROWS: u8 = 4;
 const ROW_SPACING: u8 = 12;
 
 //COLORS
-const BG_COLOR: u32 = 0x0F172Aff; // Navy background
-const CARD_COLOR: u32 = 0x1E3A8Aff; // Deeper blue
-const CARD_HIGHLIGHT: u32 = 0x2563EBff; // Brighter blue for hover
-const CARD_BORDER: u32 = 0x3B82F6ff; // Light blue border
-const CARD_FLIPPED_COLOR: u32 = 0xF0F0F0ff; // Off white
+const CARD_COLOR: u32 = 0x1E3A8Aff;
+const CARD_HIGHLIGHT: u32 = 0x2563EBff;
+const CARD_FLIPPED_COLOR: u32 = 0xF0F0F0ff;
 
 turbo::init! {
     struct GameState {
@@ -33,60 +30,84 @@ turbo::init! {
     }
 }
 
-//enum phase
-//main_screen
-//generating_board
-//playing
-
 turbo::go!({
     let mut state = GameState::load();
-    clear!(BG_COLOR);
+    //draw the background
+    draw_checkerboard();
+
     let m = mouse(0);
     let m_pos = (m.position[0], m.position[1]);
+
+    //get the board from the file system.
     state.board = watch_file("card_search", "board", &[("stream", "true")])
         .data
-        .and_then(|file| Board::try_from_slice(&file.contents).ok());
-    let gp = gamepad(0);
-    //press Z to make a new board
-    if gp.a.just_pressed() {
-        os::client::exec("card_search", "generate_board", &[]);
-    }
+        .and_then(|file| Board::try_from_slice(&file.contents).ok()); //deserialize the board
 
+    //if we have a board, draw the cards and handle any clicks
     match &mut state.board {
         None => {}
         Some(b) => {
-            for c in &mut b.cards {
-                c.draw(m_pos);
-                if m.left.just_pressed() {
-                    c.on_click(m_pos);
+            let crown_found = is_crown_found(&b);
+            for card in &mut b.cards {
+                card.draw(m_pos);
+                if m.left.just_pressed() && !crown_found {
+                    card.on_click(m_pos);
                 }
             }
         }
     }
 
-    // Watch for alerts
+    //Watch for alerts
     if let Some(event) = os::client::watch_events("card_search", Some("alert")).data {
-        // Display an alert banner for notifications that are < 10s old
+        //Display an alert banner for notifications that are < 10s old
         let duration = 10_000;
         let millis_since_event = time::now() - event.created_at as u64 * 1000;
         if millis_since_event < duration {
             if let Ok(msg) = std::str::from_utf8(&event.data) {
-                text!(msg, x = 10, y = 200, font = Font::L);
-                text!("Found the crown", x = 10, y = 210, font = Font::L);
+                let txt = format!("User {}", msg);
+                centered_text(&txt, 200, CARD_FLIPPED_COLOR);
+                centered_text("Found the crown", 210, CARD_FLIPPED_COLOR);
             }
         }
+    }
+    //if you don't have a board (should never happen) or the crown is found
+    //then show text saying press Z to start a new game
+    if state.board.is_none() || state.board.as_ref().map_or(false, is_crown_found) {
+        //show text to press z to get a new game
+        centered_text("Press Z", 10, CARD_FLIPPED_COLOR);
+        centered_text("To Start New Game", 20, CARD_FLIPPED_COLOR);
+        let gp = gamepad(0);
+        if gp.a.just_pressed() {
+            //if you press Z (gamepad a), call the generate_board function
+            os::client::exec("card_search", "generate_board", &[]);
+        }
+        //if crown isn't found, then show this text instead
+    } else {
+        centered_text("Find the Crown!", 10, CARD_FLIPPED_COLOR);
     }
 
     state.save();
 });
 
+fn is_crown_found(board: &Board) -> bool {
+    for c in &board.cards {
+        if c.is_crown && c.is_flipped {
+            return true;
+        }
+    }
+    false
+}
+
 #[export_name = "turbo/card_click"]
 unsafe extern "C" fn on_card_click() -> usize {
-    //read the current board
+    //read the current board from the server
+    //or if there is no board, then make a blank board
     let mut board = os::server::read_or!(Board, "board", Board { cards: Vec::new() });
+    //if there is no board, cancel the function
     if board.cards.len() == 0 {
         return os::server::CANCEL;
     } else {
+        //num is the command data, which is the card id
         let num = os::server::command!(u8);
         for c in &mut board.cards {
             if c.id == num && c.is_flipped == false {
@@ -94,6 +115,7 @@ unsafe extern "C" fn on_card_click() -> usize {
                 if c.is_crown {
                     let userid = os::server::get_user_id();
                     let userid = truncate_string(&userid, 8);
+                    //send alert of the user id that found the crown card
                     os::server::alert!("{}", userid);
                 }
             }
@@ -111,14 +133,16 @@ unsafe extern "C" fn on_card_click() -> usize {
 unsafe extern "C" fn on_generate_board() -> usize {
     let file_path = format!("board");
     let mut board = generate_board();
+    //get a random number from the server
     let mut num: u32 = os::server::random_number();
+    //set the random to a number between 0 and 15
     num = num % BOARD_SIZE as u32;
     for c in &mut board.cards {
         if c.id as u32 == num {
             c.is_crown = true;
         }
     }
-
+    //write the new board to the server
     let Ok(_) = os::server::write!(&file_path, board) else {
         return os::server::CANCEL;
     };
@@ -135,6 +159,7 @@ fn truncate_string(s: &str, max_len: usize) -> String {
     }
 }
 
+//create 16 cards and give them id from 0 through 15
 fn generate_board() -> Board {
     //generate cards
     let mut i = 0;
@@ -167,7 +192,7 @@ impl Card {
 
     fn get_position_from_id(&self) -> (u32, u32) {
         let margin_x = 14;
-        let margin_y = 48; // Increased top padding
+        let margin_y = 48;
         let row = self.id / 4;
         let col = self.id % 4;
 
@@ -179,6 +204,7 @@ impl Card {
 
     fn on_click(&mut self, pos: (i32, i32)) {
         if self.is_hovered(pos) && self.is_flipped != true {
+            //serialize the data to bytes, then send the card_click command to the server
             let bytes = self.id.to_le_bytes();
             os::client::exec("card_search", "card_click", &bytes);
         }
@@ -220,4 +246,48 @@ impl Card {
 #[derive(Debug, Clone, PartialEq, BorshDeserialize, BorshSerialize)]
 struct Board {
     cards: Vec<Card>,
+}
+
+//draw the checkerboard background
+fn draw_checkerboard() {
+    let width = 132;
+    let height = 224;
+    let cols = 8;
+    let rows = 14;
+
+    let tile_width = (width + cols - 1) / cols;
+    let tile_height = (height + rows - 1) / rows;
+
+    let dark_color = 0x1A1A1Aff;
+    let light_color = 0x202020ff;
+
+    for row in 0..rows {
+        for col in 0..cols {
+            let x = col * tile_width;
+            let y = row * tile_height;
+            let color = if (row + col) % 2 == 0 {
+                dark_color
+            } else {
+                light_color
+            };
+
+            rect!(
+                x = x as i32,
+                y = y as i32,
+                w = tile_width as u8,
+                h = tile_height as u8,
+                color = color,
+            );
+        }
+    }
+}
+
+//centers text of any length
+fn centered_text(text: &str, y: i32, color: u32) {
+    let x = centered_pos(text, 5, 132);
+    text!(text, x = x, y = y, color = color);
+}
+
+fn centered_pos(text: &str, char_width: i32, full_width: i32) -> i32 {
+    (full_width - (text.len() as i32 * char_width)) / 2
 }
