@@ -63,6 +63,20 @@ turbo::go!({
             }
         }
     }
+
+    // Watch for alerts
+    if let Some(event) = os::client::watch_events("card_search", Some("alert")).data {
+        // Display an alert banner for notifications that are < 10s old
+        let duration = 10_000;
+        let millis_since_event = time::now() - event.created_at as u64 * 1000;
+        if millis_since_event < duration {
+            if let Ok(msg) = std::str::from_utf8(&event.data) {
+                text!(msg, x = 10, y = 200, font = Font::L);
+                text!("Found the crown", x = 10, y = 210, font = Font::L);
+            }
+        }
+    }
+
     state.save();
 });
 
@@ -78,7 +92,9 @@ unsafe extern "C" fn on_card_click() -> usize {
             if c.id == num && c.is_flipped == false {
                 c.is_flipped = true;
                 if c.is_crown {
-                    //send a message
+                    let userid = os::server::get_user_id();
+                    let userid = truncate_string(&userid, 8);
+                    os::server::alert!("{}", userid);
                 }
             }
         }
@@ -109,6 +125,14 @@ unsafe extern "C" fn on_generate_board() -> usize {
 
     os::server::log!("Crown: {}", num);
     return os::server::COMMIT;
+}
+
+fn truncate_string(s: &str, max_len: usize) -> String {
+    if s.len() > max_len {
+        s[..max_len].to_string()
+    } else {
+        s.to_string()
+    }
 }
 
 fn generate_board() -> Board {
@@ -186,7 +210,6 @@ impl Card {
             h = CARD_SIZE.1,
             color = color,
             border_radius = 2,
-            border_color = CARD_BORDER
         );
         if self.is_flipped && self.is_crown {
             sprite!("crown", x = x, y = y);
