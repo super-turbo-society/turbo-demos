@@ -8,7 +8,7 @@ turbo::cfg! {r#"
     [settings]
     resolution = [132, 224]
     [turbo-os]
-    api-url = "http://localhost:8000"
+    api-url = "https://os.turbo.computer"
 "#}
 
 const BOARD_SIZE: u8 = 16;
@@ -39,7 +39,7 @@ turbo::go!({
     let m_pos = (m.position[0], m.position[1]);
 
     //get the board from the file system.
-    state.board = watch_file("card_search", "board", &[("stream", "true")])
+    state.board = watch_file("card_search", "board")
         .data
         .and_then(|file| Board::try_from_slice(&file.contents).ok()); //deserialize the board
 

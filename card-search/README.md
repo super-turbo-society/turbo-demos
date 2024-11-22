@@ -96,7 +96,7 @@ unsafe extern "C" fn on_card_click() -> usize {
 On the front end, we use the `watch_file` function to track files and read data. Generally we want to watch files in the go loop so they stay constantly updated.
 
 ```rust
-state.board = watch_file("card_search", "board", &[("stream", "true")])
+state.board = watch_file("card_search", "board")
         .data
         .and_then(|file| Board::try_from_slice(&file.contents).ok()); //deserialize the board
 ```
