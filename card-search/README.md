@@ -52,7 +52,7 @@ let bytes = self.id.to_le_bytes();
 os::client::exec("card_search", "card_click", &bytes);  
 ```
 
-Then we read the command data in our function, providing the data type that we want to deserialize it as. In this case it is a u8.
+Then we read the command data in our function, providing the data type that we want to deserialize it as. In this case it is a `u8`.
 
 After we've updated the board, we check if the user found the crown. If they did, we send an alert to all players to let them know who found it.
 
@@ -93,7 +93,7 @@ unsafe extern "C" fn on_card_click() -> usize {
 
 ### Reading files on the front end
 
-On the front end, we use the watch_file function to track files and read data. Generally we want to watch files in the go loop so they stay constantly updated.
+On the front end, we use the `watch_file` function to track files and read data. Generally we want to watch files in the go loop so they stay constantly updated.
 
 ```rust
 state.board = watch_file("card_search", "board", &[("stream", "true")])
@@ -101,7 +101,7 @@ state.board = watch_file("card_search", "board", &[("stream", "true")])
         .and_then(|file| Board::try_from_slice(&file.contents).ok()); //deserialize the board
 ```
 
-watch_file returns a QueryResult, so we have to take the data, and then deserialize it. If the data isn't found (e.g. the filepath is wrong), this will return None.
+`watch_file` returns a QueryResult, so we have to take the data from there, and then deserialize it. If the data isn't found (e.g. the filepath is wrong), this will return None.
 
 We also watch for alerts, in a very similar way.
 
@@ -120,4 +120,4 @@ if let Some(event) = os::client::watch_events("card_search", Some("alert")).data
     }
 ```
 
-This always returns the most recent alert if there is one. We can pull the data we need, in this case .create_at (what time the alert originated) and .data (the data from the alert).
+This always returns the most recent alert if there is one. We can pull the data we need, in this case `.created_at` (what time the alert originated) and `.data` (the data from the alert).
