@@ -35,7 +35,7 @@ turbo::go!({
     );
     let m = mouse(0);
 
-    //subtract 1 if the minus button is clicked
+    //subtract 1 if minus button is clicked
     if m.left.just_pressed() && button_contains_pos(m.position[0], m.position[1], w, h, x, y) {
         let delta: i32 = -1;
         let bytes = delta.to_le_bytes();
@@ -53,7 +53,7 @@ turbo::go!({
         color = BUTTON_TEXT_COLOR
     );
 
-    //Add one to the counter if plus button is clicked
+    //add 1 if plus button is clicked
     if m.left.just_pressed() && button_contains_pos(m.position[0], m.position[1], w, h, x, y) {
         let delta: i32 = 1;
         let bytes = delta.to_le_bytes();
