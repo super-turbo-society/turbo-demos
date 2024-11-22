@@ -9,7 +9,7 @@ turbo::cfg! {r#"
     [settings]
     resolution = [132, 224]
     [turbo-os]
-    api-url = "http://localhost:8000"
+    api-url = "https://os.turbo.computer"
 "#}
 
 //colors
@@ -75,7 +75,7 @@ turbo::go!({
         //draw the user's saved counter
         let filepath = format!("users/{}", id);
         //read the number from the server using watch_file
-        let num = os::client::watch_file("counter", &filepath, &[("stream", "true")])
+        let num = os::client::watch_file("counter", &filepath)
             .data
             .and_then(|file| i32::try_from_slice(&file.contents).ok())
             .unwrap_or(0); //set to 0 if the file doesn't exist
@@ -85,7 +85,7 @@ turbo::go!({
         //draw the global count
         let filepath = "global_count";
         //read the number from the server using watch_file
-        let num = os::client::watch_file("counter", &filepath, &[("stream", "true")])
+        let num = os::client::watch_file("counter", &filepath)
             .data
             .and_then(|file| i32::try_from_slice(&file.contents).ok())
             .unwrap_or(0); //set to 0 if the file doesn't exist
