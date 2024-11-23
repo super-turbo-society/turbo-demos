@@ -56,7 +56,7 @@ turbo::cfg! {r#"
     [settings]
     resolution = [384, 216]
     [turbo-os]
-    api-url = "http://localhost:8000"
+    api-url = "https://os.turbo.computer"
 "#}
 
 turbo::init! {
@@ -121,10 +121,10 @@ turbo::go!({
     clear!(0x8f8cacff);
     let gp = gamepad(0);
     if gp.select.just_pressed() {
-        os::client::exec("pixel_wars", "simulate_battle", &[]);
+        os::client::exec("pixel-wars", "simulate_battle", &[]);
     }
     if gp.a.just_pressed() {
-        os::client::exec("pixel_wars", "generate_team_seed", &[]);
+        os::client::exec("pixel-wars", "generate_team_seed", &[]);
     }
     match state.phase {
         Phase::TeamSetUp => {
@@ -139,16 +139,17 @@ turbo::go!({
                         state.data_store = Some(UnitDataStore::new());
                     }
                 }
-                state.previous_battle = os::client::watch_file("pixel_wars", "current_battle")
+                state.previous_battle = os::client::watch_file("pixel-wars", "current_battle")
                     .data
                     .and_then(|file| Battle::try_from_slice(&file.contents).ok());
             }
             if state.auto_assign_teams {
                 //generate teams one time
                 if !state.team_generation_requested {
-                    os::client::exec("pixel_wars", "generate_teams", &[]);
+                    turbo::println!("Generate teams");
+                    os::client::exec("pixel-wars", "generate_teams", &[]);
                     //TODO: Ask josiah if this is bad form bc you don't know what finished first
-                    os::client::exec("pixel_wars", "reset_choice_data", &[]);
+                    os::client::exec("pixel-wars", "reset_choice_data", &[]);
                     state.team_generation_requested = true;
                 }
                 //now wait until we have new teams, and if we do, create the unit previews
@@ -156,22 +157,23 @@ turbo::go!({
                     .data_store
                     .as_ref()
                     .expect("Data store should be loaded");
-                let battle = match os::client::watch_file("pixel_wars", "current_battle")
+                let battle: Option<Battle> = os::client::watch_file("pixel-wars", "current_battle")
                     .data
-                    .and_then(|file| Battle::try_from_slice(&file.contents).ok())
-                {
-                    Some(battle) => battle,
-                    None => {
-                        //TODO: Figure out what to do
-                        //if you can't find a battle for some reason
-                        //should not happen though
-                        return;
-                    }
-                };
+                    .and_then(|file| Battle::try_from_slice(&file.contents).ok());
+                // {
+                //     Some(battle) => battle,
+                //     None => {
+                //         //TODO: Figure out what to do
+                //         //if you can't find a battle for some reason
+                //         //should not happen though
+                //         return;
+                //     }
+                //};
                 let battle_clone = battle.clone();
-                if Some(battle) != state.previous_battle {
-                    let team_0 = battle_clone.team_0;
-                    let team_1 = battle_clone.team_1;
+                if battle != state.previous_battle {
+                    let b = battle_clone.unwrap();
+                    let team_0 = b.team_0;
+                    let team_1 = b.team_1;
                     state
                         .unit_previews
                         .extend(create_unit_previews(&team_0, false, data_store));
@@ -211,7 +213,7 @@ turbo::go!({
                 let userid = os::client::user_id();
                 let seed = get_seed_from_turbo_os();
                 let file_path = format!("users/{}/choice/{}", userid.unwrap(), seed);
-                let num: Option<i32> = os::client::watch_file("pixel_wars", &file_path)
+                let num: Option<i32> = os::client::watch_file("pixel-wars", &file_path)
                     .data
                     .and_then(|file| i32::try_from_slice(&file.contents).ok());
                 state.selected_team_index = num;
@@ -219,7 +221,7 @@ turbo::go!({
                 //draw each unit based on the teams
                 draw_assigned_team_info(&mut state);
                 //get team choice counter from server
-                let choices = os::client::watch_file("pixel_wars", "global_choice_counter")
+                let choices = os::client::watch_file("pixel-wars", "global_choice_counter")
                     .data
                     .and_then(|file| TeamChoiceCounter::try_from_slice(&file.contents).ok())
                     .unwrap_or(TeamChoiceCounter {
@@ -246,7 +248,7 @@ turbo::go!({
                 let userid = os::client::user_id();
 
                 let file_path = format!("users/{}/stats", userid.unwrap());
-                let stats = os::client::watch_file("pixel_wars", &file_path)
+                let stats = os::client::watch_file("pixel-wars", &file_path)
                     .data
                     .and_then(|file| UserStats::try_from_slice(&file.contents).ok())
                     .unwrap_or(UserStats { points: 100 });
@@ -281,10 +283,10 @@ turbo::go!({
         Phase::PreBattle => {
             if !state.battle_simulation_requested {
                 //TODO: This will move to some other system once the cron is working
-                os::client::exec("pixel_wars", "simulate_battle", &[]);
+                os::client::exec("pixel-wars", "simulate_battle", &[]);
                 state.battle_simulation_requested = true;
             } else {
-                if let Some(battle) = os::client::watch_file("pixel_wars", "current_battle")
+                if let Some(battle) = os::client::watch_file("pixel-wars", "current_battle")
                     .data
                     .and_then(|file| Battle::try_from_slice(&file.contents).ok())
                 {
@@ -299,7 +301,7 @@ turbo::go!({
                         state.phase = Phase::Battle;
                         state.battle_simulation_requested = false;
                         //commit points
-                        os::client::exec("pixel_wars", "commit_points", &[]);
+                        os::client::exec("pixel-wars", "commit_points", &[]);
                     } else {
                         log!("WAITING FOR SIM RESULT");
                     }
@@ -409,15 +411,23 @@ turbo::go!({
             }
             // Draw end game state
             if let Some(winner_idx) = has_some_team_won(&state.units) {
-                let sim_result = os::client::watch_file("pixel_wars", "current_result")
+                let sim_result = os::client::watch_file("pixel-wars", "current_result")
                     .data
                     .and_then(|file| SimulationResult::try_from_slice(&file.contents).ok());
-                let result = sim_result.unwrap();
+                //turbo::println!("Checking sim result");
+                turbo::println!("SIM RESULT 1: {:?}", sim_result);
+                let result = sim_result.unwrap_or(SimulationResult {
+                    seed: 0,
+                    living_units: Vec::new(),
+                    winning_team: None,
+                });
+                turbo::println!("SIM RESULT 2: {:?}", result);
+                //turbo::println!("Unwrapped sim result");
                 let seed = result.seed;
                 let winning_team_index = result.winning_team;
                 let userid = os::client::user_id();
                 let file_path = format!("users/{}/choice/{}", userid.unwrap(), seed);
-                let choice = os::client::watch_file("pixel_wars", &file_path)
+                let choice = os::client::watch_file("pixel-wars", &file_path)
                     .data
                     .and_then(|file| i32::try_from_slice(&file.contents).ok());
                 let mut is_win: Option<bool> = None;
@@ -433,7 +443,7 @@ turbo::go!({
                 let userid = os::client::user_id();
 
                 let file_path = format!("users/{}/stats", userid.unwrap());
-                let stats = os::client::watch_file("pixel_wars", &file_path)
+                let stats = os::client::watch_file("pixel-wars", &file_path)
                     .data
                     .and_then(|file| UserStats::try_from_slice(&file.contents).ok())
                     .unwrap_or(UserStats { points: 100 });
@@ -460,7 +470,7 @@ turbo::go!({
                 let living_units = all_living_units(&state.units);
                 // "current_result"
                 //watch current result file
-                let sim_result = match os::client::watch_file("pixel_wars", "current_result")
+                let sim_result = match os::client::watch_file("pixel-wars", "current_result")
                     .data
                     .and_then(|file| SimulationResult::try_from_slice(&file.contents).ok())
                 {
@@ -566,12 +576,12 @@ turbo::go!({
                 }
 
                 let bytes = borsh::to_vec(&team_choice_counter).unwrap();
-                os::client::exec("pixel_wars", "choose_team", &bytes);
+                os::client::exec("pixel-wars", "choose_team", &bytes);
             }
             GameEvent::RestartGame() => {
                 let t = state.last_winning_team;
                 let u = state.user;
-                let battle = match os::client::watch_file("pixel_wars", "current_battle")
+                let battle = match os::client::watch_file("pixel-wars", "current_battle")
                     .data
                     .and_then(|file| Battle::try_from_slice(&file.contents).ok())
                 {
@@ -591,10 +601,10 @@ turbo::go!({
 
     //alert drawing
     // Watch for alerts
-    if let Some(event) = os::client::watch_events("pixel_wars", Some("alert")).data {
+    if let Some(event) = os::client::watch_events("pixel-wars", Some("alert")).data {
         // Display an alert banner for notifications that are < 10s old
         let duration = 10_000;
-        let millis_since_event = time::now() - event.created_at * 1000;
+        let millis_since_event = time::now() - event.created_at as u64 * 1000;
         if millis_since_event < duration {
             if let Ok(msg) = std::str::from_utf8(&event.data) {
                 text!(msg, x = 10, y = 100, font = Font::L);
@@ -1110,7 +1120,7 @@ fn calculate_points_change(is_won: Option<bool>) -> i32 {
 
 fn commit_points_change(user: &mut UserStats, is_win: bool) {
     //user.points += points_change;
-    os::client::exec("pixel_wars", "commit_points", &[is_win as u8]);
+    os::client::exec("pixel-wars", "commit_points", &[is_win as u8]);
 }
 
 fn draw_points_prebattle_screen(points: i32) {

@@ -170,6 +170,7 @@ unsafe extern "C" fn simulate_battle_os() -> usize {
     };
     os::server::log!("Battle Seed: {}", seed);
     os::server::log!("Frames: {}", i);
+    os::server::alert!("Result: {:?}", sim_result);
     os::server::alert!("Winning Team: {:?}", winning_team_index);
 
     os::server::COMMIT
@@ -178,7 +179,7 @@ unsafe extern "C" fn simulate_battle_os() -> usize {
 //TODO: use this function in other places where we are using this
 //TODO: make this return something if it can't find the file instead of crashing
 pub fn get_seed_from_turbo_os() -> u32 {
-    let battle = os::client::watch_file("pixel_wars", "current_battle")
+    let battle = os::client::watch_file("pixel-wars", "current_battle")
         .data
         .and_then(|file| Battle::try_from_slice(&file.contents).ok());
     let seed = battle.unwrap().team_seed;
