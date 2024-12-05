@@ -1,16 +1,20 @@
 mod backend;
+mod deckbuilder;
 mod rng;
 mod trap;
 mod unit;
 
 use backend::*;
 use csv::{Reader, ReaderBuilder};
+use deckbuilder::*;
 use os::server;
 use rng::*;
 use std::cmp::{max, Ordering};
 use std::collections::HashMap;
 use std::fmt::{format, Display};
 use std::str::FromStr;
+use strum::IntoEnumIterator;
+use strum_macros::EnumIter;
 use trap::*;
 use unit::*;
 
@@ -48,7 +52,7 @@ const DAMAGE_TINT_RED: usize = 0xb9451dff;
 const OFF_BLACK: u32 = 0x1A1A1AFF;
 const DARK_GRAY: u32 = 0x808080FF;
 const LIGHT_GRAY: u32 = 0xA6A6A6FF;
-const HOVER_GRAY: u32 = 0xCCCCCCFF;
+const _HOVER_GRAY: u32 = 0xCCCCCCFF;
 
 turbo::cfg! {r#"
     name = "Pixel Wars"
@@ -63,6 +67,10 @@ turbo::init! {
     struct GameState {
         dbphase: DBPhase,
         shop: Vec<UnitPack>,
+        round: u32,
+        num_picks: u32,
+        artifacts: Vec<Artifact>,
+        artifact_shop: Vec<Artifact>,
         phase: Phase,
         units: Vec<Unit>,
         next_id: u32,
@@ -91,8 +99,12 @@ turbo::init! {
         Self {
             dbphase: DBPhase::Shop,
             phase: Phase::TeamSetUp,
+            round: 0,
+            num_picks: 0,
             units: Vec::new(),
             shop: Vec::new(),
+            artifacts: Vec::new(),
+            artifact_shop: Vec::new(),
             //this starts at 1 so if any unit has 0 id it is unassigned or a bug.
             next_id: 1,
             teams: Vec::new(),
@@ -122,248 +134,7 @@ turbo::init! {
 
 turbo::go!({
     let mut state = GameState::load();
-    clear!(0x8f8cacff);
-    let gp = gamepad(0);
-
-    match state.dbphase {
-        DBPhase::Shop => {
-            //get the data store
-            if state.data_store.is_none() {
-                match UnitDataStore::load_from_csv(UNIT_DATA_CSV) {
-                    Ok(loaded_store) => {
-                        state.data_store = Some(loaded_store);
-                    }
-                    Err(e) => {
-                        eprintln!("Failed to load UnitDataStore: {}", e);
-                        state.data_store = Some(UnitDataStore::new());
-                    }
-                }
-            }
-            let ds = state.data_store.as_ref().unwrap();
-            if state.shop.len() == 0 {
-                state.shop = create_unit_packs(4, &ds, &mut state.rng);
-            }
-            let m = mouse(0);
-            let m_pos = (m.position[0], m.position[1]);
-            for (i, u) in state.shop.iter_mut().enumerate() {
-                u.draw(m_pos);
-                if m.left.just_pressed() && u.is_hovered(m_pos) {
-                    select_unit_pack(i, &mut state);
-                    break;
-                }
-            }
-            if state.teams.len() != 0 {
-                let txt = format!("Your Team: {:?}", state.teams[0].units);
-                text!(&txt, x = 10, y = 180);
-            }
-            //do something to start the battle
-            if gp.a.just_pressed() {
-                let t = generate_team_db(
-                    &state.data_store.as_ref().unwrap(),
-                    &mut state.rng,
-                    Some(&state.teams[0]),
-                    "Bad Bois".to_string(),
-                    8.0,
-                );
-                state.teams.push(t);
-                state.units = create_units_for_all_teams(
-                    &mut state.teams,
-                    &mut state.rng,
-                    &state.data_store.as_ref().unwrap(),
-                );
-                state.dbphase = DBPhase::Battle;
-            }
-        }
-        DBPhase::Battle => {
-            if state.battle_countdown_timer > 0 {
-                if state.battle_countdown_timer == BATTLE_COUNTDOWN_TIME {
-                    for u in &mut state.units {
-                        if u.pos.0 > 100. {
-                            if let Some(display) = u.display.as_mut() {
-                                display.is_facing_left = true;
-                            }
-                        }
-                        //Do any special sequencing stuff here
-                        //u.set_march_position();
-                        //probably give them a target, set to moving, and give them a new state like (marching in),
-                    }
-                }
-                for u in &mut state.units {
-                    u.update();
-                }
-                state.battle_countdown_timer -= 1;
-
-                //show text
-                draw_prematch_timer(state.battle_countdown_timer);
-            } else {
-                step_through_battle(
-                    &mut state.units,
-                    &mut state.attacks,
-                    &mut state.traps,
-                    &mut state.explosions,
-                    &mut state.craters,
-                    &mut state.rng,
-                );
-            }
-
-            /////////////
-            //Draw Code//
-            /////////////
-
-            //Draw craters beneath everything
-            for c in &state.craters {
-                c.draw();
-            }
-            //sprite!("crater_01", x=100, y=100, color = 0xFFFFFF80);
-            //Draw footprints beneath units
-            for u in &mut state.units {
-                for fp in &mut u.display.as_mut().unwrap().footprints {
-                    fp.draw();
-                    //format!()
-                }
-            }
-
-            //DRAW UNITS
-            let mut indices: Vec<usize> = (0..state.units.len()).collect();
-
-            indices.sort_by(|&a, &b| {
-                let unit_a = &state.units[a];
-                let unit_b = &state.units[b];
-
-                // First, sort by dead/alive status
-                match (
-                    unit_a.state == UnitState::Dead,
-                    unit_b.state == UnitState::Dead,
-                ) {
-                    (true, false) => return Ordering::Less,
-                    (false, true) => return Ordering::Greater,
-                    _ => {}
-                }
-
-                // If both are alive or both are dead, sort by y-position
-                if unit_a.state != UnitState::Dead {
-                    unit_a
-                        .pos
-                        .1
-                        .partial_cmp(&unit_b.pos.1)
-                        .unwrap_or(Ordering::Equal)
-                } else {
-                    Ordering::Equal
-                }
-            });
-
-            // Draw units in the sorted order
-            for &index in &indices {
-                state.units[index].draw();
-            }
-            //draw explosions
-            state.explosions.retain_mut(|explosion| {
-                explosion.update();
-                !explosion.animator.is_done()
-            });
-            for explosion in &mut state.explosions {
-                explosion.draw();
-            }
-
-            //draw health bar on hover
-            //get mouse posisiton
-            let m = mouse(0);
-            let mpos = (m.position[0] as f32, m.position[1] as f32);
-            //for unit, if mouse position is in bounds, then draw health bar
-            for u in &mut state.units {
-                if u.state != UnitState::Dead && u.is_point_in_bounds(mpos) {
-                    u.draw_health_bar();
-                }
-            }
-
-            //Draw team health bars
-            let mut team0_base_health = 0.0;
-            let mut team0_current_health = 0.0;
-            let mut team1_base_health = 0.0;
-            let mut team1_current_health = 0.0;
-
-            for unit in &state.units {
-                if unit.team == 0 {
-                    team0_base_health += unit.data.max_health as f32;
-                    team0_current_health += unit.health as f32;
-                } else {
-                    team1_base_health += unit.data.max_health as f32;
-                    team1_current_health += unit.health as f32;
-                }
-            }
-            let mut is_chosen_team = false;
-            if state.selected_team_index == Some(0) {
-                is_chosen_team = true;
-            }
-            let (team_0_pos, team_1_pos) = ((24.0, 20.0), (232.0, 20.0));
-            // Draw health bar for team 0
-            draw_team_health_bar(
-                team0_base_health,
-                team0_current_health,
-                team_0_pos,
-                &state.teams[0].name.to_uppercase(),
-                true,
-                is_chosen_team,
-            );
-            is_chosen_team = false;
-            if state.selected_team_index == Some(1) {
-                is_chosen_team = true;
-            }
-            // Draw health bar for team 1
-            draw_team_health_bar(
-                team1_base_health,
-                team1_current_health,
-                team_1_pos,
-                &state.teams[1].name.to_uppercase(),
-                false,
-                is_chosen_team,
-            );
-        }
-        DBPhase::WrapUp => {
-            // Post-battle cleanup and results
-        }
-    }
-    //handle event queue
-    while let Some(event) = state.event_queue.pop() {
-        match event {
-            GameEvent::AddUnitToTeam(team_index, unit_type) => {
-                state.teams[team_index].add_unit(unit_type);
-            }
-            GameEvent::RemoveUnitFromTeam(team_index, unit_type) => {
-                state.teams[team_index].remove_unit(unit_type);
-            }
-            GameEvent::ChooseTeam(team_num) => {
-                let mut team_choice_counter = TeamChoiceCounter {
-                    team_0: 0,
-                    team_1: 0,
-                };
-                if state.selected_team_index.is_some() {
-                    if state.selected_team_index == Some(0) && team_num == 1 {
-                        team_choice_counter.team_0 = -1;
-                        team_choice_counter.team_1 = 1;
-                    } else if state.selected_team_index == Some(1) && team_num == 0 {
-                        team_choice_counter.team_0 = 1;
-                        team_choice_counter.team_1 = -1;
-                    }
-                } else {
-                    if team_num == 0 {
-                        team_choice_counter.team_0 = 1;
-                        team_choice_counter.team_1 = 0;
-                    } else if team_num == 1 {
-                        team_choice_counter.team_0 = 0;
-                        team_choice_counter.team_1 = 1;
-                    }
-                }
-
-                let bytes = borsh::to_vec(&team_choice_counter).unwrap();
-                os::client::exec("pixel_wars", "choose_team", &bytes);
-            }
-            GameEvent::RestartGame() => {
-                state = GameState::default();
-                //retain these values between rounds
-            }
-        }
-    }
+    dbgo(&mut state);
 
     state.save();
 });
@@ -499,6 +270,10 @@ fn step_through_battle(
                     //find closest enemy
                     if let Some(index) = closest_enemy_index(&unit, &units_clone) {
                         if unit.is_unit_in_range(&units_clone[index]) {
+                            //TODO: modify attacks based on artifact list for this team
+                            //Add artifact list to the team and set to vec::new
+                            //if it isn't none, then call modify damage (pass &team.artifacts and &mut state)
+                            //if that doesn't work, then we can clone artifacts or reference it
                             attacks.push(unit.start_attack(units_clone[index].id));
                             if unit.pos.0 > units_clone[index].pos.0 {
                                 if let Some(display) = unit.display.as_mut() {
@@ -898,56 +673,6 @@ fn draw_points_end_screen(points: i32, points_change: i32) {
     //then draw the change (plus or minus)
 }
 
-fn select_unit_pack(pack_index: usize, state: &mut GameState) {
-    //get team 0
-    let pack = &mut state.shop[pack_index];
-    if state.teams.len() == 0 {
-        let team = initialize_first_team(state.data_store.as_ref().unwrap().clone());
-        state.teams.push(team);
-    }
-    //add the units to team 0
-    let num = pack.unit_count;
-    let mut i = 0;
-    while i < num {
-        state.teams[0].add_unit(pack.unit_type.clone());
-        i += 1;
-    }
-    pack.is_picked = true;
-}
-
-fn initialize_first_team(data_store: UnitDataStore) -> Team {
-    Team {
-        name: ("YOU".to_string()),
-        units: (Vec::new()),
-        data: (data_store),
-        win_streak: (0),
-    }
-}
-
-fn create_unit_packs(num_types: usize, data_store: &UnitDataStore, rng: &mut RNG) -> Vec<UnitPack> {
-    //choose some number of packs to make
-    //add them to the game state
-    let mut unitpacks = Vec::new();
-    let available_types: Vec<&String> = data_store.data.keys().collect();
-    let types = select_random_unit_types(&available_types, num_types, rng);
-    let mut i = 0;
-    while i < num_types {
-        //create a pack
-        //TODO: update this with a unit pack new function
-        //and make a unit preview based on the type
-        //we already have the data store so it shouldn't be too hard
-        let unit_type = types[i].clone();
-        let pos = ((i * 90 + 20) as f32, 72.);
-        let data = data_store.get_unit_data(&unit_type).unwrap();
-        let unit_preview = UnitPreview::new(unit_type, data.clone(), pos, false);
-        let unitpack = UnitPack::new(types[i].clone(), 8, unit_preview, pos);
-        unitpacks.push(unitpack);
-        i += 1;
-    }
-
-    unitpacks
-}
-
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 enum Phase {
     TeamSetUp, //get the teams from the server
@@ -955,108 +680,6 @@ enum Phase {
     PreBattle,
     Battle,
     WrapUp,
-}
-
-#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
-enum DBPhase {
-    Shop,
-    Battle,
-    WrapUp,
-}
-
-#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
-struct UnitPack {
-    unit_type: String,
-    unit_count: u32,
-    unit_preview: UnitPreview,
-    is_picked: bool,
-    pos: (f32, f32),
-    width: u32,
-    height: u32,
-}
-
-impl UnitPack {
-    fn new(unit_type: String, unit_count: u32, unit_preview: UnitPreview, pos: (f32, f32)) -> Self {
-        UnitPack {
-            unit_type,
-            unit_count,
-            unit_preview,
-            is_picked: false, // Default value
-            pos,
-            width: 80,  // Default value
-            height: 80, // Default value
-        }
-    }
-
-    fn capitalize(s: &str) -> String {
-        let mut c = s.chars();
-        match c.next() {
-            None => String::new(),
-            Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
-        }
-    }
-
-    fn is_hovered(&self, mouse_pos: (i32, i32)) -> bool {
-        let (mouse_x, mouse_y) = mouse_pos;
-        let (pack_x, pack_y) = self.pos;
-
-        mouse_x >= pack_x as i32
-            && mouse_x <= pack_x as i32 + self.width as i32
-            && mouse_y >= pack_y as i32
-            && mouse_y <= pack_y as i32 + self.height as i32
-    }
-
-    fn on_picked(&mut self) {
-        //do something
-    }
-
-    fn draw_pack_card(&self, mouse_pos: (i32, i32)) {
-        //create a panel
-        let pw = 80; // Made panel wider to accommodate text
-        let ph = 80;
-        let border_color = OFF_BLACK;
-        let mut panel_color = DARK_GRAY;
-        if self.is_hovered(mouse_pos) {
-            panel_color = LIGHT_GRAY;
-        }
-        let px = self.pos.0;
-        let py = self.pos.1;
-        rect!(
-            x = px,
-            y = py,
-            h = ph,
-            w = pw,
-            color = panel_color,
-            border_color = border_color,
-            border_radius = 6,
-            border_width = 2
-        );
-
-        // Header
-        let c = Self::capitalize(&self.unit_type);
-        let txt = format!("{} {}s", self.unit_count, c);
-        text!(&txt, x = px + 5., y = py + 5.);
-
-        // Stats rows - each line is 15 pixels apart
-        let damage_text = format!("DAMAGE: {}", self.unit_preview.data.damage);
-        let speed_text = format!("SPEED: {}", self.unit_preview.data.speed);
-        let health_text = format!("HEALTH: {}", self.unit_preview.data.max_health);
-
-        text!(&damage_text, x = px + 5., y = py + 25.);
-        text!(&speed_text, x = px + 5., y = py + 35.);
-        text!(&health_text, x = px + 5., y = py + 45.);
-    }
-
-    fn draw(&mut self, mouse_pos: (i32, i32)) {
-        if !self.is_picked {
-            self.unit_preview.pos.0 = self.pos.0 + 30.;
-            self.unit_preview.pos.1 = self.pos.1 + self.height as f32 - 10.;
-            self.unit_preview.update();
-            self.draw_pack_card(mouse_pos);
-            self.unit_preview.draw();
-        }
-    }
-    //draw unit preview
 }
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
@@ -1895,43 +1518,6 @@ fn create_units_for_all_teams(
     units
 }
 
-fn generate_team_db(
-    data_store: &UnitDataStore,
-    rng: &mut RNG,
-    match_team: Option<&Team>,
-    team_name: String,
-    power_level: f32,
-) -> Team {
-    // Get available unit types as Vec<&String>
-    let mut available_types: Vec<&String> = data_store.data.keys().collect();
-
-    // If matching a team, remove its unit types from available options
-    if let Some(team) = match_team {
-        available_types.retain(|unit_type| !team.units.contains(*unit_type));
-    }
-
-    // Select 2 random unit types for this team
-    let selected_types = select_random_unit_types(&available_types, 2, rng);
-
-    // Calculate all unit powers
-    let unit_powers: HashMap<String, f32> = data_store
-        .data
-        .iter()
-        .map(|(unit_type, unit_data)| (unit_type.clone(), calculate_single_unit_power(unit_data)))
-        .collect();
-
-    // Calculate target power
-    let target_power = match match_team {
-        Some(team) => get_team_total_power(team),
-        None => calculate_team_power_target(&unit_powers, power_level),
-    };
-
-    // Create and return the team
-    let mut team = Team::new(team_name, data_store.clone());
-    create_team(&mut team, &selected_types, &unit_powers, target_power, rng);
-    team
-}
-
 fn generate_team(
     data_store: &UnitDataStore,
     rng: &mut RNG,
@@ -1986,48 +1572,6 @@ fn calculate_single_unit_power(unit_data: &UnitData) -> f32 {
 
     final_power
 }
-
-// fn calculate_unit_power_level(data_store: &HashMap<String, UnitData>) -> HashMap<String, f32> {
-//     let mut power_levels = HashMap::new();
-
-//     // Find max values for normalization
-//     let max_health = data_store
-//         .values()
-//         .map(|u| u.max_health)
-//         .max_by(|a, b| a.partial_cmp(b).unwrap())
-//         .unwrap_or(1.0);
-//     let max_dps = data_store
-//         .values()
-//         .map(|u| u.damage / (u.attack_time as f32 / 60.0))
-//         .max_by(|a, b| a.partial_cmp(b).unwrap())
-//         .unwrap_or(1.0);
-//     let max_speed = data_store
-//         .values()
-//         .map(|u| u.speed)
-//         .max_by(|a, b| a.partial_cmp(b).unwrap())
-//         .unwrap_or(1.0);
-
-//     for (unit_type, unit_data) in data_store {
-//         let normalized_health = (unit_data.max_health / max_health) * 50.0;
-//         let dps = unit_data.damage / (unit_data.attack_time as f32 / 60.0);
-//         let normalized_dps = (dps / max_dps) * 100.0;
-//         let normalized_speed = (unit_data.speed / max_speed) * 10.0;
-
-//         let mut power_level = normalized_health + normalized_dps + normalized_speed;
-
-//         if unit_data.range > 20.0 {
-//             power_level += 150.0;
-//         }
-
-//         if unit_data.splash_area > 0.0 {
-//             power_level = power_level * 3.;
-//         }
-
-//         power_levels.insert(unit_type.clone(), power_level);
-//     }
-
-//     power_levels
-// }
 
 pub fn calculate_team_power_target(
     power_levels: &HashMap<String, f32>,
