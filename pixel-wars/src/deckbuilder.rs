@@ -40,8 +40,9 @@ pub fn dbgo(state: &mut GameState) {
             let txt = format!("Choose {} Unit Sets", state.num_picks);
             text!(&txt, x = 20, y = 20, font = Font::L);
             if state.teams.len() != 0 {
-                let txt = format!("Your Team: {:?}", state.teams[0].units);
-                text!(&txt, x = 10, y = 180);
+                draw_current_team(&state.teams[0], &state.data_store.as_ref().unwrap());
+                //let txt = format!("Your Team: {:?}", state.teams[0].units);
+                //text!(&txt, x = 10, y = 180);
             }
             //do something to start the battle
             //TODO: Turn this into a button
@@ -83,7 +84,7 @@ pub fn dbgo(state: &mut GameState) {
             text!(&txt, x = 20, y = 20, font = Font::L);
             if state.teams.len() != 0 {
                 //TODO: Turn this into a function
-                let txt = format!("Your Team: {:?}", state.teams[0].units);
+                //let txt = format!("Your Team: {:?}", state.teams[0].units);
                 text!(&txt, x = 10, y = 180);
             }
             if gp.a.just_pressed() || state.round != 0 {
@@ -119,6 +120,7 @@ pub fn dbgo(state: &mut GameState) {
                     &mut state.explosions,
                     &mut state.craters,
                     &mut state.rng,
+                    &state.artifacts,
                 );
             }
 
@@ -491,9 +493,9 @@ pub enum ArtifactKind {
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 pub struct Artifact {
-    artifact_kind: ArtifactKind,
-    config: ArtifactConfig,
-    text: String,
+    pub artifact_kind: ArtifactKind,
+    pub config: ArtifactConfig,
+    pub text: String,
 }
 
 impl Artifact {
@@ -706,4 +708,59 @@ pub fn split_text_at_spaces(text: &str) -> Vec<String> {
     }
 
     result
+}
+
+pub fn draw_current_team(team: &Team, data_store: &UnitDataStore) {
+    //Draw header
+    text!("YOUR TEAM: ", x = 10, y = 140);
+
+    // Create a vec to store (unit_type, count)
+    let mut type_counts: Vec<(&String, u32)> = Vec::new();
+
+    // Count occurrences of each unit type while maintaining order
+    for unit_type in &team.units {
+        // Check if we already have this type
+        if let Some(entry) = type_counts.iter_mut().find(|(t, _)| *t == unit_type) {
+            entry.1 += 1;
+        } else {
+            type_counts.push((unit_type, 1));
+        }
+    }
+
+    // Sort by unit type to ensure consistent order
+    type_counts.sort_by(|a, b| a.0.cmp(b.0));
+
+    // Calculate positions and draw
+    let start_x = 10;
+    let start_y = 160;
+    let vertical_spacing = 20;
+    let horizontal_spacing = 40;
+    let max_rows = 3;
+
+    // Draw each unit type count
+    for (i, (unit_type, count)) in type_counts.iter().enumerate() {
+        // Calculate position
+        let row = i % max_rows;
+        let column = i / max_rows;
+
+        let x = start_x + (column * horizontal_spacing);
+        let y = start_y + (row * vertical_spacing);
+
+        // Draw count
+        let txt = format!("{}x ", count);
+        text!(txt.as_str(), x = x, y = y);
+
+        // Draw sprite
+        let txt = format!("{}_idle", unit_type);
+        let data = data_store.data.get(&**unit_type);
+        let x_adj = data.unwrap().bounding_box.0;
+        let y_adj = data.unwrap().bounding_box.1;
+        let sw = data.unwrap().sprite_width;
+        sprite!(
+            &txt,
+            x = x + x_adj as usize + 12,
+            y = y - y_adj as usize,
+            sw = sw,
+        );
+    }
 }

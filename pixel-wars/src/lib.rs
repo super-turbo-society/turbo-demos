@@ -211,6 +211,7 @@ fn _simulate_battle(state: &mut GameState) {
             &mut state.explosions, //look into a callback to replace this
             &mut state.craters,    //look into a callback to replace this
             &mut state.rng,
+            &Vec::new(),
         );
         i += 1;
         if i > 10000 {
@@ -259,6 +260,7 @@ fn step_through_battle(
     explosions: &mut Vec<AnimatedSprite>,
     craters: &mut Vec<AnimatedSprite>,
     rng: &mut RNG,
+    artifacts: &Vec<Artifact>,
 ) {
     let units_clone = units.clone();
     //=== MOVEMENT AND ATTACKING ===
@@ -272,8 +274,11 @@ fn step_through_battle(
                         if unit.is_unit_in_range(&units_clone[index]) {
                             //TODO: modify attacks based on artifact list for this team
                             //Add artifact list to the team and set to vec::new
-                            //if it isn't none, then call modify damage (pass &team.artifacts and &mut state)
-                            //if that doesn't work, then we can clone artifacts or reference it
+                            //if it isn't none, then call modify damage
+                            let mut attack = unit.start_attack(units_clone[index].id);
+                            let attack =
+                                modify_damage_from_artifacts(attack, &units_clone, artifacts);
+
                             attacks.push(unit.start_attack(units_clone[index].id));
                             if unit.pos.0 > units_clone[index].pos.0 {
                                 if let Some(display) = unit.display.as_mut() {
@@ -544,6 +549,57 @@ fn step_through_battle(
         trap.update();
         trap.draw();
     }
+}
+
+fn modify_damage_from_artifacts(
+    mut attack: Attack,
+    units: &Vec<Unit>,
+    artifacts: &Vec<Artifact>,
+) -> Attack {
+    // Go through each artifact
+    for artifact in artifacts {
+        match artifact.artifact_kind {
+            ArtifactKind::StrenghtOfTheFallen => {
+                // Count dead friendly units
+                let dead_count = units
+                    .iter()
+                    .filter(|u| u.health <= 0. && u.team == 0)
+                    .count();
+
+                if let ArtifactConfig::DeadUnitDamageBoost { percent_per_unit } = artifact.config {
+                    // Increase damage by config percentage for each dead unit
+                    let damage_multiplier = 1.0 + (dead_count as f32 * percent_per_unit / 100.0);
+                    attack.damage *= damage_multiplier;
+                    turbo::println!("Boosted: {}%", (damage_multiplier - 1.0));
+                }
+            }
+
+            ArtifactKind::SnipersFocus => {
+                if attack.attributes.contains(&Attribute::Ranged) {
+                    if let Some(target_unit) = find_unit_by_id(units, Some(attack.target_unit_id)) {
+                        if let ArtifactConfig::DistanceDamageBoost { percent_per_pixel } =
+                            artifact.config
+                        {
+                            // Calculate distance between attack position and target
+                            let dx = (target_unit.pos.0 - attack.pos.0) as f32;
+                            let dy = (target_unit.pos.1 - attack.pos.1) as f32;
+                            let distance = (dx * dx + dy * dy).sqrt();
+
+                            // Increase damage based on distance
+                            let damage_multiplier = 1.0 + (distance * percent_per_pixel / 100.0);
+                            attack.damage *= damage_multiplier;
+                            turbo::println!("Boosted: {}%", (damage_multiplier - 1.0));
+                        }
+                    }
+                }
+            }
+
+            // For FlameWard or any other kinds, no damage modification needed
+            _ => {}
+        }
+    }
+
+    attack
 }
 
 fn find_unit_by_id(units: &Vec<Unit>, id: Option<u32>) -> Option<&Unit> {
