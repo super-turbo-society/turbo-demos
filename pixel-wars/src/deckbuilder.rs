@@ -1,5 +1,7 @@
 use crate::*;
 
+const TOTAL_ROUNDS: usize = 6;
+
 pub fn dbgo(state: &mut GameState) {
     clear!(0x8f8cacff);
     let gp = gamepad(0);
@@ -31,7 +33,11 @@ pub fn dbgo(state: &mut GameState) {
             let m_pos = (m.position[0], m.position[1]);
             for (i, u) in state.shop.iter_mut().enumerate() {
                 u.draw(m_pos);
-                if m.left.just_pressed() && u.is_hovered(m_pos) {
+                if m.left.just_pressed()
+                    && u.is_hovered(m_pos)
+                    && !u.is_picked
+                    && state.num_picks > 0
+                {
                     select_unit_pack(i, state);
                     state.num_picks -= 1;
                     break;
@@ -65,6 +71,10 @@ pub fn dbgo(state: &mut GameState) {
             }
         }
         DBPhase::ArtifactShop => {
+            if gp.a.just_pressed() || state.round != 0 {
+                state.dbphase = DBPhase::Battle;
+            }
+
             let m = mouse(0);
             let m_pos = (m.position[0], m.position[1]);
             //generate 2 choices
@@ -72,7 +82,7 @@ pub fn dbgo(state: &mut GameState) {
                 state.artifact_shop = create_artifact_shop(2, &mut state.rng, &state.artifacts);
             }
             for (i, a) in state.artifact_shop.iter_mut().enumerate() {
-                let pos = (100 + (i as i32 * 100), 72);
+                let pos = (100 + (i as i32 * 100), 50);
                 a.draw_card(pos, m_pos);
                 if m.left.just_pressed() && a.is_hovered(pos, m_pos) {
                     state.artifacts.push(a.clone());
@@ -83,12 +93,7 @@ pub fn dbgo(state: &mut GameState) {
             let txt = format!("Choose An Artifact");
             text!(&txt, x = 20, y = 20, font = Font::L);
             if state.teams.len() != 0 {
-                //TODO: Turn this into a function
-                //let txt = format!("Your Team: {:?}", state.teams[0].units);
-                text!(&txt, x = 10, y = 180);
-            }
-            if gp.a.just_pressed() || state.round != 0 {
-                state.dbphase = DBPhase::Battle;
+                draw_current_team(&state.teams[0], &state.data_store.as_ref().unwrap());
             }
         }
         DBPhase::Battle => {
@@ -194,6 +199,15 @@ pub fn dbgo(state: &mut GameState) {
                 }
             }
 
+            //Draw round indicator
+            let txt = format!("Round {}/{}", state.round, TOTAL_ROUNDS);
+            let len = txt.len();
+            let char_length = 8;
+            let center_x = canvas_size!()[0] / 2;
+            let text_width = len as u32 * char_length;
+            let x = center_x - (text_width / 2);
+            text!(&txt, x = x, y = 10, font = Font::L, color = OFF_BLACK);
+
             //Draw team health bars
             let mut team0_base_health = 0.0;
             let mut team0_current_health = 0.0;
@@ -223,6 +237,12 @@ pub fn dbgo(state: &mut GameState) {
                 true,
                 is_chosen_team,
             );
+            //draw team0 artifacts start from left side of the bar
+            for (i, a) in state.artifacts.clone().iter().enumerate() {
+                let x_offset = i as i32 * 16; // 16 pixels right for each item
+                let pos = (team_0_pos.0 as i32 + x_offset, team_0_pos.1 as i32 + 14);
+                a.draw_sprite_scaled(pos, 0.5);
+            }
             is_chosen_team = false;
             if state.selected_team_index == Some(1) {
                 is_chosen_team = true;
@@ -569,6 +589,10 @@ impl Artifact {
     }
 
     pub fn draw_sprite(&self, pos: (i32, i32)) {
+        self.draw_sprite_scaled(pos, 1.0);
+    }
+
+    pub fn draw_sprite_scaled(&self, pos: (i32, i32), scale: f32) {
         let mut color = ACID_GREEN;
         match self.artifact_kind {
             ArtifactKind::StrenghtOfTheFallen => {
@@ -582,7 +606,8 @@ impl Artifact {
             }
         }
         //match on the artifact type to get the sprite
-        circ!(color = color, x = pos.0, y = pos.1, d = 12);
+        let d = 12.0 * scale;
+        circ!(color = color, x = pos.0, y = pos.1, d = d);
     }
 
     pub fn draw_effect_text(&self, pos: (i32, i32)) {
@@ -612,7 +637,7 @@ pub fn create_unit_packs(
         //and make a unit preview based on the type
         //we already have the data store so it shouldn't be too hard
         let unit_type = types[i].clone();
-        let pos = ((i * 90 + 20) as f32, 72.);
+        let pos = ((i * 90 + 20) as f32, 50.);
         let data = data_store.get_unit_data(&unit_type).unwrap();
         let unit_power = calculate_single_unit_power(data);
         let unit_count = 2500 as f32 / unit_power;
@@ -758,7 +783,7 @@ pub fn draw_current_team(team: &Team, data_store: &UnitDataStore) {
         let sw = data.unwrap().sprite_width;
         sprite!(
             &txt,
-            x = x + x_adj as usize + 12,
+            x = x - x_adj as usize + 16,
             y = y - y_adj as usize,
             sw = sw,
         );

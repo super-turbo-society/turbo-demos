@@ -569,8 +569,9 @@ fn modify_damage_from_artifacts(
                 if let ArtifactConfig::DeadUnitDamageBoost { percent_per_unit } = artifact.config {
                     // Increase damage by config percentage for each dead unit
                     let damage_multiplier = 1.0 + (dead_count as f32 * percent_per_unit / 100.0);
+                    //turbo::println!("Unboosted Damage: {}", attack.damage);
                     attack.damage *= damage_multiplier;
-                    turbo::println!("Boosted: {}%", (damage_multiplier - 1.0));
+                    //turbo::println!("Boosted Damage: {}", attack.damage);
                 }
             }
 
