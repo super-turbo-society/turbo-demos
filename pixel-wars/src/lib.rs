@@ -52,6 +52,7 @@ const DAMAGE_TINT_RED: usize = 0xb9451dff;
 const OFF_BLACK: u32 = 0x1A1A1AFF;
 const DARK_GRAY: u32 = 0x808080FF;
 const LIGHT_GRAY: u32 = 0xA6A6A6FF;
+const SHADOW_COLOR: usize = 0x696682ff;
 const _HOVER_GRAY: u32 = 0xCCCCCCFF;
 
 turbo::cfg! {r#"
@@ -1287,7 +1288,7 @@ fn draw_team_health_bar(
         x = x_bar + text_adj,
         y = y_bar + h_bar as f32 + 8.,
         font = Font::M,
-        color = 0x696682ff
+        color = SHADOW_COLOR
     );
     text!(
         team_name,
@@ -1888,4 +1889,74 @@ struct MatchData {
 struct TeamChoiceCounter {
     pub team_0: i32,
     pub team_1: i32,
+}
+
+#[macro_export]
+macro_rules! power_text {
+   // Basic version without formatting args
+   ($text:expr) => {{
+       $crate::power_text!($text,)
+   }};
+
+   // Version with named parameters
+   ($text:expr, $( $key:ident = $val:expr ),* $(,)*) => {{
+       let mut x: i32 = 0;
+       let mut y: i32 = 0;
+       let mut font: Font = Font::M;
+       let mut color: u32 = 0xffffffff;
+       let mut absolute: bool = false;
+       let mut drop_shadow: Option<u32> = None;
+       let mut underline: bool = false;
+       let mut center_width: Option<i32> = None;  // Width of area to center within
+
+       $($crate::paste::paste!{ [< $key >] = power_text!(@coerce $key, $val); })*
+
+
+       let char_width = match font {
+        Font::S => 4,
+        Font::M => 6,
+        Font::L => 8,
+        Font::XL => 10,
+     };
+       // Handle centering if specified
+       if let Some(width) = center_width {
+
+           let text_width = (char_width * $text.len() as i32);
+           x += (width - text_width) / 2;
+       }
+        // Handle drop shadow if specified
+        if let Some(shadow_color) = drop_shadow {
+            text!($text,
+                x = x + 2,
+                y = y + 2,
+                color = shadow_color,
+                font = font,
+                absolute = absolute
+            );
+        }
+       // Draw main text
+       text!($text,
+           x = x,
+           y = y,
+           color = color,
+           font = font,
+           absolute = absolute
+       );
+
+       // Handle underline if specified
+       if underline {
+        let text_width = char_width * $text.len() as i32;
+        rect!(x = x, y=y+char_width, color=color, w = text_width, h = 1);
+       }
+   }};
+
+   // Add coercion rules for new parameters
+   (@coerce x, $val:expr) => { $val as i32 };
+   (@coerce y, $val:expr) => { $val as i32 };
+   (@coerce absolute, $val:expr) => { $val as bool };
+   (@coerce font, $val:expr) => { $val as Font };
+   (@coerce color, $val:expr) => { $val as u32 };
+   (@coerce drop_shadow, $val:expr) => { Some($val as u32) };
+   (@coerce underline, $val:expr) => { $val as bool };
+   (@coerce center_width, $val:expr) => { Some($val as i32) };
 }

@@ -117,6 +117,16 @@ impl Unit {
     }
 
     pub fn draw(&mut self) {
+        // Calculate positions first before any mutable borrows
+        let dp = self.draw_position();
+        let flip_x = self.flip_x();
+
+        // Early return if no display
+        let display = match self.display.as_mut() {
+            Some(d) => d,
+            None => return,
+        };
+
         let mut new_anim = Animation {
             name: self.unit_type.to_lowercase(),
             s_w: self.data.sprite_width,
@@ -124,33 +134,22 @@ impl Unit {
             loops_per_frame: UNIT_ANIM_SPEED,
             is_looping: true,
         };
+
         if self.state == UnitState::Moving || self.state == UnitState::MarchingIn {
             new_anim.name += "_walk";
-            self.display
-                .as_mut()
-                .unwrap()
-                .animator
-                .set_cur_anim(new_anim);
+            display.animator.set_cur_anim(new_anim);
         } else if self.state == UnitState::Dead {
             new_anim.name += "_death";
             new_anim.is_looping = false;
-            self.display
-                .as_mut()
-                .unwrap()
-                .animator
-                .set_cur_anim(new_anim);
-            self.display.as_mut().unwrap().animator.next_anim = None;
+            display.animator.set_cur_anim(new_anim);
+            display.animator.next_anim = None;
         } else if self.state == UnitState::Attacking {
             //only set this once, when the attack starts.
             //That way when attack ends, they will idle (could change to reload or something later)
             if self.attack_timer == self.data.attack_time - 1 {
                 new_anim.name += "_attack";
                 new_anim.is_looping = false;
-                self.display
-                    .as_mut()
-                    .unwrap()
-                    .animator
-                    .set_cur_anim(new_anim);
+                display.animator.set_cur_anim(new_anim);
                 let next_anim = Animation {
                     name: self.unit_type.to_lowercase() + "_idle",
                     s_w: self.data.sprite_width,
@@ -158,14 +157,10 @@ impl Unit {
                     loops_per_frame: UNIT_ANIM_SPEED,
                     is_looping: true,
                 };
-                self.display
-                    .as_mut()
-                    .unwrap()
-                    .animator
-                    .set_next_anim(Some(next_anim));
+                display.animator.set_next_anim(Some(next_anim));
             }
         } else if self.state == UnitState::Idle {
-            self.display.as_mut().unwrap().animator.cur_anim.is_looping = false;
+            display.animator.cur_anim.is_looping = false;
             let next_anim = Animation {
                 name: self.unit_type.to_lowercase() + "_idle",
                 s_w: self.data.sprite_width,
@@ -173,14 +168,10 @@ impl Unit {
                 loops_per_frame: UNIT_ANIM_SPEED,
                 is_looping: true,
             };
-            self.display
-                .as_mut()
-                .unwrap()
-                .animator
-                .set_next_anim(Some(next_anim));
+            display.animator.set_next_anim(Some(next_anim));
             //self.animator.set_cur_anim(new_anim);
         } else if self.state == UnitState::Cheer {
-            self.display.as_mut().unwrap().animator.cur_anim.is_looping = false;
+            display.animator.cur_anim.is_looping = false;
             let next_anim = Animation {
                 name: self.unit_type.to_lowercase() + "_cheer",
                 s_w: self.data.sprite_width,
@@ -188,35 +179,25 @@ impl Unit {
                 loops_per_frame: UNIT_ANIM_SPEED,
                 is_looping: true,
             };
-            self.display
-                .as_mut()
-                .unwrap()
-                .animator
-                .set_next_anim(Some(next_anim));
+            display.animator.set_next_anim(Some(next_anim));
         }
 
-        if self.display.as_mut().unwrap().damage_effect_timer > 0 {
-            self.display
-                .as_mut()
-                .unwrap()
-                .animator
-                .change_tint_color(DAMAGE_TINT_RED);
-            self.display.as_mut().unwrap().damage_effect_timer -= 1;
+        if display.damage_effect_timer > 0 {
+            display.animator.change_tint_color(DAMAGE_TINT_RED);
+            display.damage_effect_timer -= 1;
+        } else if self.health <= 0. {
+            display.animator.change_tint_color(0xFFFFFF75);
         } else {
-            self.display
-                .as_mut()
-                .unwrap()
-                .animator
-                .change_tint_color(WHITE);
+            display.animator.change_tint_color(WHITE);
         }
-        self.display.as_mut().unwrap().animator.update();
-        let dp = self.draw_position();
-        let flip_x = self.flip_x();
-        self.display.as_mut().unwrap().animator.draw(dp, flip_x);
-        if let Some(ref mut splatter) = self.display.as_mut().unwrap().blood_splatter {
+
+        display.animator.update();
+        display.animator.draw(dp, flip_x);
+
+        if let Some(ref mut splatter) = display.blood_splatter {
             splatter.update();
             if splatter.animator.is_done() {
-                self.display.as_mut().unwrap().blood_splatter = None;
+                display.blood_splatter = None;
             } else {
                 splatter.draw();
             }

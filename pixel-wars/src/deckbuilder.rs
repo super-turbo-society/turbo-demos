@@ -44,7 +44,17 @@ pub fn dbgo(state: &mut GameState) {
                 }
             }
             let txt = format!("Choose {} Unit Sets", state.num_picks);
-            text!(&txt, x = 20, y = 20, font = Font::L);
+            power_text!(
+                &txt,
+                x = 0,
+                y = 20,
+                font = Font::L,
+                drop_shadow = SHADOW_COLOR,
+                center_width = 384,
+                underline = true,
+            );
+
+            //text!(&txt, x = 20, y = 20, font = Font::L);
             if state.teams.len() != 0 {
                 draw_current_team(&state.teams[0], &state.data_store.as_ref().unwrap());
                 //let txt = format!("Your Team: {:?}", state.teams[0].units);
@@ -91,7 +101,15 @@ pub fn dbgo(state: &mut GameState) {
                 }
             }
             let txt = format!("Choose An Artifact");
-            text!(&txt, x = 20, y = 20, font = Font::L);
+            power_text!(
+                &txt,
+                x = 0,
+                y = 20,
+                font = Font::L,
+                drop_shadow = SHADOW_COLOR,
+                center_width = 384,
+                underline = true,
+            );
             if state.teams.len() != 0 {
                 draw_current_team(&state.teams[0], &state.data_store.as_ref().unwrap());
             }
