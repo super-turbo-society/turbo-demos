@@ -23,7 +23,7 @@ const DAMAGE_EFFECT_TIME: u32 = 12;
 //avg number of units to balance each generated team around
 const TEAM_POWER_MULTIPLIER: f32 = 25.0;
 const TEAM_SELECTION_TIME: u32 = 3600;
-const BATTLE_COUNTDOWN_TIME: u32 = 120;
+const BATTLE_COUNTDOWN_TIME: u32 = 240;
 const TEAM_NAMES: [&str; 12] = [
     "Pixel Peeps",
     "Battle Bois",
@@ -72,6 +72,7 @@ turbo::init! {
         num_picks: u32,
         artifacts: Vec<Artifact>,
         artifact_shop: Vec<Artifact>,
+        enemy_team_placeholder: Option<Team>,
         phase: Phase,
         units: Vec<Unit>,
         next_id: u32,
@@ -98,14 +99,15 @@ turbo::init! {
         battle_simulation_requested: bool,
     } = {
         Self {
-            dbphase: DBPhase::Shop,
+            dbphase: DBPhase::Title,
             phase: Phase::TeamSetUp,
-            round: 0,
+            round: 1,
             num_picks: 0,
             units: Vec::new(),
             shop: Vec::new(),
             artifacts: Vec::new(),
             artifact_shop: Vec::new(),
+            enemy_team_placeholder: None,
             //this starts at 1 so if any unit has 0 id it is unassigned or a bug.
             next_id: 1,
             teams: Vec::new(),
@@ -982,7 +984,13 @@ fn all_living_units(units: &Vec<Unit>) -> Vec<String> {
 fn draw_prematch_timer(time: u32) {
     let text = time / 60;
     let text = format!("BATTLE STARTS IN: {}", text);
-    text!(text.as_str(), x = 90, y = 80, font = Font::L);
+    power_text!(
+        text.as_str(),
+        x = 0,
+        y = 80,
+        font = Font::L,
+        center_width = 384
+    );
 }
 
 fn draw_team_selection_timer(time: u32) {
@@ -1533,47 +1541,121 @@ impl Button {
     }
 }
 
-//POWER LEVEL AND TEAM CREATION
 fn create_units_for_all_teams(
     teams: &mut Vec<Team>,
     rng: &mut RNG,
     data_store: &UnitDataStore,
 ) -> Vec<Unit> {
-    //generate units
+    // Define clump positions
+    // Define clump positions with more spacing
+    let left_clumps = vec![
+        (20.0, 60.0),  // Front left
+        (20.0, 110.0), // Mid-low left
+        (40.0, 160.0), // Back left
+        (70.0, 80.0),  // Mid-high right
+        (55.0, 130.0), // Center-ish
+        (25.0, 180.0), // Lower back
+    ];
+
+    let right_clumps = vec![
+        (334.0, 60.0),  // Front right
+        (349.0, 110.0), // Mid-low right
+        (324.0, 160.0), // Back right
+        (294.0, 80.0),  // Mid-high left
+        (309.0, 130.0), // Center-ish
+        (339.0, 180.0), // Lower back
+    ];
+    let overflow_positions = vec![(-30.0, 100.0), (384.0, 100.0)];
+
     let mut units = Vec::new();
-    let row_height = 16.0;
-    let row_width = 20.0;
-    let max_y = 200.0;
     let mut id = 1;
-    //shuffle the units in each team
-    for team in teams.iter_mut() {
-        shuffle(rng, &mut team.units);
-    }
 
+    // Process each team
     for (team_index, team) in teams.iter().enumerate() {
-        let mut x_start = if team_index == 0 { 70.0 } else { 270.0 }; // Adjusted starting x for team 1
-        let mut y_pos = 60.0;
+        // Group units by type
+        let mut unit_groups: HashMap<String, Vec<String>> = HashMap::new();
+        for unit_type in &team.units {
+            unit_groups
+                .entry(unit_type.clone())
+                .or_insert(Vec::new())
+                .push(unit_type.clone());
+        }
 
-        for (_i, unit_type) in team.units.iter().enumerate() {
-            if y_pos > max_y {
-                y_pos = 60.0;
+        // Get clump positions for this team
+        let clump_positions = if team_index == 0 {
+            &left_clumps
+        } else {
+            &right_clumps
+        };
+        let mut next_clump = 0;
 
-                if team_index == 0 {
-                    x_start -= row_width;
+        // Process each unit type group
+        for (_unit_type, group) in unit_groups {
+            // Split into subgroups of 20 if needed
+            let chunks = group.chunks(20).collect::<Vec<_>>();
+
+            for chunk in chunks {
+                if next_clump >= clump_positions.len() {
+                    // Use overflow position if we run out of clump spots
+                    let overflow_pos = overflow_positions[team_index];
+                    create_clump(
+                        chunk,
+                        overflow_pos,
+                        team_index,
+                        &mut id,
+                        data_store,
+                        rng,
+                        &mut units,
+                    );
                 } else {
-                    x_start += row_width;
+                    let clump_pos = clump_positions[next_clump];
+                    create_clump(
+                        chunk, clump_pos, team_index, &mut id, data_store, rng, &mut units,
+                    );
+                    next_clump += 1;
                 }
             }
-            let pos = (x_start, y_pos);
-            let mut unit = Unit::new(unit_type.clone(), pos, team_index as i32, &data_store, id);
-            unit.set_starting_strategy(rng);
-            units.push(unit);
-            id += 1;
-            //let unit = Unit::new(UnitType::Axeman, (0.0, 0.0), 0, &unit_type_store);
-            y_pos += row_height;
         }
     }
+
     units
+}
+
+fn create_clump(
+    unit_types: &[String],
+    base_pos: (f32, f32),
+    team_index: usize,
+    id: &mut u32,
+    data_store: &UnitDataStore,
+    rng: &mut RNG,
+    units: &mut Vec<Unit>,
+) {
+    let row_height = 12.0; // Reduced from 16
+    let row_width = 8.0; // Reduced from 20
+    let units_per_row = 3; // Reduced from 5 to make more vertical formations
+
+    for (i, unit_type) in unit_types.iter().enumerate() {
+        let row = i / units_per_row;
+        let col = i % units_per_row;
+
+        // Smaller random offsets
+        let offset_x = rng.next_in_range(0, 3) as f32 - 1.5;
+        let offset_y = rng.next_in_range(0, 3) as f32 - 1.5;
+
+        let x = base_pos.0 + (col as f32 * row_width) + offset_x;
+        let y = base_pos.1 + (row as f32 * row_height) + offset_y;
+
+        let mut unit = Unit::new(
+            unit_type.clone(),
+            (x, y),
+            team_index as i32,
+            data_store,
+            *id,
+        );
+        unit.set_starting_strategy(rng);
+        units.push(unit);
+        *id += 1;
+    }
 }
 
 fn generate_team(
@@ -1914,9 +1996,15 @@ macro_rules! power_text {
 
        let char_width = match font {
         Font::S => 4,
-        Font::M => 6,
+        Font::M => 5,
         Font::L => 8,
-        Font::XL => 10,
+        Font::XL => 16,
+     };
+     let char_height = match font {
+        Font::S => 4,
+        Font::M => 7,
+        Font::L => 8,
+        Font::XL => 15,
      };
        // Handle centering if specified
        if let Some(width) = center_width {
@@ -1927,8 +2015,8 @@ macro_rules! power_text {
         // Handle drop shadow if specified
         if let Some(shadow_color) = drop_shadow {
             text!($text,
-                x = x + 2,
-                y = y + 2,
+                x = x - 2,
+                y = y + 1,
                 color = shadow_color,
                 font = font,
                 absolute = absolute
@@ -1946,7 +2034,7 @@ macro_rules! power_text {
        // Handle underline if specified
        if underline {
         let text_width = char_width * $text.len() as i32;
-        rect!(x = x, y=y+char_width, color=color, w = text_width, h = 1);
+        rect!(x = x, y=y+char_height, color=color, w = text_width, h = 1);
        }
    }};
 

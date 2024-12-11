@@ -596,6 +596,10 @@ impl Unit {
             {
                 let new_status = Status::Burn { timer: (300) };
                 self.status_effects.push(new_status);
+            } else if self.data.has_attribute(&Attribute::FireResistance)
+                && attack.attributes.contains(&Attribute::FireEffect)
+            {
+                turbo::println!("FIRE BLOCKED");
             }
             if self.display.as_ref().unwrap().blood_splatter.is_none() {
                 //make the splatter position the top-middle of the sprite

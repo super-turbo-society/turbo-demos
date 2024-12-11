@@ -5,8 +5,39 @@ const TOTAL_ROUNDS: usize = 6;
 pub fn dbgo(state: &mut GameState) {
     clear!(0x8f8cacff);
     let gp = gamepad(0);
+    let m = mouse(0);
 
     match state.dbphase {
+        DBPhase::Title => {
+            if state.round != 1 {
+                state.dbphase = DBPhase::Shop;
+            } else {
+                //PIXEL WARS
+                power_text!(
+                    "PIXEL WARS",
+                    x = 0,
+                    y = 80,
+                    center_width = 384,
+                    underline = true,
+                    drop_shadow = SHADOW_COLOR,
+                    font = Font::XL,
+                );
+
+                power_text!(
+                    "Click to Play",
+                    x = 0,
+                    y = 120,
+                    center_width = 384,
+                    font = Font::L,
+                    drop_shadow = SHADOW_COLOR
+                );
+                //some unit previews
+            }
+            if gp.start.just_pressed() || m.left.just_pressed() {
+                state.dbphase = DBPhase::Shop;
+            }
+        }
+
         DBPhase::Shop => {
             //get the data store
             if state.data_store.is_none() {
@@ -21,9 +52,21 @@ pub fn dbgo(state: &mut GameState) {
                 }
             }
             let ds = state.data_store.as_ref().unwrap();
+            //create the enemy team
+            if state.enemy_team_placeholder == None {
+                let t = generate_team_db(
+                    &state.data_store.as_ref().unwrap(),
+                    &mut state.rng,
+                    None,
+                    "Bad Bois".to_string(),
+                    (20 * (state.round)) as f32,
+                );
+                state.enemy_team_placeholder = Some(t);
+            }
+
             if state.shop.len() == 0 {
                 state.shop = create_unit_packs(4, &ds, &mut state.rng);
-                if state.round == 0 {
+                if state.round == 1 {
                     state.num_picks = 3;
                 } else {
                     state.num_picks = 1;
@@ -54,24 +97,16 @@ pub fn dbgo(state: &mut GameState) {
                 underline = true,
             );
 
-            //text!(&txt, x = 20, y = 20, font = Font::L);
             if state.teams.len() != 0 {
-                draw_current_team(&state.teams[0], &state.data_store.as_ref().unwrap());
-                //let txt = format!("Your Team: {:?}", state.teams[0].units);
-                //text!(&txt, x = 10, y = 180);
+                draw_current_team(&state.teams[0], &state.data_store.as_ref().unwrap(), false);
             }
-            //do something to start the battle
-            //TODO: Turn this into a button
-            if gp.a.just_pressed() && state.num_picks == 0 {
-                //todo: figure out how to generate a fair team
-                let t = generate_team_db(
-                    &state.data_store.as_ref().unwrap(),
-                    &mut state.rng,
-                    Some(&state.teams[0]),
-                    "Bad Bois".to_string(),
-                    (20 * (state.round + 1)) as f32,
-                );
-                state.teams.push(t);
+            if let Some(enemy_team) = &state.enemy_team_placeholder {
+                draw_current_team(enemy_team, &state.data_store.as_ref().unwrap(), true);
+            }
+            if state.num_picks == 0 {
+                if let Some(enemy_team) = &state.enemy_team_placeholder {
+                    state.teams.push(enemy_team.clone());
+                }
                 state.units = create_units_for_all_teams(
                     &mut state.teams,
                     &mut state.rng,
@@ -81,8 +116,9 @@ pub fn dbgo(state: &mut GameState) {
             }
         }
         DBPhase::ArtifactShop => {
-            if gp.a.just_pressed() || state.round != 0 {
-                state.dbphase = DBPhase::Battle;
+            let mut should_end = false;
+            if gp.a.just_pressed() || state.round != 1 {
+                should_end = true;
             }
 
             let m = mouse(0);
@@ -93,25 +129,49 @@ pub fn dbgo(state: &mut GameState) {
             }
             for (i, a) in state.artifact_shop.iter_mut().enumerate() {
                 let pos = (100 + (i as i32 * 100), 50);
-                a.draw_card(pos, m_pos);
                 if m.left.just_pressed() && a.is_hovered(pos, m_pos) {
                     state.artifacts.push(a.clone());
-
-                    state.dbphase = DBPhase::Battle;
+                    should_end = true;
+                } else {
+                    a.draw_card(pos, m_pos);
                 }
             }
-            let txt = format!("Choose An Artifact");
-            power_text!(
-                &txt,
-                x = 0,
-                y = 20,
-                font = Font::L,
-                drop_shadow = SHADOW_COLOR,
-                center_width = 384,
-                underline = true,
-            );
-            if state.teams.len() != 0 {
-                draw_current_team(&state.teams[0], &state.data_store.as_ref().unwrap());
+            if !should_end {
+                let txt = format!("Choose An Artifact");
+                power_text!(
+                    &txt,
+                    x = 0,
+                    y = 20,
+                    font = Font::L,
+                    drop_shadow = SHADOW_COLOR,
+                    center_width = 384,
+                    underline = true,
+                );
+                if state.teams.len() != 0 {
+                    draw_current_team(&state.teams[0], &state.data_store.as_ref().unwrap(), false);
+                }
+                if let Some(enemy_team) = &state.enemy_team_placeholder {
+                    draw_current_team(enemy_team, &state.data_store.as_ref().unwrap(), true);
+                }
+            }
+            if should_end {
+                // Check if any artifact in the vec is FlameWard
+                if state
+                    .artifacts
+                    .iter()
+                    .any(|a| a.artifact_kind == ArtifactKind::FlameWard)
+                {
+                    // Go through all units and check for team 0
+                    for unit in &mut state.units {
+                        if unit.team == 0 {
+                            // Only add fire resistance if the unit doesn't already have it
+                            if !unit.data.attributes.contains(&Attribute::FireResistance) {
+                                unit.data.attributes.push(Attribute::FireResistance);
+                            }
+                        }
+                    }
+                }
+                state.dbphase = DBPhase::Battle;
             }
         }
         DBPhase::Battle => {
@@ -274,25 +334,38 @@ pub fn dbgo(state: &mut GameState) {
                 false,
                 is_chosen_team,
             );
+            let mut text = "Click to Play Again";
             if let Some(winner_idx) = has_some_team_won(&state.units) {
                 if winner_idx == 0 {
                     //then you win
                     draw_end_animation(Some(true));
-                    //need to do some type of
+                    if m.left.just_pressed() {
+                        //go to next round
+                        let your_team = state.teams[0].clone();
+                        let artifacts = state.artifacts.clone();
+                        let r = state.round + 1;
+                        *state = GameState::default();
+                        state.teams.push(your_team);
+                        state.round = r;
+                        state.artifacts = artifacts;
+                    }
+                    text = "Click to Continue";
                 } else {
                     //then you lose
                     draw_end_animation(Some(false));
+                    if m.left.just_pressed() {
+                        *state = GameState::default();
+                    }
                 }
-                if gp.start.just_pressed() {
-                    //go to next round
-                    let your_team = state.teams[0].clone();
-                    let artifacts = state.artifacts.clone();
-                    let r = state.round + 1;
-                    *state = GameState::default();
-                    state.teams.push(your_team);
-                    state.round = r;
-                    state.artifacts = artifacts;
-                }
+                //show some text for what to do next
+                power_text!(
+                    &text,
+                    x = 0,
+                    y = 140,
+                    drop_shadow = SHADOW_COLOR,
+                    center_width = 384,
+                    font = Font::L
+                );
             }
         }
         DBPhase::WrapUp => {
@@ -381,6 +454,7 @@ pub fn generate_team_db(
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 pub enum DBPhase {
+    Title,
     Shop,
     ArtifactShop,
     Battle,
@@ -519,6 +593,7 @@ pub enum ArtifactConfig {
     DeadUnitDamageBoost { percent_per_unit: f32 },
     DistanceDamageBoost { percent_per_pixel: f32 },
     FireResistance { resistance_percent: f32 },
+    TrapBoard { num_traps: u8 },
 }
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone, EnumIter)]
@@ -527,6 +602,7 @@ pub enum ArtifactKind {
     StrenghtOfTheFallen,
     SnipersFocus,
     FlameWard,
+    TrapArtist,
 }
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
@@ -544,19 +620,23 @@ impl Artifact {
                 ArtifactConfig::DeadUnitDamageBoost {
                     percent_per_unit: 1.0,
                 },
-                String::from("Increase damage by 1% for each dead unit on your team"),
+                String::from("Increase damage for each dead unit on your team"),
             ),
             ArtifactKind::SnipersFocus => (
                 ArtifactConfig::DistanceDamageBoost {
                     percent_per_pixel: 0.5,
                 },
-                String::from("Increase damage for all ranged attacks by .5% per pixel away"),
+                String::from("Increase damage for all ranged attacks"),
             ),
             ArtifactKind::FlameWard => (
                 ArtifactConfig::FireResistance {
                     resistance_percent: 50.0,
                 },
-                String::from("Give all of your units 50% fire resistance"),
+                String::from("Give all of your units fire resistance"),
+            ),
+            ArtifactKind::TrapArtist => (
+                ArtifactConfig::TrapBoard { num_traps: 12 },
+                String::from("Add Traps to the Board"),
             ),
             _ => panic!("Unknown artifact kind"),
         };
@@ -621,6 +701,9 @@ impl Artifact {
             }
             ArtifactKind::FlameWard => {
                 color = DAMAGE_TINT_RED;
+            }
+            ArtifactKind::TrapArtist => {
+                color = WHITE;
             }
         }
         //match on the artifact type to get the sprite
@@ -753,9 +836,13 @@ pub fn split_text_at_spaces(text: &str) -> Vec<String> {
     result
 }
 
-pub fn draw_current_team(team: &Team, data_store: &UnitDataStore) {
+pub fn draw_current_team(team: &Team, data_store: &UnitDataStore, facing_left: bool) {
     //Draw header
-    text!("YOUR TEAM: ", x = 10, y = 140);
+    if facing_left {
+        power_text!("ENEMY TEAM", x = 320, y = 140, underline = true,);
+    } else {
+        power_text!("YOUR TEAM", x = 10, y = 140, underline = true);
+    }
 
     // Create a vec to store (unit_type, count)
     let mut type_counts: Vec<(&String, u32)> = Vec::new();
@@ -774,7 +861,7 @@ pub fn draw_current_team(team: &Team, data_store: &UnitDataStore) {
     type_counts.sort_by(|a, b| a.0.cmp(b.0));
 
     // Calculate positions and draw
-    let start_x = 10;
+    let start_x = if facing_left { 320 } else { 10 };
     let start_y = 160;
     let vertical_spacing = 20;
     let horizontal_spacing = 40;
@@ -786,7 +873,11 @@ pub fn draw_current_team(team: &Team, data_store: &UnitDataStore) {
         let row = i % max_rows;
         let column = i / max_rows;
 
-        let x = start_x + (column * horizontal_spacing);
+        let x = if facing_left {
+            start_x - (column * horizontal_spacing)
+        } else {
+            start_x + (column * horizontal_spacing)
+        };
         let y = start_y + (row * vertical_spacing);
 
         // Draw count
@@ -804,6 +895,7 @@ pub fn draw_current_team(team: &Team, data_store: &UnitDataStore) {
             x = x - x_adj as usize + 16,
             y = y - y_adj as usize,
             sw = sw,
+            flip_x = facing_left,
         );
     }
 }
