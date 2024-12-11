@@ -67,6 +67,7 @@ turbo::cfg! {r#"
 turbo::init! {
     struct GameState {
         dbphase: DBPhase,
+        title_screen_units: Vec<WalkingUnitPreview>,
         shop: Vec<UnitPack>,
         round: u32,
         num_picks: u32,
@@ -100,6 +101,7 @@ turbo::init! {
     } = {
         Self {
             dbphase: DBPhase::Title,
+            title_screen_units: Vec::new(),
             phase: Phase::TeamSetUp,
             round: 1,
             num_picks: 0,
@@ -788,7 +790,7 @@ impl AnimatedSprite {
     }
 
     fn draw(&self) {
-        self.animator.draw(self.pos, true)
+        self.animator.draw(self.pos, self.flip_x)
     }
 }
 
@@ -1997,13 +1999,13 @@ macro_rules! power_text {
 
 
        let char_width = match font {
-        Font::S => 4,
+        Font::S => 5,
         Font::M => 5,
         Font::L => 8,
         Font::XL => 16,
      };
      let char_height = match font {
-        Font::S => 4,
+        Font::S => 5,
         Font::M => 7,
         Font::L => 8,
         Font::XL => 15,
@@ -2023,8 +2025,8 @@ macro_rules! power_text {
         // Handle drop shadow if specified
         if let Some(shadow_color) = drop_shadow {
             text!($text,
-                x = x - drop_shadow_distance,
-                y = y + 1,
+                x = x,
+                y = y + drop_shadow_distance,
                 color = shadow_color,
                 font = font,
                 absolute = absolute
@@ -2043,6 +2045,10 @@ macro_rules! power_text {
        if underline {
         let text_width = char_width * $text.len() as i32;
         rect!(x = x, y=y+char_height, color=color, w = text_width, h = 1);
+        if let Some(shadow_color) = drop_shadow{
+            rect!(x = x, y=y+char_height+1, color=shadow_color, w = text_width, h = 1);
+
+        }
        }
    }};
 

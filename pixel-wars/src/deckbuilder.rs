@@ -2,18 +2,189 @@ use crate::*;
 
 const TOTAL_ROUNDS: usize = 6;
 
+pub fn title_screen_unit(rng: &mut RNG, data_store: &UnitDataStore) -> WalkingUnitPreview {
+    let is_left_side = (rng.next() % 2) == 0;
+    let x_pos = -64.0;
+    let y_pos = rng.next_in_range(0, 160) as f32;
+    let pos = (x_pos, y_pos);
+    let available_types: Vec<&String> = data_store.data.keys().collect();
+    let index = rng.next_in_range(0, available_types.len() as u32 - 1) as usize;
+    let unit_type = available_types[index].clone();
+    let data = data_store.get_unit_data(&unit_type).unwrap();
+    let s_w = data.sprite_width;
+    let speed = data.speed;
+    let mut a = AnimatedSprite::new(pos, true);
+    let anim_name = unit_type.to_string() + "_walk";
+    a.set_anim(anim_name, s_w, 4, UNIT_ANIM_SPEED, true);
+    let w = WalkingUnitPreview::new(unit_type, a, pos, speed as f32, false);
+    w
+}
+
+fn draw_checkerboard_background() {
+    let checker_size = 16; // Size of each square
+    let light_color: usize = 0x8f8cacff;
+    let dark_color: usize = 0x7a7795ff; // Slightly darker version
+
+    for row in 0..(232 / checker_size) {
+        for col in 0..(384 / checker_size) {
+            let checker_x = col * checker_size;
+            let checker_y = row * checker_size;
+
+            // Alternate colors based on position
+            let color = if (row + col) % 2 == 0 {
+                light_color
+            } else {
+                dark_color
+            };
+
+            rect!(
+                x = checker_x,
+                y = checker_y,
+                w = checker_size as f32,
+                h = checker_size as f32,
+                color = color
+            );
+        }
+    }
+}
+
+fn draw_textured_background() {
+    let tile_size: usize = 2;
+    let base_color: u32 = 0x8f8cacff;
+    let variation = 8; // Reduced variation for subtlety
+
+    for row in 0..(216 / tile_size) {
+        for col in 0..(384 / tile_size) {
+            let x = (col * tile_size) as usize;
+            let y = (row * tile_size) as usize;
+
+            // Gentler pattern
+            let offset = (((x as u32) * 11 + (y as u32) * 7) % variation) as u32;
+            let color = base_color.wrapping_sub(offset * 0x00010101); // Smaller color change
+
+            rect!(
+                x = x,
+                y = y,
+                w = tile_size as f32,
+                h = tile_size as f32,
+                color = color
+            );
+        }
+    }
+}
+
+fn draw_diagonal_background() {
+    let tile_size = 2;
+    let light_color: usize = 0x8f8cacff;
+    let dark_color: usize = 0x7a7795ff;
+
+    for row in 0..(232 / tile_size) {
+        for col in 0..(384 / tile_size) {
+            let x = col * tile_size;
+            let y = row * tile_size;
+
+            // Diagonal pattern
+            let color = if ((row + col) / 2) % 2 == 0 {
+                light_color
+            } else {
+                dark_color
+            };
+
+            rect!(
+                x = x,
+                y = y,
+                w = tile_size as f32,
+                h = tile_size as f32,
+                color = color
+            );
+        }
+    }
+}
+
+fn draw_organic_background() {
+    let base_size = 8;
+    let light_color: usize = 0x8f8cacff;
+    let dark_color: usize = 0x7a7795ff;
+
+    let mut y = 0;
+    while y < 232 {
+        let mut x = 0;
+        while x < 384 {
+            let size = base_size + (((x + y) / 32) % 8); // Subtle size variation
+
+            let color = if ((x / base_size + y / base_size) % 2) == 0 {
+                light_color
+            } else {
+                dark_color
+            };
+
+            rect!(
+                x = x,
+                y = y,
+                w = size as f32,
+                h = size as f32,
+                color = color
+            );
+
+            x += size;
+        }
+        y += base_size;
+    }
+}
+
 pub fn dbgo(state: &mut GameState) {
     clear!(0x8f8cacff);
+    //draw_checkerboard_background();
+    //draw_organic_background();
+    //draw_diagonal_background();
+    draw_textured_background();
     let gp = gamepad(0);
     let m = mouse(0);
-
+    //get the data store
+    if state.data_store.is_none() {
+        match UnitDataStore::load_from_csv(UNIT_DATA_CSV) {
+            Ok(loaded_store) => {
+                state.data_store = Some(loaded_store);
+            }
+            Err(e) => {
+                eprintln!("Failed to load UnitDataStore: {}", e);
+                state.data_store = Some(UnitDataStore::new());
+            }
+        }
+    }
     match state.dbphase {
         DBPhase::Title => {
             if state.round != 1 {
                 state.dbphase = DBPhase::Shop;
             } else {
+                if state.title_screen_units.len() == 0 {
+                    //make some title screen units
+                    for _ in 0..3 {
+                        let w =
+                            title_screen_unit(&mut state.rng, state.data_store.as_ref().unwrap());
+                        state.title_screen_units.push(w);
+                    }
+                } else {
+                    // Create a new unit every 60 ticks
+                    if tick() % 60 == 0 {
+                        let w =
+                            title_screen_unit(&mut state.rng, state.data_store.as_ref().unwrap());
+                        state.title_screen_units.push(w);
+                    }
+
+                    // First sort the units by y-position
+                    state
+                        .title_screen_units
+                        .sort_by(|a, b| a.pos.1.partial_cmp(&b.pos.1).unwrap());
+
+                    // Then update them in order
+                    state.title_screen_units.retain_mut(|t| {
+                        t.update();
+                        true
+                    });
+                }
                 //PIXEL WARS
-                sprite!("pixelwars_title_static", x = 128, y = 20);
+                sprite!("pixelwars_title_static", x = 128, y = 31);
                 // power_text!(
                 //     "PIXEL WARS",
                 //     x = 0,
@@ -26,40 +197,46 @@ pub fn dbgo(state: &mut GameState) {
                 power_text!(
                     "TINY UI BATTLES FOR",
                     x = 0,
-                    y = 98,
+                    y = 108,
                     center_width = 384,
-                    font = Font::M,
+                    font = Font::S,
                     drop_shadow = SHADOW_COLOR
                 );
                 power_text!(
                     "YOUR VIEWING PLEASURE",
                     x = 0,
-                    y = 108,
+                    y = 116,
                     center_width = 384,
-                    font = Font::M,
+                    font = Font::S,
                     drop_shadow = SHADOW_COLOR
                 );
                 power_text!(
                     "- POWERED BY TURBO OS -",
                     x = 0,
-                    y = 128,
+                    y = 129,
                     center_width = 384,
-                    font = Font::M,
+                    font = Font::S,
                     drop_shadow = SHADOW_COLOR
                 );
                 let opacity = if (tick() % 90) < 75 { 0xFF } else { 0x00 };
 
                 let color = 0xFFFFFF00 | opacity as u32;
+                let drop_shadow = 0x69668200 | opacity as u32;
                 power_text!(
                     "Click to Start",
                     x = 0,
-                    y = 180,
+                    y = 184,
                     center_width = 384,
-                    font = Font::L,
+                    font = Font::S,
                     underline = true,
-                    color = color
+                    color = color,
+                    drop_shadow = drop_shadow
                 );
-                //some unit previews
+                //some units walking across the screen
+                //make a new struct
+                //it has an animated sprite
+                //a place to go
+                //and a reset
             }
             if gp.start.just_pressed() || m.left.just_pressed() {
                 state.dbphase = DBPhase::Shop;
@@ -247,9 +424,10 @@ pub fn dbgo(state: &mut GameState) {
                         //probably give them a target, set to moving, and give them a new state like (marching in),
                     }
                 }
-                for u in &mut state.units {
-                    u.update();
-                }
+                // for u in &mut state.units {
+                //     u.start_cheering();
+                //     u.update();
+                // }
                 state.battle_countdown_timer -= 1;
 
                 //show text
@@ -398,9 +576,13 @@ pub fn dbgo(state: &mut GameState) {
             );
             let mut text = "Click to Play Again";
             if let Some(winner_idx) = has_some_team_won(&state.units) {
+                for u in &mut state.units {
+                    u.start_cheering();
+                }
                 if winner_idx == 0 {
                     //then you win
                     draw_end_animation(Some(true));
+
                     if m.left.just_pressed() {
                         //go to next round
                         let your_team = state.teams[0].clone();

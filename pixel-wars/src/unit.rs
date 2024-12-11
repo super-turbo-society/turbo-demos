@@ -260,11 +260,13 @@ impl Unit {
     }
 
     pub fn start_cheering(&mut self) {
-        self.state = UnitState::Cheer;
-        //turn off flee status
-        self.attack_strategy = AttackStrategy::AttackClosest;
-        //turn off burning
-        self.status_effects = Vec::new();
+        if self.state != UnitState::Dead {
+            self.state = UnitState::Cheer;
+            //turn off flee status
+            self.attack_strategy = AttackStrategy::AttackClosest;
+            //turn off burning
+            self.status_effects = Vec::new();
+        }
     }
 
     pub fn is_point_in_bounds(&self, point: (f32, f32)) -> bool {
@@ -992,4 +994,52 @@ pub enum FootprintStatus {
     Clean,
     Poopy,
     Acid,
+}
+
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
+pub struct WalkingUnitPreview {
+    //unit type as a string
+    pub unit_type: String,
+    //animator
+    pub sprite: AnimatedSprite,
+    pub speed: f32,
+    pub pos: (f32, f32),
+    pub flip_x: bool,
+}
+
+impl WalkingUnitPreview {
+    pub fn new(
+        unit_type: String,
+        sprite: AnimatedSprite,
+        pos: (f32, f32),
+        speed: f32,
+        flip_x: bool,
+    ) -> Self {
+        Self {
+            unit_type,
+            sprite,
+            speed,
+            pos,
+            flip_x,
+        }
+    }
+
+    pub fn update(&mut self) -> bool {
+        let mut adj = 0.0;
+        if self.flip_x {
+            adj = self.speed * -1.0;
+        } else {
+            adj = self.speed;
+        }
+        adj = adj / 20.0;
+        self.pos.0 += adj;
+        if self.pos.0 > 400.0 || self.pos.0 < -100.0 {
+            return true;
+        }
+        self.sprite.pos = self.pos;
+        self.sprite.flip_x = false;
+        self.sprite.update();
+        self.sprite.draw();
+        false
+    }
 }
