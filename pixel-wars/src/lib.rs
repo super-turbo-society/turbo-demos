@@ -275,14 +275,10 @@ fn step_through_battle(
                     //find closest enemy
                     if let Some(index) = closest_enemy_index(&unit, &units_clone) {
                         if unit.is_unit_in_range(&units_clone[index]) {
-                            //TODO: modify attacks based on artifact list for this team
-                            //Add artifact list to the team and set to vec::new
-                            //if it isn't none, then call modify damage
                             let mut attack = unit.start_attack(units_clone[index].id);
-                            let attack =
-                                modify_damage_from_artifacts(attack, &units_clone, artifacts);
+                            attack = modify_damage_from_artifacts(attack, &units_clone, artifacts);
 
-                            attacks.push(unit.start_attack(units_clone[index].id));
+                            attacks.push(attack);
                             if unit.pos.0 > units_clone[index].pos.0 {
                                 if let Some(display) = unit.display.as_mut() {
                                     display.is_facing_left = true;
@@ -303,7 +299,11 @@ fn step_through_battle(
                     let mut target_unit = find_unit_by_id(&units_clone, Some(unit.target_id));
                     if target_unit.is_some() && target_unit.unwrap().health > 0. {
                         if unit.is_unit_in_range(&target_unit.unwrap()) {
-                            attacks.push(unit.start_attack(target_unit.unwrap().id));
+                            //attacks.push(unit.start_attack();
+                            let mut attack = unit.start_attack(target_unit.unwrap().id);
+                            attack = modify_damage_from_artifacts(attack, &units_clone, artifacts);
+
+                            attacks.push(attack);
                             //assign the units target id as this unit now
                             unit.target_id = target_unit.unwrap().id;
                             if unit.pos.0 > target_unit.unwrap().pos.0 {
@@ -384,7 +384,10 @@ fn step_through_battle(
                     //if you already have a target unit, then try to fight it
                     else {
                         if unit.is_unit_in_range(&target_unit.unwrap()) {
-                            attacks.push(unit.start_attack(target_unit.unwrap().id));
+                            let mut attack = unit.start_attack(target_unit.unwrap().id);
+                            attack = modify_damage_from_artifacts(attack, &units_clone, artifacts);
+
+                            attacks.push(attack);
                             //assign the units target id as this unit now
                             unit.target_id = target_unit.unwrap().id;
                             if unit.pos.0 > target_unit.unwrap().pos.0 {
@@ -450,7 +453,7 @@ fn step_through_battle(
                             trap.damage,
                             8.,
                             1,
-                            Vec::new(),
+                            vec![Attribute::ExplosiveAttack],
                         );
                         attacks.push(attack);
                         trap.set_inactive();
@@ -550,7 +553,6 @@ fn step_through_battle(
     //go through traps, update and draw
     for trap in traps {
         trap.update();
-        trap.draw();
     }
 }
 
@@ -1854,7 +1856,7 @@ fn create_trap(rng: &mut RNG) -> Trap {
         4 => TrapType::Spikes,
         _ => unreachable!(), // This should never happen due to the range we specified
     };
-    let x_bounds = (100, 284);
+    let x_bounds = (120, 264);
     let y_bounds = (40, 176);
     let x = rng.next_in_range(x_bounds.0, x_bounds.1);
     let y = rng.next_in_range(y_bounds.0, y_bounds.1);
@@ -2006,6 +2008,12 @@ macro_rules! power_text {
         Font::L => 8,
         Font::XL => 15,
      };
+     let drop_shadow_distance = match font {
+        Font::S => 1,
+        Font::M => 1,
+        Font::L => 2,
+        Font::XL => 2,
+     };
        // Handle centering if specified
        if let Some(width) = center_width {
 
@@ -2015,7 +2023,7 @@ macro_rules! power_text {
         // Handle drop shadow if specified
         if let Some(shadow_color) = drop_shadow {
             text!($text,
-                x = x - 2,
+                x = x - drop_shadow_distance,
                 y = y + 1,
                 color = shadow_color,
                 font = font,

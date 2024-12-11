@@ -372,6 +372,7 @@ impl Unit {
                 Status::Healing => "healing",
                 Status::Freeze => "freeze",
                 Status::Burn { .. } => "burn",
+                Status::Haste { .. } => "haste",
             };
 
             // Skip if we've already drawn this status type
@@ -387,6 +388,7 @@ impl Unit {
                 Status::Healing => "status_healing",
                 Status::Freeze => "status_frozen",
                 Status::Burn { .. } => "status_burning",
+                Status::Haste { .. } => "status_haste",
             };
 
             sprite!(
@@ -549,6 +551,15 @@ impl Unit {
                         statuses_to_remove.push(index);
                     }
                 }
+                Status::Haste { timer } => {
+                    // Apply burn damage
+                    *timer -= 1;
+
+                    // If timer reaches 0, mark for removal
+                    if *timer == 0 {
+                        statuses_to_remove.push(index);
+                    }
+                }
             }
         }
         if total_damage > 0.0 {
@@ -565,6 +576,18 @@ impl Unit {
         self.health -= damage;
         self.health = self.health.max(0.);
         self.display.as_mut().unwrap().damage_effect_timer = DAMAGE_EFFECT_TIME;
+    }
+
+    pub fn start_haste(&mut self) {
+        // Only add haste if we don't already have it
+        if !self
+            .status_effects
+            .iter()
+            .any(|status| matches!(status, Status::Haste { .. }))
+        {
+            let new_status = Status::Haste { timer: 600 };
+            self.status_effects.push(new_status);
+        }
     }
 
     pub fn take_attack(&mut self, attack: &Attack, rng: &mut RNG) {
@@ -701,13 +724,22 @@ impl Unit {
         //do an adjustment if you are fleeing or flanking
         let mut calc_speed = self.data.speed;
         let flank_adj = 1.2;
-        let flee_adj = 2.0;
+        let flee_adj = 1.6;
+        let haste_adj = 2.0;
         match self.attack_strategy {
             AttackStrategy::Flank { .. } => {
                 calc_speed = calc_speed * flank_adj;
             }
             AttackStrategy::Flee { .. } => calc_speed = calc_speed * flee_adj,
             _ => {}
+        }
+        //Apply haste effect
+        if self
+            .status_effects
+            .iter()
+            .any(|status| matches!(status, Status::Haste { .. }))
+        {
+            calc_speed = calc_speed * haste_adj;
         }
         calc_speed
     }
@@ -765,6 +797,7 @@ pub enum Status {
     Healing,
     Freeze,
     Burn { timer: u32 },
+    Haste { timer: u32 },
 }
 /*
 TODO: Apply burn when attack comes in

@@ -13,23 +13,51 @@ pub fn dbgo(state: &mut GameState) {
                 state.dbphase = DBPhase::Shop;
             } else {
                 //PIXEL WARS
+                sprite!("pixelwars_title_static", x = 128, y = 20);
+                // power_text!(
+                //     "PIXEL WARS",
+                //     x = 0,
+                //     y = 80,
+                //     center_width = 384,
+                //     underline = true,
+                //     drop_shadow = SHADOW_COLOR,
+                //     font = Font::XL,
+                // );
                 power_text!(
-                    "PIXEL WARS",
+                    "TINY UI BATTLES FOR",
                     x = 0,
-                    y = 80,
+                    y = 98,
                     center_width = 384,
-                    underline = true,
-                    drop_shadow = SHADOW_COLOR,
-                    font = Font::XL,
+                    font = Font::M,
+                    drop_shadow = SHADOW_COLOR
                 );
-
                 power_text!(
-                    "Click to Play",
+                    "YOUR VIEWING PLEASURE",
                     x = 0,
-                    y = 120,
+                    y = 108,
+                    center_width = 384,
+                    font = Font::M,
+                    drop_shadow = SHADOW_COLOR
+                );
+                power_text!(
+                    "- POWERED BY TURBO OS -",
+                    x = 0,
+                    y = 128,
+                    center_width = 384,
+                    font = Font::M,
+                    drop_shadow = SHADOW_COLOR
+                );
+                let opacity = if (tick() % 90) < 75 { 0xFF } else { 0x00 };
+
+                let color = 0xFFFFFF00 | opacity as u32;
+                power_text!(
+                    "Click to Start",
+                    x = 0,
+                    y = 180,
                     center_width = 384,
                     font = Font::L,
-                    drop_shadow = SHADOW_COLOR
+                    underline = true,
+                    color = color
                 );
                 //some unit previews
             }
@@ -155,19 +183,50 @@ pub fn dbgo(state: &mut GameState) {
                 }
             }
             if should_end {
-                // Check if any artifact in the vec is FlameWard
+                // Handle FlameWard effects
                 if state
                     .artifacts
                     .iter()
                     .any(|a| a.artifact_kind == ArtifactKind::FlameWard)
                 {
-                    // Go through all units and check for team 0
+                    for unit in &mut state.units {
+                        if unit.team == 0
+                            && !unit.data.attributes.contains(&Attribute::FireResistance)
+                        {
+                            unit.data.attributes.push(Attribute::FireResistance);
+                        }
+                    }
+                }
+
+                // Handle TrapArtist effects
+                if state
+                    .artifacts
+                    .iter()
+                    .any(|a| a.artifact_kind == ArtifactKind::TrapArtist)
+                {
+                    let trap_artifact = state
+                        .artifacts
+                        .iter()
+                        .find(|a| a.artifact_kind == ArtifactKind::TrapArtist)
+                        .unwrap();
+
+                    if let ArtifactConfig::TrapBoard { num_traps } = trap_artifact.config {
+                        let mut i = 0;
+                        while i < num_traps {
+                            let t = create_trap(&mut state.rng);
+                            state.traps.push(t);
+                            i += 1;
+                        }
+                    }
+                }
+                if state
+                    .artifacts
+                    .iter()
+                    .any(|a| a.artifact_kind == ArtifactKind::ShotOutACannon)
+                {
                     for unit in &mut state.units {
                         if unit.team == 0 {
-                            // Only add fire resistance if the unit doesn't already have it
-                            if !unit.data.attributes.contains(&Attribute::FireResistance) {
-                                unit.data.attributes.push(Attribute::FireResistance);
-                            }
+                            unit.start_haste();
                         }
                     }
                 }
@@ -215,7 +274,7 @@ pub fn dbgo(state: &mut GameState) {
             for c in &state.craters {
                 c.draw();
             }
-            //sprite!("crater_01", x=100, y=100, color = 0xFFFFFF80);
+
             //Draw footprints beneath units
             for u in &mut state.units {
                 for fp in &mut u.display.as_mut().unwrap().footprints {
@@ -223,7 +282,9 @@ pub fn dbgo(state: &mut GameState) {
                     //format!()
                 }
             }
-
+            for t in &mut state.traps {
+                t.draw();
+            }
             //DRAW UNITS
             let mut indices: Vec<usize> = (0..state.units.len()).collect();
 
@@ -270,6 +331,7 @@ pub fn dbgo(state: &mut GameState) {
             //get mouse posisiton
             let m = mouse(0);
             let mpos = (m.position[0] as f32, m.position[1] as f32);
+
             //for unit, if mouse position is in bounds, then draw health bar
             for u in &mut state.units {
                 if u.state != UnitState::Dead && u.is_point_in_bounds(mpos) {
@@ -594,6 +656,7 @@ pub enum ArtifactConfig {
     DistanceDamageBoost { percent_per_pixel: f32 },
     FireResistance { resistance_percent: f32 },
     TrapBoard { num_traps: u8 },
+    TeamHaste,
 }
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone, EnumIter)]
@@ -603,6 +666,7 @@ pub enum ArtifactKind {
     SnipersFocus,
     FlameWard,
     TrapArtist,
+    ShotOutACannon,
 }
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
@@ -637,6 +701,10 @@ impl Artifact {
             ArtifactKind::TrapArtist => (
                 ArtifactConfig::TrapBoard { num_traps: 12 },
                 String::from("Add Traps to the Board"),
+            ),
+            ArtifactKind::ShotOutACannon => (
+                ArtifactConfig::TeamHaste,
+                String::from("All your units start with Haste"),
             ),
             _ => panic!("Unknown artifact kind"),
         };
@@ -694,7 +762,7 @@ impl Artifact {
         let mut color = ACID_GREEN;
         match self.artifact_kind {
             ArtifactKind::StrenghtOfTheFallen => {
-                color = ACID_GREEN;
+                color = POO_BROWN;
             }
             ArtifactKind::SnipersFocus => {
                 color = OFF_BLACK as usize;
@@ -705,6 +773,7 @@ impl Artifact {
             ArtifactKind::TrapArtist => {
                 color = WHITE;
             }
+            ArtifactKind::ShotOutACannon => color = ACID_GREEN,
         }
         //match on the artifact type to get the sprite
         let d = 12.0 * scale;
