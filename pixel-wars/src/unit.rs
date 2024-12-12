@@ -439,6 +439,7 @@ impl Unit {
         let norm_dir_x = dir_x / length;
         let norm_dir_y = dir_y / length;
 
+        //TODO try messing with this a bit
         let rand_x = rng.next_in_range(0, 10) as f32 * norm_dir_x.signum();
 
         let rand_y = rng.next_in_range(0, 8) as f32 * norm_dir_y.signum();

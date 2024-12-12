@@ -36,49 +36,6 @@
 
   <body>
     <div id="player"></div>
-    <div id="virtual-gamepad">
-      <button
-        class="a"
-        ontouchstart="event.preventDefault();document.querySelector('canvas').dispatchEvent(new KeyboardEvent('keydown',{key:'z',code:'KeyZ'}));"
-        ontouchend="event.preventDefault();document.querySelector('canvas').dispatchEvent(new KeyboardEvent('keyup',{key:'z',code:'KeyZ'}));"
-      >
-        A
-      </button>
-      <button
-        class="b"
-        ontouchstart="event.preventDefault();document.querySelector('canvas').dispatchEvent(new KeyboardEvent('keydown',{key:'x',code:'KeyX'}));"
-        ontouchend="event.preventDefault();document.querySelector('canvas').dispatchEvent(new KeyboardEvent('keyup',{key:'x',code:'KeyX'}));"
-      >
-        B
-      </button>
-      <button
-        class="x"
-        ontouchstart="event.preventDefault();document.querySelector('canvas').dispatchEvent(new KeyboardEvent('keydown',{key:'c',code:'KeyC'}));"
-        ontouchend="event.preventDefault();document.querySelector('canvas').dispatchEvent(new KeyboardEvent('keyup',{key:'c',code:'KeyC'}));"
-      >
-        X
-      </button>
-      <button
-        class="y"
-        ontouchstart="event.preventDefault();document.querySelector('canvas').dispatchEvent(new KeyboardEvent('keydown',{key:'v',code:'KeyV'}));"
-        ontouchend="event.preventDefault();document.querySelector('canvas').dispatchEvent(new KeyboardEvent('keyup',{key:'v',code:'KeyV'}));"
-      >
-        Y
-      </button>
-      <button
-        class="start"
-        ontouchstart="event.preventDefault();document.querySelector('canvas').dispatchEvent(new KeyboardEvent('keydown',{key:' ',code:'Space'}));"
-        ontouchend="event.preventDefault();document.querySelector('canvas').dispatchEvent(new KeyboardEvent('keyup',{key:' ',code:'Space'}));"
-      >
-        Start
-      </button>
-      <button
-        class="select"
-        ontouchstart="event.preventDefault();document.querySelector('canvas').dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',code:'Enter'}));"
-        ontouchend="event.preventDefault();document.querySelector('canvas').dispatchEvent(new KeyboardEvent('keyup',{key:'Enter',code:'Enter'}));"
-      >
-        Select
-      </button>
-    </div>
+    
   </body>
 </html>

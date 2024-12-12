@@ -66,6 +66,7 @@ turbo::cfg! {r#"
 
 turbo::init! {
     struct GameState {
+        transition: Option<Transition>,
         dbphase: DBPhase,
         title_screen_units: Vec<WalkingUnitPreview>,
         shop: Vec<UnitPack>,
@@ -100,6 +101,7 @@ turbo::init! {
         battle_simulation_requested: bool,
     } = {
         Self {
+            transition: None,
             dbphase: DBPhase::Title,
             title_screen_units: Vec::new(),
             phase: Phase::TeamSetUp,
@@ -993,7 +995,9 @@ fn draw_prematch_timer(time: u32) {
         x = 0,
         y = 80,
         font = Font::L,
-        center_width = 384
+        center_width = 384,
+        drop_shadow = SHADOW_COLOR,
+        underline = true,
     );
 }
 
@@ -1707,7 +1711,7 @@ fn calculate_single_unit_power(unit_data: &UnitData) -> f32 {
     let mut final_power = power_level;
 
     if unit_data.range > 20.0 {
-        final_power += 150.0;
+        final_power += unit_data.range;
     }
 
     if unit_data.splash_area > 0.0 {
@@ -1770,56 +1774,67 @@ fn select_random_unit_types(
 
 fn create_team(
     team: &mut Team,
-    unit_types: &[String], // Changed from &[&String]
+    unit_types: &[String],
     power_levels: &HashMap<String, f32>,
     target_power: f32,
     rng: &mut RNG,
 ) {
     let mut current_power = 0.0;
-    let power1 = &power_levels[&unit_types[0]]; // Added & here
-    let power2 = &power_levels[&unit_types[1]]; // Added & here
 
-    // Generate random weights for each unit type
-    let weight1 = rng.next_f32();
-    let weight2 = 1.0 - weight1;
+    // Get power levels for all unit types
+    let powers: Vec<&f32> = unit_types
+        .iter()
+        .map(|unit_type| &power_levels[unit_type])
+        .collect();
+
+    // Generate random weights for each unit type that sum to 1.0
+    let mut weights: Vec<f32> = (0..unit_types.len()).map(|_| rng.next_f32()).collect();
+    let sum: f32 = weights.iter().sum();
+    weights.iter_mut().for_each(|w| *w /= sum);
 
     while current_power < target_power {
         let remaining_power = target_power - current_power;
 
-        // Use weighted random selection
-        let use_first_type = rng.next_f32() < (weight1 / (weight1 + weight2));
+        // Generate random number for weighted selection
+        let mut random = rng.next_f32();
+        let mut selected_index = 0;
 
-        if use_first_type && remaining_power >= *power1 {
-            // Added *
-            team.units.push(unit_types[0].clone());
-            current_power += power1;
-        } else if !use_first_type && remaining_power >= *power2 {
-            // Added *
-            team.units.push(unit_types[1].clone());
-            current_power += power2;
+        // Select unit type based on weights
+        for (i, &weight) in weights.iter().enumerate() {
+            random -= weight;
+            if random <= 0.0 {
+                selected_index = i;
+                break;
+            }
+        }
+
+        // Try to add selected unit if power allows
+        if remaining_power >= *powers[selected_index] {
+            team.units.push(unit_types[selected_index].clone());
+            current_power += powers[selected_index];
         } else {
-            // If we can't add either unit without going over, try the other unit
-            if !use_first_type && remaining_power >= *power1 {
-                // Added *
-                team.units.push(unit_types[0].clone());
-                current_power += power1;
-            } else if use_first_type && remaining_power >= *power2 {
-                // Added *
-                team.units.push(unit_types[1].clone());
-                current_power += power2;
-            } else {
-                // If we still can't add either unit, stop adding units
+            // Try other unit types if selected one doesn't fit
+            let mut found_fit = false;
+            for i in 0..unit_types.len() {
+                if remaining_power >= *powers[i] {
+                    team.units.push(unit_types[i].clone());
+                    current_power += powers[i];
+                    found_fit = true;
+                    break;
+                }
+            }
+            // If no unit type fits, stop adding units
+            if !found_fit {
                 break;
             }
         }
     }
 
     // Ensure at least one of each unit type
-    if !team.units.contains(&unit_types[0]) {
-        team.units.push(unit_types[0].clone());
-    }
-    if !team.units.contains(&unit_types[1]) {
-        team.units.push(unit_types[1].clone());
+    for unit_type in unit_types {
+        if !team.units.contains(unit_type) {
+            team.units.push(unit_type.clone());
+        }
     }
 }
 
@@ -1975,6 +1990,119 @@ struct MatchData {
 struct TeamChoiceCounter {
     pub team_0: i32,
     pub team_1: i32,
+}
+
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
+pub struct ScreenSquare {
+    pub x: i32,
+    pub y: i32,
+    pub opacity: f32, // 0.0 is clear, 1.0 is black
+    pub index: usize, // To help with randomization
+}
+
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
+
+pub struct Transition {
+    pub squares: Vec<ScreenSquare>,
+    pub squares_to_change: Vec<usize>, // Indexes of squares in order
+    pub square_size: i32,
+    pub current_timer: u32,
+    pub timer_max: u32,         // How many frames between each square changing
+    pub transitioning_in: bool, // true = going to black, false = going to clear
+    pub ready_for_scene_change: bool,
+    pub complete: bool,
+}
+
+impl Transition {
+    pub fn new(rng: &mut RNG) -> Self {
+        let square_size = 12; // Changed from 24 to 4
+        let cols = 384 / square_size;
+        let rows = 216 / square_size;
+
+        // Create all squares
+        let mut squares = Vec::new();
+        let mut index = 0;
+        for row in 0..rows {
+            for col in 0..cols {
+                squares.push(ScreenSquare {
+                    x: col * square_size,
+                    y: row * square_size,
+                    opacity: 0.0,
+                    index,
+                });
+                index += 1;
+            }
+        }
+
+        // Create randomized order for squares
+        let mut squares_to_change: Vec<usize> = (0..squares.len()).collect();
+        for i in (1..squares_to_change.len()).rev() {
+            let j = rng.next_in_range(0, i as u32) as usize;
+            squares_to_change.swap(i, j);
+        }
+
+        Transition {
+            squares,
+            squares_to_change,
+            square_size,
+            current_timer: 0,
+            timer_max: 1, // Change to 1 since we'll do multiple per frame
+            transitioning_in: true,
+            ready_for_scene_change: false,
+            complete: false,
+        }
+    }
+
+    pub fn update(&mut self) {
+        if self.complete {
+            return;
+        }
+
+        self.current_timer += 1;
+        if self.current_timer >= self.timer_max {
+            self.current_timer = 0;
+
+            // Change multiple squares per frame
+            for _ in 0..20 {
+                // Do 20 squares at once
+                if !self.squares_to_change.is_empty() {
+                    let square_index = self.squares_to_change.pop().unwrap();
+                    self.squares[square_index].opacity =
+                        if self.transitioning_in { 1.0 } else { 0.0 };
+                } else if self.transitioning_in {
+                    // Everything is black now
+                    self.ready_for_scene_change = true;
+                    break;
+                } else {
+                    self.complete = true;
+                    break;
+                }
+            }
+        }
+    }
+
+    pub fn start_transition_out(&mut self, rng: &mut RNG) {
+        self.transitioning_in = false;
+        self.ready_for_scene_change = false;
+        self.squares_to_change = (0..self.squares.len()).collect();
+        // Rerandomize order for transition out
+        for i in (1..self.squares_to_change.len()).rev() {
+            let j = rng.next_in_range(0, i as u32) as usize;
+            self.squares_to_change.swap(i, j);
+        }
+    }
+
+    pub fn draw(&self) {
+        for square in &self.squares {
+            rect!(
+                x = square.x,
+                y = square.y,
+                w = self.square_size as f32,
+                h = self.square_size as f32,
+                color = 0x000000 | ((square.opacity * 255.0) as u32),
+            );
+        }
+    }
 }
 
 #[macro_export]

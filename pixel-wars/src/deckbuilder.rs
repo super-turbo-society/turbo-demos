@@ -152,9 +152,17 @@ pub fn dbgo(state: &mut GameState) {
             }
         }
     }
+    let mut ready_to_transition = false;
+    if let Some(transition) = &mut state.transition {
+        if transition.ready_for_scene_change {
+            ready_to_transition = true;
+            transition.start_transition_out(&mut state.rng);
+        }
+    }
+
     match state.dbphase {
         DBPhase::Title => {
-            if state.round != 1 {
+            if state.round != 1 && state.round != 7 {
                 state.dbphase = DBPhase::Shop;
             } else {
                 if state.title_screen_units.len() == 0 {
@@ -171,7 +179,7 @@ pub fn dbgo(state: &mut GameState) {
                             title_screen_unit(&mut state.rng, state.data_store.as_ref().unwrap());
                         state.title_screen_units.push(w);
                     }
-
+                    //TODO: Base this on foot position not top left
                     // First sort the units by y-position
                     state
                         .title_screen_units
@@ -194,30 +202,49 @@ pub fn dbgo(state: &mut GameState) {
                 //     drop_shadow = SHADOW_COLOR,
                 //     font = Font::XL,
                 // );
-                power_text!(
-                    "TINY UI BATTLES FOR",
-                    x = 0,
-                    y = 108,
-                    center_width = 384,
-                    font = Font::S,
-                    drop_shadow = SHADOW_COLOR
-                );
-                power_text!(
-                    "YOUR VIEWING PLEASURE",
-                    x = 0,
-                    y = 116,
-                    center_width = 384,
-                    font = Font::S,
-                    drop_shadow = SHADOW_COLOR
-                );
-                power_text!(
-                    "- POWERED BY TURBO OS -",
-                    x = 0,
-                    y = 129,
-                    center_width = 384,
-                    font = Font::S,
-                    drop_shadow = SHADOW_COLOR
-                );
+                if state.round == 1 {
+                    power_text!(
+                        "TINY UI BATTLES FOR",
+                        x = 0,
+                        y = 108,
+                        center_width = 384,
+                        font = Font::S,
+                        drop_shadow = SHADOW_COLOR
+                    );
+                    power_text!(
+                        "YOUR VIEWING PLEASURE",
+                        x = 0,
+                        y = 116,
+                        center_width = 384,
+                        font = Font::S,
+                        drop_shadow = SHADOW_COLOR
+                    );
+                    power_text!(
+                        "- POWERED BY TURBO OS -",
+                        x = 0,
+                        y = 129,
+                        center_width = 384,
+                        font = Font::S,
+                        drop_shadow = SHADOW_COLOR
+                    );
+                } else {
+                    power_text!(
+                        "YOU WON THE PIXEL WARS!",
+                        x = 0,
+                        y = 108,
+                        center_width = 384,
+                        font = Font::L,
+                        drop_shadow = SHADOW_COLOR
+                    );
+                    power_text!(
+                        "- POWERED BY TURBO OS -",
+                        x = 0,
+                        y = 129,
+                        center_width = 384,
+                        font = Font::S,
+                        drop_shadow = SHADOW_COLOR
+                    );
+                }
                 let opacity = if (tick() % 90) < 75 { 0xFF } else { 0x00 };
 
                 let color = 0xFFFFFF00 | opacity as u32;
@@ -238,8 +265,12 @@ pub fn dbgo(state: &mut GameState) {
                 //a place to go
                 //and a reset
             }
-            if gp.start.just_pressed() || m.left.just_pressed() {
-                state.dbphase = DBPhase::Shop;
+            if m.left.just_pressed() {
+                if state.round == 7 {
+                    *state = GameState::default();
+                } else {
+                    state.dbphase = DBPhase::Shop;
+                }
             }
         }
 
@@ -258,23 +289,25 @@ pub fn dbgo(state: &mut GameState) {
             }
             let ds = state.data_store.as_ref().unwrap();
             //create the enemy team
+
             if state.enemy_team_placeholder == None {
                 let t = generate_team_db(
                     &state.data_store.as_ref().unwrap(),
                     &mut state.rng,
                     None,
                     "Bad Bois".to_string(),
-                    (20 * (state.round)) as f32,
+                    get_power_level_for_round(state.round),
+                    state.round,
                 );
                 state.enemy_team_placeholder = Some(t);
             }
 
             if state.shop.len() == 0 {
-                state.shop = create_unit_packs(4, &ds, &mut state.rng);
+                state.shop = create_unit_packs(4, &ds, &mut state.rng, state.round);
                 if state.round == 1 {
                     state.num_picks = 3;
                 } else {
-                    state.num_picks = 1;
+                    state.num_picks = 2;
                 }
             }
             let m = mouse(0);
@@ -288,6 +321,23 @@ pub fn dbgo(state: &mut GameState) {
                 {
                     select_unit_pack(i, state);
                     state.num_picks -= 1;
+                    if state.num_picks == 0 {
+                        if let Some(enemy_team) = &state.enemy_team_placeholder {
+                            state.teams.push(enemy_team.clone());
+                        }
+                        state.units = create_units_for_all_teams(
+                            &mut state.teams,
+                            &mut state.rng,
+                            &state.data_store.as_ref().unwrap(),
+                        );
+                        if state.round == 2 || state.round == 4 {
+                            state.dbphase = DBPhase::ArtifactShop;
+                        } else {
+                            if state.transition.is_none() {
+                                state.transition = Some(Transition::new(&mut state.rng));
+                            }
+                        }
+                    }
                     break;
                 }
             }
@@ -309,21 +359,16 @@ pub fn dbgo(state: &mut GameState) {
                 draw_current_team(enemy_team, &state.data_store.as_ref().unwrap(), true);
             }
             if state.num_picks == 0 {
-                if let Some(enemy_team) = &state.enemy_team_placeholder {
-                    state.teams.push(enemy_team.clone());
+                if ready_to_transition {
+                    state.dbphase = DBPhase::ArtifactShop;
                 }
-                state.units = create_units_for_all_teams(
-                    &mut state.teams,
-                    &mut state.rng,
-                    &state.data_store.as_ref().unwrap(),
-                );
-                state.dbphase = DBPhase::ArtifactShop;
             }
         }
         DBPhase::ArtifactShop => {
             let mut should_end = false;
-            if gp.a.just_pressed() || state.round != 1 {
+            if gp.a.just_pressed() || (state.round != 2 && state.round != 4) {
                 should_end = true;
+                ready_to_transition = true;
             }
 
             let m = mouse(0);
@@ -336,9 +381,13 @@ pub fn dbgo(state: &mut GameState) {
                 let pos = (100 + (i as i32 * 100), 50);
                 if m.left.just_pressed() && a.is_hovered(pos, m_pos) {
                     state.artifacts.push(a.clone());
-                    should_end = true;
+                    if state.transition.is_none() {
+                        state.transition = Some(Transition::new(&mut state.rng));
+                    }
                 } else {
-                    a.draw_card(pos, m_pos);
+                    if !should_end {
+                        a.draw_card(pos, m_pos);
+                    }
                 }
             }
             if !should_end {
@@ -359,7 +408,7 @@ pub fn dbgo(state: &mut GameState) {
                     draw_current_team(enemy_team, &state.data_store.as_ref().unwrap(), true);
                 }
             }
-            if should_end {
+            if ready_to_transition {
                 // Handle FlameWard effects
                 if state
                     .artifacts
@@ -585,7 +634,18 @@ pub fn dbgo(state: &mut GameState) {
 
                     if m.left.just_pressed() {
                         //go to next round
-                        let your_team = state.teams[0].clone();
+                        let mut your_team = state.teams[0].clone();
+
+                        // Create a new Vec with just the living units' types
+                        let living_unit_types: Vec<String> = state
+                            .units
+                            .iter()
+                            .filter(|unit| unit.team == 0 && unit.health > 0.0)
+                            .map(|unit| unit.unit_type.clone())
+                            .collect();
+
+                        // Replace your_team's units with just the living ones
+                        your_team.units = living_unit_types;
                         let artifacts = state.artifacts.clone();
                         let r = state.round + 1;
                         *state = GameState::default();
@@ -657,6 +717,13 @@ pub fn dbgo(state: &mut GameState) {
             }
         }
     }
+    if let Some(transition) = &mut state.transition {
+        transition.update();
+        transition.draw();
+        if transition.complete {
+            state.transition = None;
+        }
+    }
 }
 
 pub fn generate_team_db(
@@ -665,17 +732,23 @@ pub fn generate_team_db(
     match_team: Option<&Team>,
     team_name: String,
     power_level: f32,
+    round: u32, // Added round parameter
 ) -> Team {
-    // Get available unit types as Vec<&String>
-    let mut available_types: Vec<&String> = data_store.data.keys().collect();
+    // Get available unit types based on round
+    let mut available_types = get_available_units(round, data_store);
 
     // If matching a team, remove its unit types from available options
     if let Some(team) = match_team {
         available_types.retain(|unit_type| !team.units.contains(*unit_type));
     }
 
-    // Select 2 random unit types for this team
-    let selected_types = select_random_unit_types(&available_types, 2, rng);
+    let num_types = match round {
+        1..=2 => 2,
+        3..=5 => 3,
+        6 => 4,
+        _ => 2,
+    };
+    let selected_types = select_random_unit_types(&available_types, num_types, rng);
 
     // Calculate all unit powers
     let unit_powers: HashMap<String, f32> = data_store
@@ -955,7 +1028,9 @@ impl Artifact {
             ArtifactKind::TrapArtist => {
                 color = WHITE;
             }
-            ArtifactKind::ShotOutACannon => color = ACID_GREEN,
+            ArtifactKind::ShotOutACannon => {
+                color = ACID_GREEN;
+            }
         }
         //match on the artifact type to get the sprite
         let d = 12.0 * scale;
@@ -976,11 +1051,12 @@ pub fn create_unit_packs(
     num_types: usize,
     data_store: &UnitDataStore,
     rng: &mut RNG,
+    round: u32,
 ) -> Vec<UnitPack> {
     //choose some number of packs to make
     //add them to the game state
     let mut unitpacks = Vec::new();
-    let available_types: Vec<&String> = data_store.data.keys().collect();
+    let available_types = get_available_units(round, data_store);
     let types = select_random_unit_types(&available_types, num_types, rng);
     let mut i = 0;
     while i < num_types {
@@ -990,9 +1066,8 @@ pub fn create_unit_packs(
         //we already have the data store so it shouldn't be too hard
         let unit_type = types[i].clone();
         let pos = ((i * 90 + 20) as f32, 50.);
-        let data = data_store.get_unit_data(&unit_type).unwrap();
-        let unit_power = calculate_single_unit_power(data);
-        let unit_count = 2500 as f32 / unit_power;
+        let data: &UnitData = data_store.get_unit_data(&unit_type).unwrap();
+        let unit_count = get_unit_count(round, &unit_type);
         let unit_preview = UnitPreview::new(unit_type, data.clone(), pos, false);
         let unitpack = UnitPack::new(types[i].clone(), unit_count as u32, unit_preview, pos);
         unitpacks.push(unitpack);
@@ -1000,6 +1075,109 @@ pub fn create_unit_packs(
     }
 
     unitpacks
+}
+
+pub fn get_available_units(round: u32, data_store: &UnitDataStore) -> Vec<&String> {
+    let all_types: Vec<&String> = data_store.data.keys().collect();
+
+    let basic_units = vec![
+        "axeman", "blade", "hunter", "pyro", "bigpound", "deathray", "cosmo",
+    ];
+    let advanced_units = vec![
+        "axeman", "blade", "hunter", "pyro", "bigpound", "sabre", "flameboi", "deathray",
+        "bazooka", "cosmo", "draco", "saucer", "tanker",
+    ];
+
+    match round {
+        1..=2 => all_types
+            .iter()
+            .filter(|&&unit| basic_units.contains(&unit.as_str()))
+            .copied()
+            .collect(),
+        3..=6 => all_types
+            .iter()
+            .filter(|&&unit| advanced_units.contains(&unit.as_str()))
+            .copied()
+            .collect(),
+        _ => all_types
+            .iter()
+            .filter(|&&unit| basic_units.contains(&unit.as_str()))
+            .copied()
+            .collect(),
+    }
+}
+
+pub fn get_unit_count(round: u32, unit_type: &str) -> u32 {
+    match (round, unit_type) {
+        //basic types
+        (1..=2, "axeman") => 4,
+        (3..=4, "axeman") => 10,
+        (5..=6, "axeman") => 25,
+
+        (1..=2, "blade") => 10,
+        (3..=4, "blade") => 25,
+        (5..=6, "blade") => 50,
+
+        (1..=2, "hunter") => 6,
+        (3..=4, "hunter") => 15,
+        (5..=6, "hunter") => 32,
+
+        (1..=2, "pyro") => 12,
+        (3..=4, "pyro") => 28,
+        (5..=6, "pyro") => 55,
+
+        (1..=2, "bigpound") => 3,
+        (3..=4, "bigpound") => 8,
+        (5..=6, "bigpound") => 20,
+
+        (1..=2, "deathray") => 4,
+        (3..=4, "deathray") => 10,
+        (5..=6, "deathray") => 25,
+
+        (1..=2, "cosmo") => 4,
+        (3..=4, "cosmo") => 9,
+        (5..=6, "cosmo") => 17,
+
+        (1..=2, "bazooka") => 2,
+        (3..=4, "bazooka") => 6,
+        (5..=6, "bazooka") => 12,
+
+        (1..=2, "sabre") => 3,
+        (3..=4, "sabre") => 8,
+        (5..=6, "sabre") => 18,
+
+        //advanced types
+        (1..=2, "flameboi") => 2,
+        (3..=4, "flameboi") => 5,
+        (5..=6, "flameboi") => 8,
+
+        (1..=2, "tanker") => 1,
+        (3..=4, "tanker") => 3,
+        (5..=6, "tanker") => 5,
+
+        (1..=2, "draco") => 2,
+        (3..=4, "draco") => 4,
+        (5..=6, "draco") => 6,
+
+        (1..=2, "saucer") => 2,
+        (3..=4, "saucer") => 4,
+        (5..=6, "saucer") => 8,
+
+        // Default case
+        _ => 10,
+    }
+}
+
+pub fn get_power_level_for_round(round: u32) -> f32 {
+    match round {
+        1 => 3.0,
+        2 => 5.0,
+        3 => 9.0,
+        4 => 14.0,
+        5 => 22.0,
+        6 => 32.0,
+        _ => round as f32 * 10.0, // Default case, though shouldn't happen in 6-round game
+    }
 }
 
 pub fn create_artifact_shop(
@@ -1040,7 +1218,7 @@ pub fn select_random_artifact_kinds(
 ) -> Vec<ArtifactKind> {
     // Returning owned Strings
     let mut selected_kinds = Vec::new();
-    let mut remaining_attempts = 100;
+    let mut remaining_attempts = 1000;
 
     while selected_kinds.len() < num_kinds && remaining_attempts > 0 {
         let index = rng.next_in_range(0, available_kinds.len() as u32 - 1) as usize;
