@@ -117,6 +117,16 @@ impl Unit {
     }
 
     pub fn draw(&mut self) {
+        // Calculate positions first before any mutable borrows
+        let dp = self.draw_position();
+        let flip_x = self.flip_x();
+
+        // Early return if no display
+        let display = match self.display.as_mut() {
+            Some(d) => d,
+            None => return,
+        };
+
         let mut new_anim = Animation {
             name: self.unit_type.to_lowercase(),
             s_w: self.data.sprite_width,
@@ -124,33 +134,22 @@ impl Unit {
             loops_per_frame: UNIT_ANIM_SPEED,
             is_looping: true,
         };
+
         if self.state == UnitState::Moving || self.state == UnitState::MarchingIn {
             new_anim.name += "_walk";
-            self.display
-                .as_mut()
-                .unwrap()
-                .animator
-                .set_cur_anim(new_anim);
+            display.animator.set_cur_anim(new_anim);
         } else if self.state == UnitState::Dead {
             new_anim.name += "_death";
             new_anim.is_looping = false;
-            self.display
-                .as_mut()
-                .unwrap()
-                .animator
-                .set_cur_anim(new_anim);
-            self.display.as_mut().unwrap().animator.next_anim = None;
+            display.animator.set_cur_anim(new_anim);
+            display.animator.next_anim = None;
         } else if self.state == UnitState::Attacking {
             //only set this once, when the attack starts.
             //That way when attack ends, they will idle (could change to reload or something later)
             if self.attack_timer == self.data.attack_time - 1 {
                 new_anim.name += "_attack";
                 new_anim.is_looping = false;
-                self.display
-                    .as_mut()
-                    .unwrap()
-                    .animator
-                    .set_cur_anim(new_anim);
+                display.animator.set_cur_anim(new_anim);
                 let next_anim = Animation {
                     name: self.unit_type.to_lowercase() + "_idle",
                     s_w: self.data.sprite_width,
@@ -158,14 +157,10 @@ impl Unit {
                     loops_per_frame: UNIT_ANIM_SPEED,
                     is_looping: true,
                 };
-                self.display
-                    .as_mut()
-                    .unwrap()
-                    .animator
-                    .set_next_anim(Some(next_anim));
+                display.animator.set_next_anim(Some(next_anim));
             }
         } else if self.state == UnitState::Idle {
-            self.display.as_mut().unwrap().animator.cur_anim.is_looping = false;
+            display.animator.cur_anim.is_looping = false;
             let next_anim = Animation {
                 name: self.unit_type.to_lowercase() + "_idle",
                 s_w: self.data.sprite_width,
@@ -173,14 +168,10 @@ impl Unit {
                 loops_per_frame: UNIT_ANIM_SPEED,
                 is_looping: true,
             };
-            self.display
-                .as_mut()
-                .unwrap()
-                .animator
-                .set_next_anim(Some(next_anim));
+            display.animator.set_next_anim(Some(next_anim));
             //self.animator.set_cur_anim(new_anim);
         } else if self.state == UnitState::Cheer {
-            self.display.as_mut().unwrap().animator.cur_anim.is_looping = false;
+            display.animator.cur_anim.is_looping = false;
             let next_anim = Animation {
                 name: self.unit_type.to_lowercase() + "_cheer",
                 s_w: self.data.sprite_width,
@@ -188,35 +179,25 @@ impl Unit {
                 loops_per_frame: UNIT_ANIM_SPEED,
                 is_looping: true,
             };
-            self.display
-                .as_mut()
-                .unwrap()
-                .animator
-                .set_next_anim(Some(next_anim));
+            display.animator.set_next_anim(Some(next_anim));
         }
 
-        if self.display.as_mut().unwrap().damage_effect_timer > 0 {
-            self.display
-                .as_mut()
-                .unwrap()
-                .animator
-                .change_tint_color(DAMAGE_TINT_RED);
-            self.display.as_mut().unwrap().damage_effect_timer -= 1;
+        if display.damage_effect_timer > 0 {
+            display.animator.change_tint_color(DAMAGE_TINT_RED);
+            display.damage_effect_timer -= 1;
+        } else if self.health <= 0. {
+            display.animator.change_tint_color(0xFFFFFF75);
         } else {
-            self.display
-                .as_mut()
-                .unwrap()
-                .animator
-                .change_tint_color(WHITE);
+            display.animator.change_tint_color(WHITE);
         }
-        self.display.as_mut().unwrap().animator.update();
-        let dp = self.draw_position();
-        let flip_x = self.flip_x();
-        self.display.as_mut().unwrap().animator.draw(dp, flip_x);
-        if let Some(ref mut splatter) = self.display.as_mut().unwrap().blood_splatter {
+
+        display.animator.update();
+        display.animator.draw(dp, flip_x);
+
+        if let Some(ref mut splatter) = display.blood_splatter {
             splatter.update();
             if splatter.animator.is_done() {
-                self.display.as_mut().unwrap().blood_splatter = None;
+                display.blood_splatter = None;
             } else {
                 splatter.draw();
             }
@@ -279,11 +260,13 @@ impl Unit {
     }
 
     pub fn start_cheering(&mut self) {
-        self.state = UnitState::Cheer;
-        //turn off flee status
-        self.attack_strategy = AttackStrategy::AttackClosest;
-        //turn off burning
-        self.status_effects = Vec::new();
+        if self.state != UnitState::Dead {
+            self.state = UnitState::Cheer;
+            //turn off flee status
+            self.attack_strategy = AttackStrategy::AttackClosest;
+            //turn off burning
+            self.status_effects = Vec::new();
+        }
     }
 
     pub fn is_point_in_bounds(&self, point: (f32, f32)) -> bool {
@@ -391,6 +374,7 @@ impl Unit {
                 Status::Healing => "healing",
                 Status::Freeze => "freeze",
                 Status::Burn { .. } => "burn",
+                Status::Haste { .. } => "haste",
             };
 
             // Skip if we've already drawn this status type
@@ -406,6 +390,7 @@ impl Unit {
                 Status::Healing => "status_healing",
                 Status::Freeze => "status_frozen",
                 Status::Burn { .. } => "status_burning",
+                Status::Haste { .. } => "status_haste",
             };
 
             sprite!(
@@ -454,6 +439,7 @@ impl Unit {
         let norm_dir_x = dir_x / length;
         let norm_dir_y = dir_y / length;
 
+        //TODO try messing with this a bit
         let rand_x = rng.next_in_range(0, 10) as f32 * norm_dir_x.signum();
 
         let rand_y = rng.next_in_range(0, 8) as f32 * norm_dir_y.signum();
@@ -568,6 +554,15 @@ impl Unit {
                         statuses_to_remove.push(index);
                     }
                 }
+                Status::Haste { timer } => {
+                    // Apply burn damage
+                    *timer -= 1;
+
+                    // If timer reaches 0, mark for removal
+                    if *timer == 0 {
+                        statuses_to_remove.push(index);
+                    }
+                }
             }
         }
         if total_damage > 0.0 {
@@ -584,6 +579,18 @@ impl Unit {
         self.health -= damage;
         self.health = self.health.max(0.);
         self.display.as_mut().unwrap().damage_effect_timer = DAMAGE_EFFECT_TIME;
+    }
+
+    pub fn start_haste(&mut self) {
+        // Only add haste if we don't already have it
+        if !self
+            .status_effects
+            .iter()
+            .any(|status| matches!(status, Status::Haste { .. }))
+        {
+            let new_status = Status::Haste { timer: 600 };
+            self.status_effects.push(new_status);
+        }
     }
 
     pub fn take_attack(&mut self, attack: &Attack, rng: &mut RNG) {
@@ -615,6 +622,10 @@ impl Unit {
             {
                 let new_status = Status::Burn { timer: (300) };
                 self.status_effects.push(new_status);
+            } else if self.data.has_attribute(&Attribute::FireResistance)
+                && attack.attributes.contains(&Attribute::FireEffect)
+            {
+                turbo::println!("FIRE BLOCKED");
             }
             if self.display.as_ref().unwrap().blood_splatter.is_none() {
                 //make the splatter position the top-middle of the sprite
@@ -716,13 +727,22 @@ impl Unit {
         //do an adjustment if you are fleeing or flanking
         let mut calc_speed = self.data.speed;
         let flank_adj = 1.2;
-        let flee_adj = 2.0;
+        let flee_adj = 1.6;
+        let haste_adj = 2.0;
         match self.attack_strategy {
             AttackStrategy::Flank { .. } => {
                 calc_speed = calc_speed * flank_adj;
             }
             AttackStrategy::Flee { .. } => calc_speed = calc_speed * flee_adj,
             _ => {}
+        }
+        //Apply haste effect
+        if self
+            .status_effects
+            .iter()
+            .any(|status| matches!(status, Status::Haste { .. }))
+        {
+            calc_speed = calc_speed * haste_adj;
         }
         calc_speed
     }
@@ -780,6 +800,7 @@ pub enum Status {
     Healing,
     Freeze,
     Burn { timer: u32 },
+    Haste { timer: u32 },
 }
 /*
 TODO: Apply burn when attack comes in
@@ -974,4 +995,52 @@ pub enum FootprintStatus {
     Clean,
     Poopy,
     Acid,
+}
+
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
+pub struct WalkingUnitPreview {
+    //unit type as a string
+    pub unit_type: String,
+    //animator
+    pub sprite: AnimatedSprite,
+    pub speed: f32,
+    pub pos: (f32, f32),
+    pub flip_x: bool,
+}
+
+impl WalkingUnitPreview {
+    pub fn new(
+        unit_type: String,
+        sprite: AnimatedSprite,
+        pos: (f32, f32),
+        speed: f32,
+        flip_x: bool,
+    ) -> Self {
+        Self {
+            unit_type,
+            sprite,
+            speed,
+            pos,
+            flip_x,
+        }
+    }
+
+    pub fn update(&mut self) -> bool {
+        let mut adj = 0.0;
+        if self.flip_x {
+            adj = self.speed * -1.0;
+        } else {
+            adj = self.speed;
+        }
+        adj = adj / 20.0;
+        self.pos.0 += adj;
+        if self.pos.0 > 400.0 || self.pos.0 < -100.0 {
+            return true;
+        }
+        self.sprite.pos = self.pos;
+        self.sprite.flip_x = false;
+        self.sprite.update();
+        self.sprite.draw();
+        false
+    }
 }

@@ -6,6 +6,8 @@ edition = "2021"
 [dependencies]
 turbo = { version = "1.6.0", package = "turbo-genesis-sdk" }
 csv = "1.1"
+strum = "0.25"
+strum_macros = "0.25"
 
 [lib]
 crate-type = ["cdylib"]
