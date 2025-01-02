@@ -48,6 +48,7 @@ const DAMAGE_TINT_RED: usize = 0xb9451dff;
 const OFF_BLACK: u32 = 0x1A1A1AFF;
 const LIGHT_GRAY: u32 = 0xA6A6A6FF;
 
+//TODO: Add back turbo OS later
 turbo::cfg! {r#"
     name = "Pixel Wars"
     version = "1.0.0"
@@ -55,8 +56,6 @@ turbo::cfg! {r#"
     description = "Epic Fantasy Battles of All Time"
     [settings]
     resolution = [384, 216]
-    [turbo-os]
-    api-url = "https://os.turbo.computer"
 "#}
 
 turbo::init! {
@@ -118,6 +117,75 @@ turbo::init! {
 
 turbo::go!({
     let mut state = GameState::load();
+    //old_go(&mut state);
+    let gp = gamepad(0);
+    if gp.right.just_pressed() {
+        state = GameState::default();
+        state.auto_assign_teams = false;
+    }
+    if gp.left.just_pressed() {
+        state = GameState::default();
+        state.auto_assign_teams = true;
+    }
+    //handle event queue
+    while let Some(event) = state.event_queue.pop() {
+        match event {
+            GameEvent::AddUnitToTeam(team_index, unit_type) => {
+                state.teams[team_index].add_unit(unit_type);
+            }
+            GameEvent::RemoveUnitFromTeam(team_index, unit_type) => {
+                state.teams[team_index].remove_unit(unit_type);
+            }
+            GameEvent::ChooseTeam(team_num) => {
+                let mut team_choice_counter = TeamChoiceCounter {
+                    team_0: 0,
+                    team_1: 0,
+                };
+                if state.selected_team_index.is_some() {
+                    if state.selected_team_index == Some(0) && team_num == 1 {
+                        team_choice_counter.team_0 = -1;
+                        team_choice_counter.team_1 = 1;
+                    } else if state.selected_team_index == Some(1) && team_num == 0 {
+                        team_choice_counter.team_0 = 1;
+                        team_choice_counter.team_1 = -1;
+                    }
+                } else {
+                    if team_num == 0 {
+                        team_choice_counter.team_0 = 1;
+                        team_choice_counter.team_1 = 0;
+                    } else if team_num == 1 {
+                        team_choice_counter.team_0 = 0;
+                        team_choice_counter.team_1 = 1;
+                    }
+                }
+
+                let bytes = borsh::to_vec(&team_choice_counter).unwrap();
+                os::client::exec("pixel-wars", "choose_team", &bytes);
+            }
+            GameEvent::RestartGame() => {
+                let t = state.last_winning_team;
+                let u = state.user;
+                let battle = match os::client::watch_file("pixel-wars", "current_battle")
+                    .data
+                    .and_then(|file| Battle::try_from_slice(&file.contents).ok())
+                {
+                    Some(battle) => battle,
+                    None => {
+                        return;
+                    }
+                };
+                state = GameState::default();
+                //retain these values between rounds
+                state.last_winning_team = t;
+                state.user = u;
+                state.previous_battle = Some(battle);
+            }
+        }
+    }
+    state.save();
+});
+
+fn old_go(mut state: &mut GameState) {
     clear!(0x8f8cacff);
     let gp = gamepad(0);
     if gp.select.just_pressed() {
@@ -270,14 +338,6 @@ turbo::go!({
                 set_cam!(y = cam!().1 + 3);
             } else if gp.up.pressed() {
                 set_cam!(y = cam!().1 - 3);
-            }
-            if gp.right.just_pressed() {
-                state = GameState::default();
-                state.auto_assign_teams = false;
-            }
-            if gp.left.just_pressed() {
-                state = GameState::default();
-                state.auto_assign_teams = true;
             }
         }
         Phase::PreBattle => {
@@ -543,61 +603,6 @@ turbo::go!({
             // Post-battle cleanup and results
         }
     }
-    //handle event queue
-    while let Some(event) = state.event_queue.pop() {
-        match event {
-            GameEvent::AddUnitToTeam(team_index, unit_type) => {
-                state.teams[team_index].add_unit(unit_type);
-            }
-            GameEvent::RemoveUnitFromTeam(team_index, unit_type) => {
-                state.teams[team_index].remove_unit(unit_type);
-            }
-            GameEvent::ChooseTeam(team_num) => {
-                let mut team_choice_counter = TeamChoiceCounter {
-                    team_0: 0,
-                    team_1: 0,
-                };
-                if state.selected_team_index.is_some() {
-                    if state.selected_team_index == Some(0) && team_num == 1 {
-                        team_choice_counter.team_0 = -1;
-                        team_choice_counter.team_1 = 1;
-                    } else if state.selected_team_index == Some(1) && team_num == 0 {
-                        team_choice_counter.team_0 = 1;
-                        team_choice_counter.team_1 = -1;
-                    }
-                } else {
-                    if team_num == 0 {
-                        team_choice_counter.team_0 = 1;
-                        team_choice_counter.team_1 = 0;
-                    } else if team_num == 1 {
-                        team_choice_counter.team_0 = 0;
-                        team_choice_counter.team_1 = 1;
-                    }
-                }
-
-                let bytes = borsh::to_vec(&team_choice_counter).unwrap();
-                os::client::exec("pixel-wars", "choose_team", &bytes);
-            }
-            GameEvent::RestartGame() => {
-                let t = state.last_winning_team;
-                let u = state.user;
-                let battle = match os::client::watch_file("pixel-wars", "current_battle")
-                    .data
-                    .and_then(|file| Battle::try_from_slice(&file.contents).ok())
-                {
-                    Some(battle) => battle,
-                    None => {
-                        return;
-                    }
-                };
-                state = GameState::default();
-                //retain these values between rounds
-                state.last_winning_team = t;
-                state.user = u;
-                state.previous_battle = Some(battle);
-            }
-        }
-    }
 
     //alert drawing
     // Watch for alerts
@@ -611,9 +616,7 @@ turbo::go!({
             }
         }
     }
-
-    state.save();
-});
+}
 
 fn draw_end_animation(is_win: Option<bool>) {
     if is_win.is_some() {
