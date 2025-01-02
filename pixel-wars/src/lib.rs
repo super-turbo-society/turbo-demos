@@ -100,6 +100,7 @@ turbo::init! {
         previous_battle: Option<Battle>,
         battle_countdown_timer: u32,
         battle_simulation_requested: bool,
+        is_sandbox_mode: bool,
     } = {
         Self {
             transition: None,
@@ -136,6 +137,7 @@ turbo::init! {
             previous_battle: None,
             battle_countdown_timer: BATTLE_COUNTDOWN_TIME,
             battle_simulation_requested: false,
+            is_sandbox_mode: false,
         }
     }
 }
@@ -143,70 +145,71 @@ turbo::init! {
 turbo::go!({
     let mut state = GameState::load();
     //old_go(&mut state);
-    let gp = gamepad(0);
-    if gp.right.just_pressed() {
-        state = GameState::default();
-        state.auto_assign_teams = false;
-    }
-    if gp.left.just_pressed() {
-        state = GameState::default();
-        state.auto_assign_teams = true;
-    }
-    //handle event queue
-    while let Some(event) = state.event_queue.pop() {
-        match event {
-            GameEvent::AddUnitToTeam(team_index, unit_type) => {
-                state.teams[team_index].add_unit(unit_type);
-            }
-            GameEvent::RemoveUnitFromTeam(team_index, unit_type) => {
-                state.teams[team_index].remove_unit(unit_type);
-            }
-            GameEvent::ChooseTeam(team_num) => {
-                let mut team_choice_counter = TeamChoiceCounter {
-                    team_0: 0,
-                    team_1: 0,
-                };
-                if state.selected_team_index.is_some() {
-                    if state.selected_team_index == Some(0) && team_num == 1 {
-                        team_choice_counter.team_0 = -1;
-                        team_choice_counter.team_1 = 1;
-                    } else if state.selected_team_index == Some(1) && team_num == 0 {
-                        team_choice_counter.team_0 = 1;
-                        team_choice_counter.team_1 = -1;
-                    }
-                } else {
-                    if team_num == 0 {
-                        team_choice_counter.team_0 = 1;
-                        team_choice_counter.team_1 = 0;
-                    } else if team_num == 1 {
-                        team_choice_counter.team_0 = 0;
-                        team_choice_counter.team_1 = 1;
-                    }
-                }
+    dbgo(&mut state);
+    // let gp = gamepad(0);
+    // if gp.right.just_pressed() {
+    //     state = GameState::default();
+    //     state.auto_assign_teams = false;
+    // }
+    // if gp.left.just_pressed() {
+    //     state = GameState::default();
+    //     state.auto_assign_teams = true;
+    // }
+    // //handle event queue
+    // while let Some(event) = state.event_queue.pop() {
+    //     match event {
+    //         GameEvent::AddUnitToTeam(team_index, unit_type) => {
+    //             state.teams[team_index].add_unit(unit_type);
+    //         }
+    //         GameEvent::RemoveUnitFromTeam(team_index, unit_type) => {
+    //             state.teams[team_index].remove_unit(unit_type);
+    //         }
+    //         GameEvent::ChooseTeam(team_num) => {
+    //             let mut team_choice_counter = TeamChoiceCounter {
+    //                 team_0: 0,
+    //                 team_1: 0,
+    //             };
+    //             if state.selected_team_index.is_some() {
+    //                 if state.selected_team_index == Some(0) && team_num == 1 {
+    //                     team_choice_counter.team_0 = -1;
+    //                     team_choice_counter.team_1 = 1;
+    //                 } else if state.selected_team_index == Some(1) && team_num == 0 {
+    //                     team_choice_counter.team_0 = 1;
+    //                     team_choice_counter.team_1 = -1;
+    //                 }
+    //             } else {
+    //                 if team_num == 0 {
+    //                     team_choice_counter.team_0 = 1;
+    //                     team_choice_counter.team_1 = 0;
+    //                 } else if team_num == 1 {
+    //                     team_choice_counter.team_0 = 0;
+    //                     team_choice_counter.team_1 = 1;
+    //                 }
+    //             }
 
-                let bytes = borsh::to_vec(&team_choice_counter).unwrap();
-                os::client::exec("pixel-wars", "choose_team", &bytes);
-            }
-            GameEvent::RestartGame() => {
-                let t = state.last_winning_team;
-                let u = state.user;
-                let battle = match os::client::watch_file("pixel-wars", "current_battle")
-                    .data
-                    .and_then(|file| Battle::try_from_slice(&file.contents).ok())
-                {
-                    Some(battle) => battle,
-                    None => {
-                        return;
-                    }
-                };
-                state = GameState::default();
-                //retain these values between rounds
-                state.last_winning_team = t;
-                state.user = u;
-                state.previous_battle = Some(battle);
-            }
-        }
-    }
+    //             let bytes = borsh::to_vec(&team_choice_counter).unwrap();
+    //             os::client::exec("pixel-wars", "choose_team", &bytes);
+    //         }
+    //         GameEvent::RestartGame() => {
+    //             let t = state.last_winning_team;
+    //             let u = state.user;
+    //             let battle = match os::client::watch_file("pixel-wars", "current_battle")
+    //                 .data
+    //                 .and_then(|file| Battle::try_from_slice(&file.contents).ok())
+    //             {
+    //                 Some(battle) => battle,
+    //                 None => {
+    //                     return;
+    //                 }
+    //             };
+    //             state = GameState::default();
+    //             //retain these values between rounds
+    //             state.last_winning_team = t;
+    //             state.user = u;
+    //             state.previous_battle = Some(battle);
+    //         }
+    //     }
+    // }
     state.save();
 });
 
@@ -422,6 +425,7 @@ fn old_go(mut state: &mut GameState) {
                     &mut state.explosions,
                     &mut state.craters,
                     &mut state.rng,
+                    &mut state.artifacts,
                 );
             }
 

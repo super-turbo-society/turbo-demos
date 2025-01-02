@@ -132,6 +132,21 @@ fn draw_organic_background() {
     }
 }
 
+pub fn team_selection(state: &mut GameState) {
+    draw_team_info_and_buttons(state);
+    let gp = gamepad(0);
+    if gp.start.just_pressed() {
+        state.phase = Phase::PreBattle;
+    }
+
+    //move camera if you press up and down
+    if gp.down.pressed() {
+        set_cam!(y = cam!().1 + 3);
+    } else if gp.up.pressed() {
+        set_cam!(y = cam!().1 - 3);
+    }
+}
+
 pub fn dbgo(state: &mut GameState) {
     clear!(0x8f8cacff);
     //draw_checkerboard_background();
@@ -193,15 +208,6 @@ pub fn dbgo(state: &mut GameState) {
                 }
                 //PIXEL WARS
                 sprite!("pixelwars_title_static", x = 128, y = 31);
-                // power_text!(
-                //     "PIXEL WARS",
-                //     x = 0,
-                //     y = 80,
-                //     center_width = 384,
-                //     underline = true,
-                //     drop_shadow = SHADOW_COLOR,
-                //     font = Font::XL,
-                // );
                 if state.round == 1 {
                     power_text!(
                         "TINY UI BATTLES FOR",
@@ -259,11 +265,6 @@ pub fn dbgo(state: &mut GameState) {
                     color = color,
                     drop_shadow = drop_shadow
                 );
-                //some units walking across the screen
-                //make a new struct
-                //it has an animated sprite
-                //a place to go
-                //and a reset
             }
             if m.left.just_pressed() {
                 if state.round == 7 {
@@ -271,6 +272,18 @@ pub fn dbgo(state: &mut GameState) {
                 } else {
                     state.dbphase = DBPhase::Shop;
                 }
+            }
+            if gp.right.just_pressed() {
+                state.teams.clear();
+                state.teams.push(Team::new(
+                    "Battle Bois".to_string(),
+                    state.data_store.as_ref().unwrap().clone(),
+                ));
+                state.teams.push(Team::new(
+                    "Pixel Peeps".to_string(),
+                    state.data_store.as_ref().unwrap().clone(),
+                ));
+                state.dbphase = DBPhase::Sandbox;
             }
         }
 
@@ -288,8 +301,8 @@ pub fn dbgo(state: &mut GameState) {
                 }
             }
             let ds = state.data_store.as_ref().unwrap();
-            //create the enemy team
 
+            //create the enemy team
             if state.enemy_team_placeholder == None {
                 let t = generate_team_db(
                     &state.data_store.as_ref().unwrap(),
@@ -362,6 +375,19 @@ pub fn dbgo(state: &mut GameState) {
                 if ready_to_transition {
                     state.dbphase = DBPhase::ArtifactShop;
                 }
+            }
+            //enter sandbox mode
+            if gp.right.just_pressed() {
+                state.teams.clear();
+                state.teams.push(Team::new(
+                    "Battle Bois".to_string(),
+                    state.data_store.as_ref().unwrap().clone(),
+                ));
+                state.teams.push(Team::new(
+                    "Pixel Peeps".to_string(),
+                    state.data_store.as_ref().unwrap().clone(),
+                ));
+                state.dbphase = DBPhase::Sandbox;
             }
         }
         DBPhase::ArtifactShop => {
@@ -456,6 +482,17 @@ pub fn dbgo(state: &mut GameState) {
                         }
                     }
                 }
+                state.dbphase = DBPhase::Battle;
+            }
+        }
+        DBPhase::Sandbox => {
+            draw_team_info_and_buttons(state);
+            if gp.start.just_pressed() {
+                state.units = create_units_for_all_teams(
+                    &mut state.teams,
+                    &mut state.rng,
+                    &state.data_store.as_ref().unwrap(),
+                );
                 state.dbphase = DBPhase::Battle;
             }
         }
@@ -776,6 +813,7 @@ pub enum DBPhase {
     ArtifactShop,
     Battle,
     WrapUp,
+    Sandbox,
 }
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
