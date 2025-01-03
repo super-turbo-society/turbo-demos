@@ -461,6 +461,16 @@ impl Unit {
         new_y = new_y.clamp(MAP_BOUNDS.2, MAP_BOUNDS.3);
         self.target_pos = (new_x, new_y);
         self.state = UnitState::Moving;
+        fn is_in_range_with_data(
+            position: (f32, f32),
+            range: f32,
+            target_position: (f32, f32),
+        ) -> bool {
+            // Calculate distance between positions
+            let distance = distance_between(position, target_position);
+            // Check if target is within range
+            distance <= range
+        }
     }
 
     // fn calculate_separation(&self, nearby_units: &[&Unit]) -> (f32, f32) {
@@ -702,13 +712,7 @@ impl Unit {
     }
 
     pub fn is_unit_in_range(&self, other: &Unit) -> bool {
-        let other_pos = other.pos;
-        let dx = (self.pos.0 - other_pos.0).abs();
-        let dy = (self.pos.1 - other_pos.1).abs();
-        if dx < self.data.range && dy < MAX_Y_ATTACK_DISTANCE {
-            return true;
-        }
-        false
+        is_in_range_with_data(self.pos, self.data.range, other.pos)
     }
 
     pub fn draw_position(&self) -> (f32, f32) {

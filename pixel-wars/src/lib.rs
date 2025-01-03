@@ -928,23 +928,75 @@ fn step_through_battle(
                     ref mut defended_unit_id,
                 } => {
                     log!("In defend strategy");
+
+                    // Extract the data we need for combat checks before any borrowing
+                    let unit_position = unit.pos;
+                    let unit_team = unit.team;
+                    let unit_id = unit.id;
+                    let unit_range = unit.data.range;
+
+                    // Check for enemies using our new function that doesn't require borrowing the whole unit
+                    if let Some(index) = closest_enemy_index_with_data(
+                        unit_team,
+                        unit_position,
+                        unit_id,
+                        &units_clone,
+                    ) {
+                        let enemy = &units_clone[index];
+                        if is_in_range_with_data(unit_position, unit_range, enemy.pos) {
+                            let mut attack = unit.start_attack(units_clone[index].id);
+                            attack = modify_damage_from_artifacts(attack, &units_clone, artifacts);
+                            attacks.push(attack);
+
+                            if let Some(display) = unit.display.as_mut() {
+                                display.is_facing_left = unit_position.0 > units_clone[index].pos.0;
+                            }
+                            return;
+                        }
+                    }
+
+                    // If we get here, we're not in combat, so handle defense positioning
                     if defended_unit_id.is_none() {
                         let defended_id = can_defend(&units_clone, unit.team, unit.pos, rng);
                         if defended_id.is_none() {
                             log!("Nobody to defend");
                             unit.attack_strategy = AttackStrategy::AttackClosest;
+                            return;
                         } else {
-                            //do nothing for now
+                            *defended_unit_id = defended_id;
                             log!("Defending Unit: {}", defended_id.unwrap());
                         }
                     }
-                    //can defend function (bool)
-                    //if yes - set defended unit by finding closest ranged unit
-                    //if distance from target_defender_spot(unit_id) then move toward that position
-                    //else if distance from that spot isn't big, set status as 'defending'
-                    //check if any enemy is in range to attack and if so change to attack closest
+
+                    if let Some(defended_id) = *defended_unit_id {
+                        if let Some(defended_unit) =
+                            find_unit_by_id(&units_clone, Some(defended_id))
+                        {
+                            // Check if the defended unit is still alive
+                            if defended_unit.health <= 0.0 {
+                                log!("Defended unit died, switching to attack closest");
+                                unit.attack_strategy = AttackStrategy::AttackClosest;
+                                return;
+                            }
+
+                            // Calculate our desired defensive position based on team
+                            let x_offset = if unit.team == 0 { 20.0 } else { -20.0 };
+                            let defense_position =
+                                (defended_unit.pos.0 + x_offset, defended_unit.pos.1);
+
+                            // Only move if we're not already close to our desired position
+                            let distance_to_target = distance_between(unit.pos, defense_position);
+                            if distance_to_target > 10.0 {
+                                unit.set_new_target_move_position(&defense_position, rng);
+                            }
+                        } else {
+                            *defended_unit_id = None;
+                            unit.attack_strategy = AttackStrategy::AttackClosest;
+                            log!("Lost defended unit, switching to attack closest");
+                            return;
+                        }
+                    }
                 }
-                //attack strategy::defend
                 _ => {
                     panic!("Unexpected Attack Strategy!!");
                 }
@@ -1437,23 +1489,39 @@ fn closest_enemy_unit(units: &Vec<Unit>, team: i32, pos: (f32, f32)) -> Option<&
         })
 }
 
-fn closest_enemy_index(unit: &Unit, units: &Vec<Unit>) -> Option<usize> {
+fn is_in_range_with_data(position: (f32, f32), range: f32, target_position: (f32, f32)) -> bool {
+    // Calculate distance between positions
+    let distance = distance_between(position, target_position);
+    // Check if target is within range
+    distance <= range
+}
+
+fn closest_enemy_index_with_data(
+    team: i32,
+    position: (f32, f32),
+    unit_id: u32, // Using unit ID instead of a pointer
+    units: &Vec<Unit>,
+) -> Option<usize> {
     units
         .iter()
         .enumerate()
         .filter(|(_, other_unit)| {
-            other_unit.team != unit.team && // Filter out units on the same team
-            other_unit.health > 0.0 &&      // Filter out dead units
-            !std::ptr::eq(unit, *other_unit) // Filter out the unit itself
+            other_unit.team != team &&        // Filter out units on the same team
+            other_unit.health > 0.0 &&        // Filter out dead units
+            other_unit.id != unit_id // Filter out the unit itself using ID comparison
         })
         .min_by(|(_, a), (_, b)| {
-            let dist_a = distance_between(unit.pos, a.pos);
-            let dist_b = distance_between(unit.pos, b.pos);
+            let dist_a = distance_between(position, a.pos);
+            let dist_b = distance_between(position, b.pos);
             dist_a
                 .partial_cmp(&dist_b)
                 .unwrap_or(std::cmp::Ordering::Equal)
         })
         .map(|(index, _)| index)
+}
+
+fn closest_enemy_index(unit: &Unit, units: &Vec<Unit>) -> Option<usize> {
+    closest_enemy_index_with_data(unit.team, unit.pos, unit.id, units)
 }
 
 fn closest_unit_to_position(position: (f32, f32), units: &Vec<Unit>) -> Option<usize> {
