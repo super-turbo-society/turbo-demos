@@ -100,7 +100,6 @@ turbo::init! {
         previous_battle: Option<Battle>,
         battle_countdown_timer: u32,
         battle_simulation_requested: bool,
-        is_sandbox_mode: bool,
     } = {
         Self {
             transition: None,
@@ -137,7 +136,6 @@ turbo::init! {
             previous_battle: None,
             battle_countdown_timer: BATTLE_COUNTDOWN_TIME,
             battle_simulation_requested: false,
-            is_sandbox_mode: false,
         }
     }
 }
@@ -925,7 +923,28 @@ fn step_through_battle(
                         unit.set_new_target_move_position(&new_target, rng);
                     }
                 }
-
+                AttackStrategy::Defend {
+                    ref mut timer,
+                    ref mut defended_unit_id,
+                } => {
+                    log!("In defend strategy");
+                    if defended_unit_id.is_none() {
+                        let defended_id = can_defend(&units_clone, unit.team, unit.pos, rng);
+                        if defended_id.is_none() {
+                            log!("Nobody to defend");
+                            unit.attack_strategy = AttackStrategy::AttackClosest;
+                        } else {
+                            //do nothing for now
+                            log!("Defending Unit: {}", defended_id.unwrap());
+                        }
+                    }
+                    //can defend function (bool)
+                    //if yes - set defended unit by finding closest ranged unit
+                    //if distance from target_defender_spot(unit_id) then move toward that position
+                    //else if distance from that spot isn't big, set status as 'defending'
+                    //check if any enemy is in range to attack and if so change to attack closest
+                }
+                //attack strategy::defend
                 _ => {
                     panic!("Unexpected Attack Strategy!!");
                 }
@@ -1175,6 +1194,36 @@ fn lowest_health_closest_enemy_unit(
         })
 }
 
+fn can_defend(units: &Vec<Unit>, team: i32, pos: (f32, f32), rng: &mut RNG) -> Option<u32> {
+    // First check if there's at least one enemy non-ranged unit
+    let has_enemy_melee = units.iter().any(|unit| {
+        unit.team != team && unit.health > 0.0 && !unit.data.has_attribute(&Attribute::Ranged)
+    });
+
+    // If there are no enemy melee units, no need to defend
+    if !has_enemy_melee {
+        return None;
+    }
+
+    // Find all friendly ranged units and collect their IDs
+    let friendly_ranged_ids: Vec<u32> = units
+        .iter()
+        .filter(|unit| {
+            unit.team == team && unit.health > 0.0 && unit.data.has_attribute(&Attribute::Ranged)
+        })
+        .map(|unit| unit.id)
+        .collect();
+
+    // If we have no ranged units to defend with, return None
+    if friendly_ranged_ids.is_empty() {
+        return None;
+    }
+
+    // Choose a random ID from our collection of friendly ranged units
+    let random_index = rng.next_in_range(0, friendly_ranged_ids.len() as u32 - 1);
+    Some(friendly_ranged_ids[random_index as usize])
+}
+
 fn lowest_health_ranged_enemy_unit(units: &Vec<Unit>, team: i32, pos: (f32, f32)) -> Option<&Unit> {
     if units.is_empty() {
         return None;
@@ -1374,17 +1423,6 @@ pub fn shuffle<T>(rng: &mut RNG, array: &mut [T]) {
         array.swap(i, j);
     }
 }
-
-// fn start_match(state: &mut GameState) {
-//     state.units = create_units_for_all_teams(
-//         &mut state.teams,
-//         &mut state.rng,
-//         state.data_store.as_ref().unwrap(),
-//     );
-
-//     state.phase = Phase::PreBattle;
-//     set_cam!(x = 192, y = 108);
-// }
 
 fn closest_enemy_unit(units: &Vec<Unit>, team: i32, pos: (f32, f32)) -> Option<&Unit> {
     units
@@ -1895,12 +1933,6 @@ enum GameEvent {
     RemoveUnitFromTeam(usize, String),
     ChooseTeam(i32),
     RestartGame(),
-}
-
-#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
-enum ObstacleShape {
-    Square,
-    Circle,
 }
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]

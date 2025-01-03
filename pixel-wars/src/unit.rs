@@ -242,6 +242,8 @@ impl Unit {
     }
 
     pub fn set_starting_strategy(&mut self, rng: &mut RNG) {
+        log!("Setting strategy");
+        turbo::println!("Attributes: {:?}", self.data.attributes);
         //TODO: Clean this up a bit so its more flexible
         //set some different odds and check attributes to assign strategy
         if self.data.has_attribute(&Attribute::Flanker) {
@@ -257,13 +259,22 @@ impl Unit {
                 self.attack_strategy = AttackStrategy::SeekTarget;
             }
         }
+        if self.data.has_attribute(&Attribute::Defender) {
+            log!("Found Defender");
+            self.attack_strategy = AttackStrategy::Defend {
+                timer: 60,
+                defended_unit_id: None,
+            };
+        }
     }
 
     pub fn start_cheering(&mut self) {
         if self.state != UnitState::Dead {
             self.state = UnitState::Cheer;
             //turn off flee status
+            //if self.attack_strategy == AttackStrategy::Flee {
             self.attack_strategy = AttackStrategy::AttackClosest;
+            //}
             //turn off burning
             self.status_effects = Vec::new();
         }
@@ -752,10 +763,18 @@ impl Unit {
 pub enum AttackStrategy {
     AttackClosest,
     TargetLowestHealth,
-    Flank { stage: FlankStage },
+    Flank {
+        stage: FlankStage,
+    },
     SeekTarget,
-    Flee { timer: i32 },
+    Flee {
+        timer: i32,
+    },
     MoveRandom,
+    Defend {
+        timer: i32,
+        defended_unit_id: Option<u32>,
+    },
 }
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
@@ -774,6 +793,7 @@ pub enum Attribute {
     FireResistance,
     Ranged,
     Flanker,
+    Defender,
 }
 
 impl FromStr for Attribute {
@@ -789,6 +809,7 @@ impl FromStr for Attribute {
             "ExplosiveAttack" => Ok(Attribute::ExplosiveAttack),
             "Flanker" => Ok(Attribute::Flanker),
             "Ranged" => Ok(Attribute::Ranged),
+            "Defender" => Ok(Attribute::Defender),
             _ => Err(format!("Unknown attribute: {}", s)),
         }
     }
