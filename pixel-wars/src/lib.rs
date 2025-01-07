@@ -23,7 +23,7 @@ const DAMAGE_EFFECT_TIME: u32 = 12;
 //avg number of units to balance each generated team around
 const TEAM_POWER_MULTIPLIER: f32 = 25.0;
 const TEAM_SELECTION_TIME: u32 = 3600;
-const BATTLE_COUNTDOWN_TIME: u32 = 240;
+const BATTLE_COUNTDOWN_TIME: u32 = 0;
 const TEAM_NAMES: [&str; 12] = [
     "Pixel Peeps",
     "Battle Bois",
@@ -928,7 +928,6 @@ fn step_through_battle(
                     ref mut defended_unit_id,
                 } => {
                     log!("In defend strategy");
-
                     // Extract the data we need for combat checks before any borrowing
                     let unit_position = unit.pos;
                     let unit_team = unit.team;
@@ -951,7 +950,7 @@ fn step_through_battle(
                             if let Some(display) = unit.display.as_mut() {
                                 display.is_facing_left = unit_position.0 > units_clone[index].pos.0;
                             }
-                            return;
+                            continue;
                         }
                     }
 
@@ -961,7 +960,7 @@ fn step_through_battle(
                         if defended_id.is_none() {
                             log!("Nobody to defend");
                             unit.attack_strategy = AttackStrategy::AttackClosest;
-                            return;
+                            continue;
                         } else {
                             *defended_unit_id = defended_id;
                             log!("Defending Unit: {}", defended_id.unwrap());
@@ -976,7 +975,7 @@ fn step_through_battle(
                             if defended_unit.health <= 0.0 {
                                 log!("Defended unit died, switching to attack closest");
                                 unit.attack_strategy = AttackStrategy::AttackClosest;
-                                return;
+                                continue;
                             }
 
                             // Calculate our desired defensive position based on team
@@ -988,12 +987,15 @@ fn step_through_battle(
                             let distance_to_target = distance_between(unit.pos, defense_position);
                             if distance_to_target > 10.0 {
                                 unit.set_new_target_move_position(&defense_position, rng);
+                            } else {
+                                unit.state = UnitState::Defending;
+                                log!("STARTING TO DEFEND");
                             }
                         } else {
                             *defended_unit_id = None;
                             unit.attack_strategy = AttackStrategy::AttackClosest;
                             log!("Lost defended unit, switching to attack closest");
-                            return;
+                            continue;
                         }
                     }
                 }

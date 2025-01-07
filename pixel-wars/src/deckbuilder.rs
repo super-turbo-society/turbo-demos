@@ -495,8 +495,14 @@ pub fn dbgo(state: &mut GameState) {
                 );
                 state.dbphase = DBPhase::Battle;
             }
+            if gp.down.pressed() {
+                set_cam!(y = cam!().1 + 3);
+            } else if gp.up.pressed() {
+                set_cam!(y = cam!().1 - 3);
+            }
         }
         DBPhase::Battle => {
+            set_cam!(x = 192, y = 108);
             if state.battle_countdown_timer > 0 {
                 if state.battle_countdown_timer == BATTLE_COUNTDOWN_TIME {
                     for u in &mut state.units {

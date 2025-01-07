@@ -3,7 +3,7 @@ axeman,30,100,4,8,40,0,16,3,5,5,9
 blade,20,25,7,8,40,0,16,3,5,5,9,
 hunter,4,15,3,120,120,0,32,3,20,5,9,"Ranged"
 pyro,5,20,6,12,40,0,16,3,5,5,9,"FireEffect"
-bigpound,5,200,3,16,120,4,32,3,19,5,10,"Stalwart, Defender"
+bigpound,5,200,4,16,120,4,32,3,19,5,10,"Stalwart, Defender"
 sabre,40,50,8,12,100,8,16,3,4,5,10,
 flameboi,10,20,3,32,40,8,32,3,19,5,10,"Terrifying, FireEffect"
 deathray,30,10,6,32,40,0,32,3,20,5,10,"Flanker, Terrifying"

@@ -103,6 +103,15 @@ impl Unit {
         if self.health <= 0. {
             self.state = UnitState::Dead;
         }
+        if self.state == UnitState::Defending {
+            if let AttackStrategy::Defend { ref mut timer, .. } = self.attack_strategy {
+                *timer -= 1;
+                if *timer <= 0 {
+                    self.state = UnitState::Idle;
+                    *timer = 30;
+                }
+            }
+        }
 
         if self.state != UnitState::Dead {
             if self.display.as_ref().unwrap().footprint_status != FootprintStatus::Clean {
@@ -168,8 +177,18 @@ impl Unit {
                 loops_per_frame: UNIT_ANIM_SPEED,
                 is_looping: true,
             };
+
             display.animator.set_next_anim(Some(next_anim));
             //self.animator.set_cur_anim(new_anim);
+        } else if self.state == UnitState::Defending {
+            let next_anim = Animation {
+                name: self.unit_type.to_lowercase() + "_cheer",
+                s_w: self.data.sprite_width,
+                num_frames: 4,
+                loops_per_frame: UNIT_ANIM_SPEED,
+                is_looping: true,
+            };
+            display.animator.set_next_anim(Some(next_anim));
         } else if self.state == UnitState::Cheer {
             display.animator.cur_anim.is_looping = false;
             let next_anim = Animation {
@@ -414,7 +433,17 @@ impl Unit {
 
             offset += 4.0;
         }
-
+        // // Then draw defender status if present
+        // if matches!(self.attack_strategy, AttackStrategy::Defend { .. }) {
+        //     sprite!(
+        //         "status_frozen", // You'll need to create this sprite
+        //         x = base_pos.0 + offset - 4.,
+        //         y = base_pos.1 - 4.,
+        //         sw = 16,
+        //         fps = fps::FAST
+        //     );
+        //     offset += 4.0;
+        // }
         // Then check for flee status and draw it if present
         if matches!(self.attack_strategy, AttackStrategy::Flee { .. }) {
             sprite!(
@@ -637,6 +666,13 @@ impl Unit {
                     self.state = UnitState::Idle;
                 }
             }
+            //if you are defending and you take a melee attack, you should break ranks
+            if !attack.attributes.contains(&Attribute::Ranged)
+                && matches!(self.attack_strategy, AttackStrategy::Defend { .. })
+            {
+                self.attack_strategy = AttackStrategy::AttackClosest;
+            }
+
             //if it is a fire effect, then add a burn status to this unit
             if !self.data.has_attribute(&Attribute::FireResistance)
                 && attack.attributes.contains(&Attribute::FireEffect)
@@ -864,6 +900,7 @@ pub enum UnitState {
     Idle,
     Dead,
     Cheer,
+    Defending,
 }
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
