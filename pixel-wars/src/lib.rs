@@ -210,7 +210,6 @@ turbo::go!({
     // }
     let gp = gamepad(0);
     if gp.a.just_pressed() {
-        log!("TRAP CREATION");
         let t = create_trap(&mut state.rng);
         state.traps.push(t);
     }
@@ -1050,6 +1049,13 @@ fn step_through_battle(
                         attacks.push(attack);
                         trap.set_inactive();
                         turbo::println!("TRAP POS {}, {}", trap.pos.0, trap.pos.1);
+                    }
+                } else if trap.trap_type == TrapType::Healing {
+                    //check if unit is not at max health
+                    if unit.health != unit.data.max_health {
+                        unit.start_healing();
+                        //and erase the trap
+                        trap.set_inactive();
                     }
                 }
             }
@@ -2481,7 +2487,7 @@ fn create_unit_previews(
 fn create_trap(rng: &mut RNG) -> Trap {
     //choose a random trap and a random position within some bounds
     let random_number = rng.next_in_range(0, 2);
-    let random_number = 1 as u32;
+    let random_number = 3 as u32;
     let trap_type = match random_number {
         0 => TrapType::Poop,
         1 => TrapType::Acidleak,

@@ -34,9 +34,9 @@ impl Trap {
             ),
             TrapType::Healing => (
                 8.0,                   // size
-                -20.0,                 // damage (negative for healing)
-                180,                   // on_dur
-                120,                   // off_dur
+                0.0,                   // damage (negative for healing)
+                1,                     // on_dur
+                0,                     // off_dur
                 "healing".to_string(), // sprite_name
             ),
             TrapType::Acidleak => (
@@ -84,12 +84,6 @@ impl Trap {
 
     pub fn draw(&self) {
         if self.is_active() {
-            // circ!(
-            //     x = self.draw_pos().0,
-            //     y = self.draw_pos().1,
-            //     d = self.size,
-            //     color = 0xFF0000ff
-            // );
             sprite!(
                 self.sprite_name.as_str(),
                 x = self.sprite_draw_pos().0,

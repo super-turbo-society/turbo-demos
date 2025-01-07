@@ -594,7 +594,12 @@ impl Unit {
                     total_damage += 0.2;
                 }
                 Status::Healing => {
-                    // Apply healing
+                    let heal_amt = self.data.max_health / 180.0;
+                    self.health += heal_amt;
+                    if self.health >= self.data.max_health {
+                        self.health = self.data.max_health;
+                        statuses_to_remove.push(index);
+                    }
                 }
                 Status::Freeze { timer } => {
                     *timer -= 1;
@@ -732,6 +737,12 @@ impl Unit {
                 self.display.as_mut().unwrap().blood_splatter = Some(new_splatter);
             }
         }
+    }
+
+    pub fn start_healing(&mut self) {
+        //add a healing status effect
+        self.status_effects.push(Status::Healing);
+        //change behavior to heal
     }
 
     pub fn start_attack(&mut self, target_unit_id: u32) -> Attack {
