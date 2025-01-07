@@ -1,12 +1,12 @@
 unit type,damage,max_health,speed,range,attack_time,splash_area,sprite_width,box_x,box_y,box_w,box_h,attributes
 axeman,30,100,4,8,40,0,16,3,5,5,9
 blade,20,25,7,8,40,0,16,3,5,5,9,
-hunter,4,15,3,120,120,0,32,3,20,5,9,"Ranged"
+hunter,4,15,3,120,120,0,32,3,20,5,9,"Ranged, FreezeAttack"
 pyro,5,20,6,12,40,0,16,3,5,5,9,"FireEffect"
 bigpound,5,200,4,16,120,4,32,3,19,5,10,"Stalwart, Defender"
 sabre,40,50,8,12,100,8,16,3,4,5,10,
 flameboi,10,20,3,32,40,8,32,3,19,5,10,"Terrifying, FireEffect"
-deathray,30,10,6,32,40,0,32,3,20,5,10,"Flanker, Terrifying"
+deathray,30,10,6,32,40,0,32,3,20,5,10,"PoisonAttack, Terrifying"
 bazooka,20,20,3,120,160,12,32,3,20,5,10,"ExplosiveAttack, Ranged"
 cosmo,5,35,4,120,60,0,32,3,20,5,10,"Ranged"
 draco,20,300,9,32,80,5,48,4,34,16,14,"Terrifying, FireEffect"

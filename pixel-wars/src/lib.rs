@@ -208,6 +208,12 @@ turbo::go!({
     //         }
     //     }
     // }
+    let gp = gamepad(0);
+    if gp.a.just_pressed() {
+        log!("TRAP CREATION");
+        let t = create_trap(&mut state.rng);
+        state.traps.push(t);
+    }
     state.save();
 });
 
@@ -1015,7 +1021,15 @@ fn step_through_battle(
                         display.footprint_status = FootprintStatus::Poopy;
                     }
                 } else if trap.trap_type == TrapType::Acidleak {
-                    let attack = Attack::new(unit.id, 1., trap.pos, trap.damage, 0., 1, Vec::new());
+                    let attack = Attack::new(
+                        unit.id,
+                        1.,
+                        trap.pos,
+                        trap.damage,
+                        0.,
+                        1,
+                        vec![Attribute::PoisonAttack],
+                    );
                     unit.take_attack(&attack, rng);
                     if let Some(display) = unit.display.as_mut() {
                         display.footprint_status = FootprintStatus::Acid;
@@ -2467,7 +2481,7 @@ fn create_unit_previews(
 fn create_trap(rng: &mut RNG) -> Trap {
     //choose a random trap and a random position within some bounds
     let random_number = rng.next_in_range(0, 2);
-
+    let random_number = 1 as u32;
     let trap_type = match random_number {
         0 => TrapType::Poop,
         1 => TrapType::Acidleak,

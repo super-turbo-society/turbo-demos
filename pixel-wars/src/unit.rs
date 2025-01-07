@@ -112,7 +112,9 @@ impl Unit {
                 }
             }
         }
-
+        if self.state == UnitState::Frozen {
+            //do nothing
+        }
         if self.state != UnitState::Dead {
             if self.display.as_ref().unwrap().footprint_status != FootprintStatus::Clean {
                 self.display.as_mut().unwrap().footprint_timer -= 1;
@@ -205,12 +207,15 @@ impl Unit {
             display.animator.change_tint_color(DAMAGE_TINT_RED);
             display.damage_effect_timer -= 1;
         } else if self.health <= 0. {
-            display.animator.change_tint_color(0xFFFFFF75);
+            display.animator.change_tint_color(0xFFFFFF80);
+        } else if self.state == UnitState::Frozen {
+            display.animator.change_tint_color(0xB0E2FF98);
         } else {
             display.animator.change_tint_color(WHITE);
         }
-
-        display.animator.update();
+        if self.state != UnitState::Frozen {
+            display.animator.update();
+        }
         display.animator.draw(dp, flip_x);
 
         if let Some(ref mut splatter) = display.blood_splatter {
@@ -262,7 +267,7 @@ impl Unit {
 
     pub fn set_starting_strategy(&mut self, rng: &mut RNG) {
         log!("Setting strategy");
-        turbo::println!("Attributes: {:?}", self.data.attributes);
+        //turbo::println!("Attributes: {:?}", self.data.attributes);
         //TODO: Clean this up a bit so its more flexible
         //set some different odds and check attributes to assign strategy
         if self.data.has_attribute(&Attribute::Flanker) {
@@ -279,7 +284,6 @@ impl Unit {
             }
         }
         if self.data.has_attribute(&Attribute::Defender) {
-            log!("Found Defender");
             self.attack_strategy = AttackStrategy::Defend {
                 timer: 60,
                 defended_unit_id: None,
@@ -402,7 +406,7 @@ impl Unit {
             let status_type = match status {
                 Status::Poison => "poison",
                 Status::Healing => "healing",
-                Status::Freeze => "freeze",
+                Status::Freeze { .. } => "freeze",
                 Status::Burn { .. } => "burn",
                 Status::Haste { .. } => "haste",
             };
@@ -418,7 +422,7 @@ impl Unit {
             let name = match status {
                 Status::Poison => "status_poisoned",
                 Status::Healing => "status_healing",
-                Status::Freeze => "status_frozen",
+                Status::Freeze { .. } => "status_frozen",
                 Status::Burn { .. } => "status_burning",
                 Status::Haste { .. } => "status_haste",
             };
@@ -578,6 +582,7 @@ impl Unit {
         self.target_pos = (new_x, new_y);
         self.state = UnitState::Moving;
     }
+
     pub fn apply_status_effects(&mut self) {
         // Create a vector to store statuses that should be removed
         let mut statuses_to_remove = Vec::new();
@@ -586,13 +591,20 @@ impl Unit {
         for (index, status) in self.status_effects.iter_mut().enumerate() {
             match status {
                 Status::Poison => {
-                    // Apply poison damage
+                    total_damage += 0.2;
                 }
                 Status::Healing => {
                     // Apply healing
                 }
-                Status::Freeze => {
-                    // Apply freeze effect
+                Status::Freeze { timer } => {
+                    *timer -= 1;
+
+                    // If timer reaches 0, mark for removal
+                    if *timer == 0 {
+                        statuses_to_remove.push(index);
+                        //switch to idle if you are not frozen anymore
+                        self.state = UnitState::Idle;
+                    }
                 }
                 Status::Burn { timer } => {
                     // Apply burn damage
@@ -605,7 +617,6 @@ impl Unit {
                     }
                 }
                 Status::Haste { timer } => {
-                    // Apply burn damage
                     *timer -= 1;
 
                     // If timer reaches 0, mark for removal
@@ -655,6 +666,7 @@ impl Unit {
                     self.attack_strategy = AttackStrategy::Flee { timer: (5) };
                     self.state = UnitState::Idle;
                 }
+
             //Ranged units will sometimes flee when hit by melee units
             } else if self.data.has_attribute(&Attribute::Ranged)
                 && !attack.attributes.contains(&Attribute::Ranged)
@@ -666,6 +678,7 @@ impl Unit {
                     self.state = UnitState::Idle;
                 }
             }
+
             //if you are defending and you take a melee attack, you should break ranks
             if !attack.attributes.contains(&Attribute::Ranged)
                 && matches!(self.attack_strategy, AttackStrategy::Defend { .. })
@@ -684,6 +697,24 @@ impl Unit {
             {
                 turbo::println!("FIRE BLOCKED");
             }
+
+            //if it is a freeze effect, then change you status and state to freeze
+            if attack.attributes.contains(&Attribute::FreezeAttack)
+                && self.state != UnitState::Frozen
+            {
+                let freeze_chance = 1;
+                if rng.next() % freeze_chance == 0 {
+                    self.state = UnitState::Frozen;
+                    let new_status = Status::Freeze { timer: (120) };
+                    self.status_effects.push(new_status);
+                }
+            }
+            if attack.attributes.contains(&Attribute::PoisonAttack)
+                && !self.status_effects.contains(&Status::Poison)
+            {
+                self.status_effects.push(Status::Poison);
+            }
+
             if self.display.as_ref().unwrap().blood_splatter.is_none() {
                 //make the splatter position the top-middle of the sprite
                 let mut splat_pos = self.pos;
@@ -834,6 +865,8 @@ pub enum Attribute {
     Ranged,
     Flanker,
     Defender,
+    FreezeAttack,
+    PoisonAttack,
 }
 
 impl FromStr for Attribute {
@@ -850,6 +883,8 @@ impl FromStr for Attribute {
             "Flanker" => Ok(Attribute::Flanker),
             "Ranged" => Ok(Attribute::Ranged),
             "Defender" => Ok(Attribute::Defender),
+            "FreezeAttack" => Ok(Attribute::FreezeAttack),
+            "PoisonAttack" => Ok(Attribute::PoisonAttack),
             _ => Err(format!("Unknown attribute: {}", s)),
         }
     }
@@ -859,7 +894,7 @@ impl FromStr for Attribute {
 pub enum Status {
     Poison,
     Healing,
-    Freeze,
+    Freeze { timer: u32 },
     Burn { timer: u32 },
     Haste { timer: u32 },
 }
@@ -901,6 +936,7 @@ pub enum UnitState {
     Dead,
     Cheer,
     Defending,
+    Frozen,
 }
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
