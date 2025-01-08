@@ -940,7 +940,6 @@ fn step_through_battle(
                     ref mut timer,
                     ref mut defended_unit_id,
                 } => {
-                    log!("In defend strategy");
                     // Extract the data we need for combat checks before any borrowing
                     let unit_position = unit.pos;
                     let unit_team = unit.team;
@@ -975,7 +974,6 @@ fn step_through_battle(
                             continue;
                         } else {
                             *defended_unit_id = defended_id;
-                            log!("Defending Unit: {}", defended_id.unwrap());
                         }
                     }
 
@@ -985,7 +983,6 @@ fn step_through_battle(
                         {
                             // Check if the defended unit is still alive
                             if defended_unit.health <= 0.0 {
-                                log!("Defended unit died, switching to attack closest");
                                 unit.attack_strategy = AttackStrategy::AttackClosest;
                                 continue;
                             }
@@ -1001,12 +998,10 @@ fn step_through_battle(
                                 unit.set_new_target_move_position(&defense_position, rng);
                             } else {
                                 unit.state = UnitState::Defending;
-                                log!("STARTING TO DEFEND");
                             }
                         } else {
                             *defended_unit_id = None;
                             unit.attack_strategy = AttackStrategy::AttackClosest;
-                            log!("Lost defended unit, switching to attack closest");
                             continue;
                         }
                     }

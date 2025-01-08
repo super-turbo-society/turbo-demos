@@ -502,6 +502,8 @@ impl Unit {
 
     pub fn set_exact_move_position(&mut self, target: (f32, f32)) {
         self.target_pos = target;
+        //face the right way
+
         self.state = UnitState::Moving;
     }
 
@@ -880,6 +882,7 @@ pub enum Attribute {
     Ranged,
     Flanker,
     Defender,
+    Shielded,
     FreezeAttack,
     PoisonAttack,
 }
@@ -898,6 +901,7 @@ impl FromStr for Attribute {
             "Flanker" => Ok(Attribute::Flanker),
             "Ranged" => Ok(Attribute::Ranged),
             "Defender" => Ok(Attribute::Defender),
+            "Shielded" => Ok(Attribute::Shielded),
             "FreezeAttack" => Ok(Attribute::FreezeAttack),
             "PoisonAttack" => Ok(Attribute::PoisonAttack),
             _ => Err(format!("Unknown attribute: {}", s)),
