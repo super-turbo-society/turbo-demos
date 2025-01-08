@@ -778,6 +778,14 @@ fn step_through_battle(
     //go through each unit, see what it wants to do, and handle all actions from here
     for unit in &mut *units {
         if unit.state == UnitState::Idle {
+            //check if you want to switch to healing when you are idle
+            if traps.iter().any(|trap| trap.trap_type == TrapType::Healing)
+                && unit.health / unit.data.max_health <= 0.5
+            {
+                //we should roll here to make it not always happen
+                unit.attack_strategy = AttackStrategy::Heal;
+            }
+
             match unit.attack_strategy {
                 AttackStrategy::AttackClosest => {
                     //find closest enemy
@@ -963,7 +971,6 @@ fn step_through_battle(
                     if defended_unit_id.is_none() {
                         let defended_id = can_defend(&units_clone, unit.team, unit.pos, rng);
                         if defended_id.is_none() {
-                            log!("Nobody to defend");
                             unit.attack_strategy = AttackStrategy::AttackClosest;
                             continue;
                         } else {
@@ -1004,6 +1011,33 @@ fn step_through_battle(
                         }
                     }
                 }
+                AttackStrategy::Heal => {
+                    //either you are 'healing' and you have healing status
+                    //or you are looking for a health pack
+                    // so i want to find the closest health pack
+                    //then set that as new target move position
+                    if unit.status_effects.contains(&Status::Healing) {
+                        //then do nothing and continue healing. This will automatic change when they finish healing
+                    } else {
+                        let pos = closest_health_pack(unit.pos, &traps);
+                        if pos.is_some() {
+                            // adjust position to add unit foot position on top
+                            let d_y = unit.data.bounding_box.3 as f32 / 2.;
+                            let pos = pos.unwrap();
+                            let pos = (pos.0, pos.1 - d_y);
+                            unit.set_exact_move_position(pos);
+                            if let Some(display) = unit.display.as_mut() {
+                                if pos.0 > unit.pos.0 {
+                                    display.is_facing_left = false;
+                                } else {
+                                    display.is_facing_left = true;
+                                }
+                            }
+                        } else {
+                            unit.attack_strategy = AttackStrategy::AttackClosest;
+                        }
+                    }
+                }
                 _ => {
                     panic!("Unexpected Attack Strategy!!");
                 }
@@ -1012,9 +1046,7 @@ fn step_through_battle(
         unit.update();
         //check if the unit is on top of a trap
         for trap in &mut *traps {
-            if distance_between(unit.foot_position(), trap.pos) < (trap.size / 2.)
-                && trap.is_active()
-            {
+            if is_unit_on_trap(unit, trap) && trap.is_active() {
                 if trap.trap_type == TrapType::Poop {
                     if let Some(display) = unit.display.as_mut() {
                         display.footprint_status = FootprintStatus::Poopy;
@@ -1238,6 +1270,55 @@ fn lowest_health_enemy_unit(units: &Vec<Unit>, team: i32) -> Option<&Unit> {
                 .partial_cmp(&b.data.max_health)
                 .unwrap_or(std::cmp::Ordering::Equal)
         })
+}
+
+fn closest_health_pack(start_pos: (f32, f32), traps: &Vec<Trap>) -> Option<(f32, f32)> {
+    // Look through all traps and find the closest healing trap
+    let mut closest_pos = None;
+    let mut closest_distance = f32::MAX;
+
+    for trap in traps {
+        if trap.trap_type == TrapType::Healing && trap.is_active() {
+            let distance = distance_between(start_pos, trap.pos);
+            if distance < closest_distance {
+                closest_distance = distance;
+                closest_pos = Some(trap.pos);
+            }
+        }
+    }
+
+    closest_pos
+}
+
+fn is_unit_on_trap(unit: &Unit, trap: &Trap) -> bool {
+    // Get the bottom line segment of the unit
+    let unit_width = unit.data.bounding_box.2;
+    let bottom_left = (
+        unit.foot_position().0 - unit_width as f32 / 2.0,
+        unit.foot_position().1,
+    );
+    let bottom_right = (
+        unit.foot_position().0 + unit_width as f32 / 2.0,
+        unit.foot_position().1,
+    );
+
+    // Calculate the nearest point on the line segment to the trap's center
+    let trap_to_left = (trap.pos.0 - bottom_left.0, trap.pos.1 - bottom_left.1);
+    let segment = (
+        bottom_right.0 - bottom_left.0,
+        bottom_right.1 - bottom_left.1,
+    );
+    let segment_length_squared = segment.0 * segment.0 + segment.1 * segment.1;
+
+    // Find the closest point on the line segment to the trap center
+    let t = ((trap_to_left.0 * segment.0 + trap_to_left.1 * segment.1) / segment_length_squared)
+        .max(0.0)
+        .min(1.0);
+
+    let closest_point = (bottom_left.0 + t * segment.0, bottom_left.1 + t * segment.1);
+
+    // Check if this closest point is within the trap's radius
+    distance_between(closest_point, trap.pos) < trap.size / 2.0
 }
 
 fn lowest_health_closest_enemy_unit(

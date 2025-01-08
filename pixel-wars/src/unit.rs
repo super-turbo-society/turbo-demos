@@ -251,6 +251,7 @@ impl Unit {
         if self.state != UnitState::Dead {
             //self.draw_strategy_icon();
             self.draw_status_effects();
+            self.draw_health_bar();
         }
     }
 
@@ -470,9 +471,12 @@ impl Unit {
             self.display.as_mut().unwrap().is_facing_left = true;
         }
         //if you are already in range on the x axis, only move on the y axis
+
         //This looks better, especially for ranged units
-        if !matches!(self.attack_strategy, AttackStrategy::Flee { .. })
-            && dir_x.abs() < self.data.range
+        if !matches!(
+            self.attack_strategy,
+            AttackStrategy::Flee { .. } | AttackStrategy::Heal { .. }
+        ) && dir_x.abs() < self.data.range
         {
             dir_x = 0.;
         }
@@ -494,16 +498,11 @@ impl Unit {
         new_y = new_y.clamp(MAP_BOUNDS.2, MAP_BOUNDS.3);
         self.target_pos = (new_x, new_y);
         self.state = UnitState::Moving;
-        fn is_in_range_with_data(
-            position: (f32, f32),
-            range: f32,
-            target_position: (f32, f32),
-        ) -> bool {
-            // Calculate distance between positions
-            let distance = distance_between(position, target_position);
-            // Check if target is within range
-            distance <= range
-        }
+    }
+
+    pub fn set_exact_move_position(&mut self, target: (f32, f32)) {
+        self.target_pos = target;
+        self.state = UnitState::Moving;
     }
 
     // fn calculate_separation(&self, nearby_units: &[&Unit]) -> (f32, f32) {
@@ -599,6 +598,10 @@ impl Unit {
                     if self.health >= self.data.max_health {
                         self.health = self.data.max_health;
                         statuses_to_remove.push(index);
+                        if self.attack_strategy == AttackStrategy::Heal {
+                            //TODO: Maybe change this to choose starting attack strategy
+                            self.attack_strategy = AttackStrategy::AttackClosest;
+                        }
                     }
                 }
                 Status::Freeze { timer } => {
@@ -857,6 +860,7 @@ pub enum AttackStrategy {
         timer: i32,
         defended_unit_id: Option<u32>,
     },
+    Heal,
 }
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
