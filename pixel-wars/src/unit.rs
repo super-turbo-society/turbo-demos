@@ -291,6 +291,12 @@ impl Unit {
                 defended_unit_id: None,
             };
         }
+        if self.data.has_attribute(&Attribute::Stealth) {
+            self.attack_strategy = AttackStrategy::TargetLowestHealth;
+            let status = Status::Invisible { timer: 6000 };
+            self.status_effects.push(status);
+            log!("Pushing Invisible Status");
+        }
     }
 
     pub fn start_cheering(&mut self) {
@@ -412,6 +418,7 @@ impl Unit {
                 Status::Burn { .. } => "burn",
                 Status::Haste { .. } => "haste",
                 Status::Berserk { .. } => "berserk",
+                Status::Invisible { .. } => "invisible",
             };
 
             // Skip if we've already drawn this status type
@@ -429,6 +436,7 @@ impl Unit {
                 Status::Burn { .. } => "status_burning",
                 Status::Haste { .. } => "status_haste",
                 Status::Berserk { .. } => "status_berserk",
+                Status::Invisible { .. } => "status_invisible",
             };
 
             sprite!(
@@ -441,17 +449,8 @@ impl Unit {
 
             offset += 4.0;
         }
-        // // Then draw defender status if present
-        // if matches!(self.attack_strategy, AttackStrategy::Defend { .. }) {
-        //     sprite!(
-        //         "status_frozen", // You'll need to create this sprite
-        //         x = base_pos.0 + offset - 4.,
-        //         y = base_pos.1 - 4.,
-        //         sw = 16,
-        //         fps = fps::FAST
-        //     );
-        //     offset += 4.0;
-        // }
+
+        //TODO: Make flee a status and simplify this a bit
         // Then check for flee status and draw it if present
         if matches!(self.attack_strategy, AttackStrategy::Flee { .. }) {
             sprite!(
@@ -645,6 +644,14 @@ impl Unit {
                         statuses_to_remove.push(index);
                     }
                 }
+                Status::Invisible { timer } => {
+                    *timer -= 1;
+
+                    // If timer reaches 0, mark for removal
+                    if *timer == 0 {
+                        statuses_to_remove.push(index);
+                    }
+                }
             }
         }
         if total_damage > 0.0 {
@@ -776,6 +783,10 @@ impl Unit {
     pub fn start_attack(&mut self, target_unit_id: u32) -> Attack {
         self.attack_timer = self.data.attack_time;
         self.state = UnitState::Attacking;
+        //remove invisible
+        self.status_effects
+            .retain(|status| !matches!(status, Status::Invisible { .. }));
+
         let mut damage = self.data.damage;
         if self
             .status_effects
@@ -926,6 +937,7 @@ pub enum Attribute {
     FreezeAttack,
     PoisonAttack,
     Berserk,
+    Stealth,
 }
 
 impl FromStr for Attribute {
@@ -946,6 +958,7 @@ impl FromStr for Attribute {
             "FreezeAttack" => Ok(Attribute::FreezeAttack),
             "PoisonAttack" => Ok(Attribute::PoisonAttack),
             "Berserk" => Ok(Attribute::Berserk),
+            "Stealth" => Ok(Attribute::Stealth),
             _ => Err(format!("Unknown attribute: {}", s)),
         }
     }
@@ -959,6 +972,7 @@ pub enum Status {
     Burn { timer: u32 },
     Haste { timer: u32 },
     Berserk { timer: u32 },
+    Invisible { timer: u32 },
 }
 /*
 TODO: Apply burn when attack comes in

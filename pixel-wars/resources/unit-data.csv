@@ -1,6 +1,6 @@
 unit type,damage,max_health,speed,range,attack_time,splash_area,sprite_width,box_x,box_y,box_w,box_h,attributes
 axeman,30,100,4,8,40,0,16,3,5,5,9,"Berserk"
-blade,20,25,7,8,40,0,16,3,5,5,9,
+blade,20,25,7,8,40,0,16,3,5,5,9,"Stealth"
 hunter,4,15,3,120,120,0,32,3,20,5,9,"Ranged"
 pyro,5,20,6,12,40,0,16,3,5,5,9,"FireEffect"
 bigpound,5,200,4,16,120,4,32,3,19,5,10,"Stalwart, Defender"
@@ -17,6 +17,3 @@ zombie,10,50,4,8,40,0,16,3,4,6,10,"PoisonAttack"
 shield,2,100,7,8,40,0,16,2,6,7,9,"Shielded, Defender, Stalwart"
 darkknight,50,250,10,24,40,0,32,5,13,18,14,"Terrifying, Stalwart, Berserk"
 yeti,20,100,6,16,40,0,32,13,18,10,12,"FreezeAttack"
-
-
-

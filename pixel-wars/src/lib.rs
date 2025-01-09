@@ -1374,7 +1374,14 @@ fn lowest_health_closest_enemy_unit(
 
     units
         .iter()
-        .filter(|unit| unit.team != team && unit.health > 0.0)
+        .filter(|unit| {
+            unit.team != team
+                && unit.health > 0.0
+                && !unit
+                    .status_effects
+                    .iter()
+                    .any(|status| matches!(status, Status::Invisible { .. }))
+        })
         .min_by(|&a, &b| {
             match a.data.max_health.partial_cmp(&b.data.max_health) {
                 Some(std::cmp::Ordering::Equal) => {
@@ -1627,7 +1634,14 @@ pub fn shuffle<T>(rng: &mut RNG, array: &mut [T]) {
 fn closest_enemy_unit(units: &Vec<Unit>, team: i32, pos: (f32, f32)) -> Option<&Unit> {
     units
         .iter()
-        .filter(|unit| unit.team != team && unit.health > 0.0)
+        .filter(|unit| {
+            unit.team != team
+                && unit.health > 0.0
+                && !unit
+                    .status_effects
+                    .iter()
+                    .any(|status| matches!(status, Status::Invisible { .. }))
+        })
         .min_by(|&a, &b| {
             let dist_a = distance_between(pos, a.pos);
             let dist_b = distance_between(pos, b.pos);
@@ -1656,7 +1670,9 @@ fn closest_enemy_index_with_data(
         .filter(|(_, other_unit)| {
             other_unit.team != team &&        // Filter out units on the same team
             other_unit.health > 0.0 &&        // Filter out dead units
-            other_unit.id != unit_id // Filter out the unit itself using ID comparison
+            other_unit.id != unit_id && // Filter out the unit itself using ID comparison
+            !other_unit.status_effects.iter().any(|status| matches!(status, Status::Invisible { .. }))
+
         })
         .min_by(|(_, a), (_, b)| {
             let dist_a = distance_between(position, a.pos);
