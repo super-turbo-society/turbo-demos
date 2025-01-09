@@ -525,15 +525,21 @@ pub fn dbgo(state: &mut GameState) {
                 //show text
                 draw_prematch_timer(state.battle_countdown_timer);
             } else {
-                step_through_battle(
-                    &mut state.units,
-                    &mut state.attacks,
-                    &mut state.traps,
-                    &mut state.explosions,
-                    &mut state.craters,
-                    &mut state.rng,
-                    &state.artifacts,
-                );
+                let mut speed = 1;
+                if gp.right.pressed() {
+                    speed = 8;
+                }
+                for _ in 0..speed {
+                    step_through_battle(
+                        &mut state.units,
+                        &mut state.attacks,
+                        &mut state.traps,
+                        &mut state.explosions,
+                        &mut state.craters,
+                        &mut state.rng,
+                        &mut state.artifacts,
+                    );
+                }
             }
 
             /////////////

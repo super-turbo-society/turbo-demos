@@ -17,6 +17,7 @@ pub struct UnitDisplay {
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 pub struct Unit {
     pub unit_type: String,
+    pub stats: UnitStats,
     pub data: UnitData,
     pub team: i32,
     pub id: u32,
@@ -45,6 +46,7 @@ impl Unit {
         });
         Self {
             data: data.clone(),
+            stats: UnitStats::new(),
             unit_type,
             team,
             id,
@@ -251,7 +253,7 @@ impl Unit {
         if self.state != UnitState::Dead {
             //self.draw_strategy_icon();
             self.draw_status_effects();
-            self.draw_health_bar();
+            //self.draw_health_bar();
         }
     }
 
@@ -267,7 +269,6 @@ impl Unit {
     }
 
     pub fn set_starting_strategy(&mut self, rng: &mut RNG) {
-        log!("Setting strategy");
         //turbo::println!("Attributes: {:?}", self.data.attributes);
         //TODO: Clean this up a bit so its more flexible
         //set some different odds and check attributes to assign strategy
@@ -410,6 +411,7 @@ impl Unit {
                 Status::Freeze { .. } => "freeze",
                 Status::Burn { .. } => "burn",
                 Status::Haste { .. } => "haste",
+                Status::Berserk { .. } => "berserk",
             };
 
             // Skip if we've already drawn this status type
@@ -426,6 +428,7 @@ impl Unit {
                 Status::Freeze { .. } => "status_frozen",
                 Status::Burn { .. } => "status_burning",
                 Status::Haste { .. } => "status_haste",
+                Status::Berserk { .. } => "status_berserk",
             };
 
             sprite!(
@@ -634,6 +637,14 @@ impl Unit {
                         statuses_to_remove.push(index);
                     }
                 }
+                Status::Berserk { timer } => {
+                    *timer -= 1;
+
+                    // If timer reaches 0, mark for removal
+                    if *timer == 0 {
+                        statuses_to_remove.push(index);
+                    }
+                }
             }
         }
         if total_damage > 0.0 {
@@ -664,9 +675,21 @@ impl Unit {
         }
     }
 
+    pub fn credit_damage(&mut self, damage: u32) {
+        self.stats.damage_dealt += damage;
+    }
+
+    pub fn credit_kill(&mut self) {
+        self.stats.kills += 1;
+        //if kills > 3 -> trigger frenzy or something
+    }
+
     pub fn take_attack(&mut self, attack: &Attack, rng: &mut RNG) {
         if self.state != UnitState::Dead {
+            //TODO: calculate any damage reduction here
             self.apply_damage(attack.damage);
+
+            //let u = find_unit_by_id(units, id)
             //apply terrifying effect to cause units to flee
             if attack.attributes.contains(&Attribute::Terrifying)
                 && !self.data.has_attribute(&Attribute::Stalwart)
@@ -753,13 +776,22 @@ impl Unit {
     pub fn start_attack(&mut self, target_unit_id: u32) -> Attack {
         self.attack_timer = self.data.attack_time;
         self.state = UnitState::Attacking;
+        let mut damage = self.data.damage;
+        if self
+            .status_effects
+            .iter()
+            .any(|status| matches!(status, Status::Berserk { .. }))
+        {
+            damage *= 1.5;
+        }
         //create the actual attack
         let size = 1;
         let attack = Attack::new(
+            Some(self.id),
             target_unit_id,
             2.,
             self.pos,
-            self.data.damage,
+            damage,
             self.data.splash_area,
             size,
             self.data.attributes.clone(),
@@ -822,26 +854,34 @@ impl Unit {
     }
 
     pub fn calculated_speed(&self) -> f32 {
-        //do an adjustment if you are fleeing or flanking
         let mut calc_speed = self.data.speed;
         let flank_adj = 1.2;
         let flee_adj = 1.6;
         let haste_adj = 2.0;
+        let berserk_adj = 1.5;
+
         match self.attack_strategy {
-            AttackStrategy::Flank { .. } => {
-                calc_speed = calc_speed * flank_adj;
-            }
-            AttackStrategy::Flee { .. } => calc_speed = calc_speed * flee_adj,
+            AttackStrategy::Flank { .. } => calc_speed *= flank_adj,
+            AttackStrategy::Flee { .. } => calc_speed *= flee_adj,
             _ => {}
         }
-        //Apply haste effect
+
         if self
             .status_effects
             .iter()
             .any(|status| matches!(status, Status::Haste { .. }))
         {
-            calc_speed = calc_speed * haste_adj;
+            calc_speed *= haste_adj;
         }
+
+        if self
+            .status_effects
+            .iter()
+            .any(|status| matches!(status, Status::Berserk { .. }))
+        {
+            calc_speed *= berserk_adj;
+        }
+
         calc_speed
     }
 }
@@ -885,6 +925,7 @@ pub enum Attribute {
     Shielded,
     FreezeAttack,
     PoisonAttack,
+    Berserk,
 }
 
 impl FromStr for Attribute {
@@ -904,6 +945,7 @@ impl FromStr for Attribute {
             "Shielded" => Ok(Attribute::Shielded),
             "FreezeAttack" => Ok(Attribute::FreezeAttack),
             "PoisonAttack" => Ok(Attribute::PoisonAttack),
+            "Berserk" => Ok(Attribute::Berserk),
             _ => Err(format!("Unknown attribute: {}", s)),
         }
     }
@@ -916,6 +958,7 @@ pub enum Status {
     Freeze { timer: u32 },
     Burn { timer: u32 },
     Haste { timer: u32 },
+    Berserk { timer: u32 },
 }
 /*
 TODO: Apply burn when attack comes in
@@ -943,6 +986,21 @@ pub struct UnitData {
 impl UnitData {
     pub fn has_attribute(&self, attr: &Attribute) -> bool {
         self.attributes.contains(attr)
+    }
+}
+
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
+pub struct UnitStats {
+    pub damage_dealt: u32,
+    pub kills: u32,
+}
+
+impl UnitStats {
+    pub fn new() -> Self {
+        UnitStats {
+            damage_dealt: 0,
+            kills: 0,
+        }
     }
 }
 

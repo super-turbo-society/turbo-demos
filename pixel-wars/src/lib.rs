@@ -421,15 +421,23 @@ fn old_go(mut state: &mut GameState) {
                 //show text
                 draw_prematch_timer(state.battle_countdown_timer);
             } else {
-                step_through_battle(
-                    &mut state.units,
-                    &mut state.attacks,
-                    &mut state.traps,
-                    &mut state.explosions,
-                    &mut state.craters,
-                    &mut state.rng,
-                    &mut state.artifacts,
-                );
+                log!("TESTING");
+                let mut speed = 1;
+                if gp.right.pressed() {
+                    log!("RIGHT PRESSED");
+                    speed = 3;
+                }
+                for _ in 0..speed {
+                    step_through_battle(
+                        &mut state.units,
+                        &mut state.attacks,
+                        &mut state.traps,
+                        &mut state.explosions,
+                        &mut state.craters,
+                        &mut state.rng,
+                        &mut state.artifacts,
+                    );
+                }
             }
 
             /////////////
@@ -1048,6 +1056,7 @@ fn step_through_battle(
                     }
                 } else if trap.trap_type == TrapType::Acidleak {
                     let attack = Attack::new(
+                        None,
                         unit.id,
                         1.,
                         trap.pos,
@@ -1065,6 +1074,7 @@ fn step_through_battle(
                         closest_unit_to_position(trap.pos, &units_clone)
                     {
                         let attack = Attack::new(
+                            None,
                             units_clone[closest_unit_index].id,
                             1.,
                             trap.pos,
@@ -1097,8 +1107,9 @@ fn step_through_battle(
         attacks.retain_mut(|attack| {
             let should_keep = !attack.update(&units_clone);
             //attack.draw();
-
             if !should_keep {
+                let mut total_damage = 0.0;
+                let mut kills = 0;
                 //deal the actual damage here
                 if attack.splash_area == 0. {
                     if let Some(unit_index) =
@@ -1106,7 +1117,10 @@ fn step_through_battle(
                     {
                         let unit = &mut units[unit_index];
                         unit.take_attack(&attack, rng);
+                        //TODO: Calculate damage based in the unit
+                        total_damage += attack.damage;
                         if unit.health <= 0. {
+                            kills += 1;
                             if unit.data.has_attribute(&Attribute::ExplodeOnDeath) {
                                 let mut explosion_offset = (-24., -24.);
                                 if unit.flip_x() {
@@ -1134,7 +1148,11 @@ fn step_through_battle(
                             && unit.team == team
                         {
                             unit.take_attack(&attack, rng);
+                            //TODO: Calculate damage in the unit
+                            total_damage += attack.damage;
+
                             if unit.health <= 0.0 {
+                                kills += 1;
                                 if unit.data.has_attribute(&Attribute::ExplodeOnDeath) {
                                     let mut explosion_offset = (-24., -24.);
                                     if unit.flip_x() {
@@ -1169,6 +1187,24 @@ fn step_through_battle(
                     crater.set_anim("crater_01".to_string(), 16, 1, 1, true);
                     crater.animator.change_tint_color(0xFFFFFF80);
                     craters.push(crater);
+                }
+                if let Some(attacker) = find_mutable_unit_by_id(units, attack.owner_id) {
+                    attacker.stats.damage_dealt += total_damage as u32;
+                    // turbo::println!("DAMAGE FROM ATTACK: {}", total_damage);
+                    // turbo::println!("TOTAL DAMAGE: {}", attacker.stats.damage_dealt);
+                    let old_kills = attacker.stats.kills;
+                    attacker.stats.kills += kills;
+                    //check if kills put you over 3
+                    if attacker.stats.kills >= 3
+                        && old_kills < 3
+                        && attacker.data.has_attribute(&Attribute::Berserk)
+                    {
+                        let status = Status::Berserk { timer: (600) };
+                        attacker.status_effects.push(status);
+                    }
+                    //if kills is great than 3, attacker.trigger_frenzy
+                    // turbo::println!("KILLS: {}", kills);
+                    // turbo::println!("TOTAL KILLS: {}", attacker.stats.kills);
                 }
             }
 
@@ -1246,6 +1282,17 @@ fn find_unit_by_id(units: &Vec<Unit>, id: Option<u32>) -> Option<&Unit> {
                 None => None,
             }
         }
+        None => None,
+    }
+}
+
+fn find_mutable_unit_by_id(units: &mut Vec<Unit>, id: Option<u32>) -> Option<&mut Unit> {
+    if units.is_empty() {
+        return None;
+    }
+
+    match id {
+        Some(target_id) => units.iter_mut().find(|unit| unit.id == target_id),
         None => None,
     }
 }
@@ -1498,6 +1545,7 @@ impl AnimatedSprite {
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 struct Attack {
+    owner_id: Option<u32>,
     target_unit_id: u32,
     speed: f32,
     pos: (f32, f32),
@@ -1510,6 +1558,7 @@ struct Attack {
 impl Attack {
     //new
     fn new(
+        owner_id: Option<u32>,
         target_unit_id: u32,
         speed: f32,
         pos: (f32, f32),
@@ -1519,6 +1568,7 @@ impl Attack {
         attributes: Vec<Attribute>,
     ) -> Self {
         Self {
+            owner_id,
             target_unit_id,
             speed,
             pos,

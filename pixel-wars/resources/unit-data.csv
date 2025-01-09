@@ -1,5 +1,5 @@
 unit type,damage,max_health,speed,range,attack_time,splash_area,sprite_width,box_x,box_y,box_w,box_h,attributes
-axeman,30,100,4,8,40,0,16,3,5,5,9
+axeman,30,100,4,8,40,0,16,3,5,5,9,"Berserk"
 blade,20,25,7,8,40,0,16,3,5,5,9,
 hunter,4,15,3,120,120,0,32,3,20,5,9,"Ranged"
 pyro,5,20,6,12,40,0,16,3,5,5,9,"FireEffect"
@@ -12,10 +12,10 @@ cosmo,5,35,4,120,60,0,32,3,20,5,10,"Ranged"
 draco,20,300,9,32,80,5,48,4,34,16,14,"Terrifying, FireEffect"
 saucer,10,300,4,16,80,16,48,13,33,20,13,"ExplodeOnDeath, Stalwart"
 tanker,30,200,3,60,200,12,48,1,28,22,18,"ExplodeOnDeath, Stalwart, ExplosiveAttack, Ranged"
-catapult,50,50,2,180,320,16,32,5,11,20,12,"Ranged, ExplosiveAttack"
+catapult,50,50,2,180,320,12,32,5,11,20,12,"Ranged, ExplosiveAttack"
 zombie,10,50,4,8,40,0,16,3,4,6,10,"PoisonAttack"
 shield,2,100,7,8,40,0,16,2,6,7,9,"Shielded, Defender, Stalwart"
-darkknight,50,250,10,24,40,0,32,5,13,18,14,"Terrifying, Stalwart"
+darkknight,50,250,10,24,40,0,32,5,13,18,14,"Terrifying, Stalwart, Berserk"
 yeti,20,100,6,16,40,0,32,13,18,10,12,"FreezeAttack"
 
 
