@@ -752,7 +752,7 @@ impl Unit {
                 let freeze_chance = 1;
                 if rng.next() % freeze_chance == 0 {
                     self.state = UnitState::Frozen;
-                    let new_status = Status::Freeze { timer: (120) };
+                    let new_status = Status::Freeze { timer: (300) };
                     self.status_effects.push(new_status);
                 }
             }

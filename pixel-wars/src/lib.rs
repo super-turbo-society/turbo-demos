@@ -797,13 +797,15 @@ fn step_through_battle(
             match unit.attack_strategy {
                 AttackStrategy::AttackClosest => {
                     //find closest enemy
-                    if let Some(index) = closest_enemy_index(&unit, &units_clone) {
-                        if unit.is_unit_in_range(&units_clone[index]) {
-                            let mut attack = unit.start_attack(units_clone[index].id);
+                    if let Some(target) =
+                        find_target(&units_clone, unit.team, unit.pos, TargetPriority::Closest)
+                    {
+                        if unit.is_unit_in_range(target) {
+                            let mut attack = unit.start_attack(target.id);
                             attack = modify_damage_from_artifacts(attack, &units_clone, artifacts);
 
                             attacks.push(attack);
-                            if unit.pos.0 > units_clone[index].pos.0 {
+                            if unit.pos.0 > target.pos.0 {
                                 if let Some(display) = unit.display.as_mut() {
                                     display.is_facing_left = true;
                                 }
@@ -813,9 +815,9 @@ fn step_through_battle(
                                 }
                             }
                         } else {
-                            unit.set_new_target_move_position(&units_clone[index].pos, rng);
+                            unit.set_new_target_move_position(&target.pos, rng);
                         }
-                        unit.target_id = units_clone[index].id;
+                        unit.target_id = target.id;
                     }
                 }
                 AttackStrategy::TargetLowestHealth => {
@@ -844,8 +846,12 @@ fn step_through_battle(
                         }
                     } else {
                         //find a unit with lowest health and set it as your target and move toward that position
-                        target_unit =
-                            lowest_health_closest_enemy_unit(&units_clone, unit.team, unit.pos);
+                        target_unit = find_target(
+                            &units_clone,
+                            unit.team,
+                            unit.pos,
+                            TargetPriority::Backline,
+                        );
                         if target_unit.is_some() {
                             unit.set_new_target_move_position(&target_unit.unwrap().pos, rng);
                             unit.target_id = target_unit.unwrap().id;
@@ -857,8 +863,12 @@ fn step_through_battle(
                     let mut target_unit = find_unit_by_id(&units_clone, Some(unit.target_id));
                     let max_dist = 20.0;
                     if target_unit.is_none() || target_unit.unwrap().health == 0. {
-                        target_unit =
-                            lowest_health_ranged_enemy_unit(&units_clone, unit.team, unit.pos);
+                        target_unit = find_target(
+                            &units_clone,
+                            unit.team,
+                            unit.pos,
+                            TargetPriority::Backline,
+                        );
                     }
                     if target_unit.is_some() {
                         //if you have a target, move to a position at the bottom of the screen, underneath it
@@ -889,7 +899,7 @@ fn step_through_battle(
                                 unit.attack_strategy = AttackStrategy::TargetLowestHealth;
                             }
                         }
-                        //if there is no ranged unit on the enemy team, then just go for lowest health.
+                        //if you can't find a target for some reason, transition to attacking the lowest health enemies
                     } else {
                         unit.attack_strategy = AttackStrategy::TargetLowestHealth;
                     }
@@ -898,7 +908,8 @@ fn step_through_battle(
                     //set target unit to closest enemy one time
                     let mut target_unit = find_unit_by_id(&units_clone, Some(unit.target_id));
                     if target_unit.is_none() || target_unit.unwrap().health == 0. {
-                        target_unit = closest_enemy_unit(&units_clone, unit.team, unit.pos);
+                        target_unit =
+                            find_target(&units_clone, unit.team, unit.pos, TargetPriority::Closest);
                         if target_unit.is_some() {
                             unit.target_id = target_unit.unwrap().id;
                         } else {
@@ -950,25 +961,20 @@ fn step_through_battle(
                 } => {
                     // Extract the data we need for combat checks before any borrowing
                     let unit_position = unit.pos;
-                    let unit_team = unit.team;
-                    let unit_id = unit.id;
                     let unit_range = unit.data.range;
 
                     // Check for enemies using our new function that doesn't require borrowing the whole unit
-                    if let Some(index) = closest_enemy_index_with_data(
-                        unit_team,
-                        unit_position,
-                        unit_id,
-                        &units_clone,
-                    ) {
-                        let enemy = &units_clone[index];
+                    if let Some(target_unit) =
+                        find_target(&units_clone, unit.team, unit.pos, TargetPriority::Closest)
+                    {
+                        let enemy = target_unit;
                         if is_in_range_with_data(unit_position, unit_range, enemy.pos) {
-                            let mut attack = unit.start_attack(units_clone[index].id);
+                            let mut attack = unit.start_attack(target_unit.id);
                             attack = modify_damage_from_artifacts(attack, &units_clone, artifacts);
                             attacks.push(attack);
 
                             if let Some(display) = unit.display.as_mut() {
-                                display.is_facing_left = unit_position.0 > units_clone[index].pos.0;
+                                display.is_facing_left = unit_position.0 > target_unit.pos.0;
                             }
                             continue;
                         }
@@ -1363,40 +1369,40 @@ fn is_unit_on_trap(unit: &Unit, trap: &Trap) -> bool {
     distance_between(closest_point, trap.pos) < trap.size / 2.0
 }
 
-fn lowest_health_closest_enemy_unit(
-    units: &Vec<Unit>,
-    team: i32,
-    pos: (f32, f32),
-) -> Option<&Unit> {
-    if units.is_empty() {
-        return None;
-    }
+// fn lowest_health_closest_enemy_unit(
+//     units: &Vec<Unit>,
+//     team: i32,
+//     pos: (f32, f32),
+// ) -> Option<&Unit> {
+//     if units.is_empty() {
+//         return None;
+//     }
 
-    units
-        .iter()
-        .filter(|unit| {
-            unit.team != team
-                && unit.health > 0.0
-                && !unit
-                    .status_effects
-                    .iter()
-                    .any(|status| matches!(status, Status::Invisible { .. }))
-        })
-        .min_by(|&a, &b| {
-            match a.data.max_health.partial_cmp(&b.data.max_health) {
-                Some(std::cmp::Ordering::Equal) => {
-                    // If health is equal, compare distances
-                    let dist_a = distance_between(pos, a.pos);
-                    let dist_b = distance_between(pos, b.pos);
-                    dist_a
-                        .partial_cmp(&dist_b)
-                        .unwrap_or(std::cmp::Ordering::Equal)
-                }
-                Some(ordering) => ordering,
-                None => std::cmp::Ordering::Equal,
-            }
-        })
-}
+//     units
+//         .iter()
+//         .filter(|unit| {
+//             unit.team != team
+//                 && unit.health > 0.0
+//                 && !unit
+//                     .status_effects
+//                     .iter()
+//                     .any(|status| matches!(status, Status::Invisible { .. }))
+//         })
+//         .min_by(|&a, &b| {
+//             match a.data.max_health.partial_cmp(&b.data.max_health) {
+//                 Some(std::cmp::Ordering::Equal) => {
+//                     // If health is equal, compare distances
+//                     let dist_a = distance_between(pos, a.pos);
+//                     let dist_b = distance_between(pos, b.pos);
+//                     dist_a
+//                         .partial_cmp(&dist_b)
+//                         .unwrap_or(std::cmp::Ordering::Equal)
+//                 }
+//                 Some(ordering) => ordering,
+//                 None => std::cmp::Ordering::Equal,
+//             }
+//         })
+// }
 
 fn can_defend(units: &Vec<Unit>, team: i32, pos: (f32, f32), rng: &mut RNG) -> Option<u32> {
     // First check if there's at least one enemy non-ranged unit
@@ -1631,25 +1637,132 @@ pub fn shuffle<T>(rng: &mut RNG, array: &mut [T]) {
     }
 }
 
-fn closest_enemy_unit(units: &Vec<Unit>, team: i32, pos: (f32, f32)) -> Option<&Unit> {
-    units
-        .iter()
-        .filter(|unit| {
-            unit.team != team
-                && unit.health > 0.0
-                && !unit
-                    .status_effects
-                    .iter()
-                    .any(|status| matches!(status, Status::Invisible { .. }))
-        })
-        .min_by(|&a, &b| {
-            let dist_a = distance_between(pos, a.pos);
-            let dist_b = distance_between(pos, b.pos);
-            dist_a
-                .partial_cmp(&dist_b)
-                .unwrap_or(std::cmp::Ordering::Equal)
-        })
+enum TargetPriority {
+    Closest,             // Attack nearest enemy
+    Backline,            // Attack ranged units first, then lowest health
+    SpecificTarget(u32), // Attack specific unit by ID
 }
+
+// Main targeting function
+fn find_target(
+    units: &Vec<Unit>,
+    team: i32,
+    pos: (f32, f32),
+    priority: TargetPriority,
+) -> Option<&Unit> {
+    match priority {
+        TargetPriority::Backline => {
+            // Non-frozen ranged
+            units
+                .iter()
+                .filter(|u| {
+                    is_valid_target(u, team)
+                        && !is_frozen(u)
+                        && u.data.has_attribute(&Attribute::Ranged)
+                })
+                .min_by(|a, b| {
+                    a.health
+                        .partial_cmp(&b.health)
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                })
+                .or_else(|| {
+                    // Non-frozen non-ranged
+                    units
+                        .iter()
+                        .filter(|u| is_valid_target(u, team) && !is_frozen(u))
+                        .min_by(|a, b| {
+                            a.health
+                                .partial_cmp(&b.health)
+                                .unwrap_or(std::cmp::Ordering::Equal)
+                        })
+                })
+                .or_else(|| {
+                    // Frozen units
+                    units
+                        .iter()
+                        .filter(|u| is_valid_target(u, team))
+                        .min_by(|a, b| {
+                            a.health
+                                .partial_cmp(&b.health)
+                                .unwrap_or(std::cmp::Ordering::Equal)
+                        })
+                })
+        }
+        TargetPriority::Closest => {
+            // Non-frozen first
+            units
+                .iter()
+                .filter(|u| is_valid_target(u, team) && !is_frozen(u))
+                .min_by(|a, b| {
+                    let dist_a = distance_between(pos, a.pos);
+                    let dist_b = distance_between(pos, b.pos);
+                    dist_a
+                        .partial_cmp(&dist_b)
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                })
+                .or_else(|| {
+                    // Then frozen
+                    units
+                        .iter()
+                        .filter(|u| is_valid_target(u, team))
+                        .min_by(|a, b| {
+                            let dist_a = distance_between(pos, a.pos);
+                            let dist_b = distance_between(pos, b.pos);
+                            dist_a
+                                .partial_cmp(&dist_b)
+                                .unwrap_or(std::cmp::Ordering::Equal)
+                        })
+                })
+        }
+        TargetPriority::SpecificTarget(id) => {
+            // Non-frozen first
+            units
+                .iter()
+                .find(|u| u.id == id && is_valid_target(u, team) && !is_frozen(u))
+                .or_else(|| {
+                    // Then frozen
+                    units
+                        .iter()
+                        .find(|u| u.id == id && is_valid_target(u, team))
+                })
+        }
+    }
+}
+
+fn is_valid_target(unit: &Unit, team: i32) -> bool {
+    unit.team != team
+        && unit.health > 0.0
+        && !unit
+            .status_effects
+            .iter()
+            .any(|s| matches!(s, Status::Invisible { .. }))
+}
+
+fn is_frozen(unit: &Unit) -> bool {
+    unit.status_effects
+        .iter()
+        .any(|s| matches!(s, Status::Freeze { .. }))
+}
+
+// fn closest_enemy_unit(units: &Vec<Unit>, team: i32, pos: (f32, f32)) -> Option<&Unit> {
+//     units
+//         .iter()
+//         .filter(|unit| {
+//             unit.team != team
+//                 && unit.health > 0.0
+//                 && !unit
+//                     .status_effects
+//                     .iter()
+//                     .any(|status| matches!(status, Status::Invisible { .. }))
+//         })
+//         .min_by(|&a, &b| {
+//             let dist_a = distance_between(pos, a.pos);
+//             let dist_b = distance_between(pos, b.pos);
+//             dist_a
+//                 .partial_cmp(&dist_b)
+//                 .unwrap_or(std::cmp::Ordering::Equal)
+//         })
+// }
 
 fn is_in_range_with_data(position: (f32, f32), range: f32, target_position: (f32, f32)) -> bool {
     // Calculate distance between positions
@@ -1658,35 +1771,35 @@ fn is_in_range_with_data(position: (f32, f32), range: f32, target_position: (f32
     distance <= range
 }
 
-fn closest_enemy_index_with_data(
-    team: i32,
-    position: (f32, f32),
-    unit_id: u32, // Using unit ID instead of a pointer
-    units: &Vec<Unit>,
-) -> Option<usize> {
-    units
-        .iter()
-        .enumerate()
-        .filter(|(_, other_unit)| {
-            other_unit.team != team &&        // Filter out units on the same team
-            other_unit.health > 0.0 &&        // Filter out dead units
-            other_unit.id != unit_id && // Filter out the unit itself using ID comparison
-            !other_unit.status_effects.iter().any(|status| matches!(status, Status::Invisible { .. }))
+// fn closest_enemy_index_with_data(
+//     team: i32,
+//     position: (f32, f32),
+//     unit_id: u32, // Using unit ID instead of a pointer
+//     units: &Vec<Unit>,
+// ) -> Option<usize> {
+//     units
+//         .iter()
+//         .enumerate()
+//         .filter(|(_, other_unit)| {
+//             other_unit.team != team &&        // Filter out units on the same team
+//             other_unit.health > 0.0 &&        // Filter out dead units
+//             other_unit.id != unit_id && // Filter out the unit itself using ID comparison
+//             !other_unit.status_effects.iter().any(|status| matches!(status, Status::Invisible { .. }))
 
-        })
-        .min_by(|(_, a), (_, b)| {
-            let dist_a = distance_between(position, a.pos);
-            let dist_b = distance_between(position, b.pos);
-            dist_a
-                .partial_cmp(&dist_b)
-                .unwrap_or(std::cmp::Ordering::Equal)
-        })
-        .map(|(index, _)| index)
-}
+//         })
+//         .min_by(|(_, a), (_, b)| {
+//             let dist_a = distance_between(position, a.pos);
+//             let dist_b = distance_between(position, b.pos);
+//             dist_a
+//                 .partial_cmp(&dist_b)
+//                 .unwrap_or(std::cmp::Ordering::Equal)
+//         })
+//         .map(|(index, _)| index)
+// }
 
-fn closest_enemy_index(unit: &Unit, units: &Vec<Unit>) -> Option<usize> {
-    closest_enemy_index_with_data(unit.team, unit.pos, unit.id, units)
-}
+// fn closest_enemy_index(unit: &Unit, units: &Vec<Unit>) -> Option<usize> {
+//     closest_enemy_index_with_data(unit.team, unit.pos, unit.id, units)
+// }
 
 fn closest_unit_to_position(position: (f32, f32), units: &Vec<Unit>) -> Option<usize> {
     units
