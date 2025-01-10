@@ -98,6 +98,9 @@ impl Unit {
         }
         if self.state == UnitState::Attacking {
             self.attack_timer -= 1;
+            // if self.unit_type == "bigpound" {
+            //     turbo::println!("ATTACK TIMER: {}", self.attack_timer);
+            // }
             if self.attack_timer <= 0 {
                 self.state = UnitState::Idle;
             }
@@ -134,6 +137,11 @@ impl Unit {
         let dp = self.draw_position();
         let flip_x = self.flip_x();
 
+        //calculate unitanimspeed so it can adjust based on haste/etc.
+        let speed_mult = self.calculated_speed_multiplier();
+        let anim_speed = UNIT_ANIM_SPEED / speed_mult as i32;
+        let attack_time = self.calculated_attack_time();
+
         // Early return if no display
         let display = match self.display.as_mut() {
             Some(d) => d,
@@ -144,7 +152,7 @@ impl Unit {
             name: self.unit_type.to_lowercase(),
             s_w: self.data.sprite_width,
             num_frames: 4,
-            loops_per_frame: UNIT_ANIM_SPEED,
+            loops_per_frame: anim_speed,
             is_looping: true,
         };
 
@@ -159,7 +167,9 @@ impl Unit {
         } else if self.state == UnitState::Attacking {
             //only set this once, when the attack starts.
             //That way when attack ends, they will idle (could change to reload or something later)
-            if self.attack_timer == self.data.attack_time - 1 {
+            //TODO: Maybe a safer way to do this...
+            if self.attack_timer == attack_time - 1 {
+                //turbo::println!("ANIM SPEED: {}", anim_speed);
                 new_anim.name += "_attack";
                 new_anim.is_looping = false;
                 display.animator.set_cur_anim(new_anim);
@@ -167,7 +177,7 @@ impl Unit {
                     name: self.unit_type.to_lowercase() + "_idle",
                     s_w: self.data.sprite_width,
                     num_frames: 4,
-                    loops_per_frame: UNIT_ANIM_SPEED,
+                    loops_per_frame: anim_speed,
                     is_looping: true,
                 };
                 display.animator.set_next_anim(Some(next_anim));
@@ -178,7 +188,7 @@ impl Unit {
                 name: self.unit_type.to_lowercase() + "_idle",
                 s_w: self.data.sprite_width,
                 num_frames: 4,
-                loops_per_frame: UNIT_ANIM_SPEED,
+                loops_per_frame: anim_speed,
                 is_looping: true,
             };
 
@@ -189,7 +199,7 @@ impl Unit {
                 name: self.unit_type.to_lowercase() + "_cheer",
                 s_w: self.data.sprite_width,
                 num_frames: 4,
-                loops_per_frame: UNIT_ANIM_SPEED,
+                loops_per_frame: anim_speed,
                 is_looping: true,
             };
             display.animator.set_next_anim(Some(next_anim));
@@ -199,7 +209,7 @@ impl Unit {
                 name: self.unit_type.to_lowercase() + "_cheer",
                 s_w: self.data.sprite_width,
                 num_frames: 4,
-                loops_per_frame: UNIT_ANIM_SPEED,
+                loops_per_frame: anim_speed,
                 is_looping: true,
             };
             display.animator.set_next_anim(Some(next_anim));
@@ -684,7 +694,7 @@ impl Unit {
             .iter()
             .any(|status| matches!(status, Status::Haste { .. }))
         {
-            let new_status = Status::Haste { timer: 600 };
+            let new_status = Status::Haste { timer: 1200 };
             self.status_effects.push(new_status);
         }
     }
@@ -750,9 +760,12 @@ impl Unit {
                 && self.state != UnitState::Frozen
             {
                 let freeze_chance = 1;
+                let freeze_time = 180;
                 if rng.next() % freeze_chance == 0 {
                     self.state = UnitState::Frozen;
-                    let new_status = Status::Freeze { timer: (300) };
+                    let new_status = Status::Freeze {
+                        timer: (freeze_time),
+                    };
                     self.status_effects.push(new_status);
                 }
             }
@@ -788,12 +801,15 @@ impl Unit {
     }
 
     pub fn start_attack(&mut self, target_unit_id: u32) -> Attack {
-        self.attack_timer = self.data.attack_time;
+        self.attack_timer = self.calculated_attack_time();
+        //adjust this for any unit changes
+
         self.state = UnitState::Attacking;
         //remove invisible
         self.status_effects
             .retain(|status| !matches!(status, Status::Invisible { .. }));
 
+        //TODO: Turn this into a function
         let mut damage = self.data.damage;
         if self
             .status_effects
@@ -871,8 +887,38 @@ impl Unit {
         self.display.as_ref().unwrap().is_facing_left
     }
 
+    pub fn calculated_attack_time(&self) -> i32 {
+        let mut multiple = 1.0;
+        let haste_adj = 2.0;
+        let berserk_adj = 1.5;
+        if self
+            .status_effects
+            .iter()
+            .any(|status| matches!(status, Status::Haste { .. }))
+        {
+            multiple *= haste_adj;
+        }
+
+        if self
+            .status_effects
+            .iter()
+            .any(|status| matches!(status, Status::Berserk { .. }))
+        {
+            multiple *= berserk_adj;
+        }
+        let val = (self.data.attack_time as f32 / multiple);
+        // if val < 40.0 {
+        //     turbo::println!("VALUE: {}", val);
+        // }
+        val as i32
+    }
+
     pub fn calculated_speed(&self) -> f32 {
-        let mut calc_speed = self.data.speed;
+        self.data.speed * self.calculated_speed_multiplier()
+    }
+
+    pub fn calculated_speed_multiplier(&self) -> f32 {
+        let mut calc_speed = 1.0;
         let flank_adj = 1.2;
         let flee_adj = 1.6;
         let haste_adj = 2.0;
