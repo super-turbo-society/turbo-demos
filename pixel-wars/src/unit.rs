@@ -212,6 +212,13 @@ impl Unit {
             display.animator.change_tint_color(0xFFFFFF80);
         } else if self.state == UnitState::Frozen {
             display.animator.change_tint_color(0xB0E2FF98);
+        } else if self
+            .status_effects
+            .iter()
+            .any(|status| matches!(status, Status::Invisible { .. }))
+        //slightly transparent if you have invisible status
+        {
+            display.animator.change_tint_color(0xFFFFFF60);
         } else {
             display.animator.change_tint_color(WHITE);
         }
@@ -229,10 +236,10 @@ impl Unit {
             }
         }
 
-        //TESTING FOR CENTER POSITION
-        //circ!(x=self.pos.0, y=self.pos.1, d = 1, color = 0x000000ff);
-        // sprite!("blood_16px_01", x=self.pos.0, y=self.pos.1);
-        //TESTING FOR FOOT POSITION
+        // //TESTING FOR CENTER POSITION
+        // circ!(x = self.pos.0, y = self.pos.1, d = 1, color = 0x000000ff);
+        // // sprite!("blood_16px_01", x=self.pos.0, y=self.pos.1);
+        // //TESTING FOR FOOT POSITION
         // circ!(
         //     x = self.foot_position().0,
         //     y = self.foot_position().1,
