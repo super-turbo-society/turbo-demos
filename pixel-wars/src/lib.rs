@@ -213,6 +213,14 @@ turbo::go!({
         let t = create_trap(&mut state.rng);
         state.traps.push(t);
     }
+    if gp.b.just_pressed() {
+        for unit in &mut state.units {
+            if unit.data.has_attribute(&Attribute::Trample) {
+                unit.state = UnitState::Idle;
+                unit.attack_strategy = AttackStrategy::Trample { target: None };
+            }
+        }
+    }
     state.save();
 });
 
@@ -790,8 +798,17 @@ fn step_through_battle(
             if traps.iter().any(|trap| trap.trap_type == TrapType::Healing)
                 && unit.health / unit.data.max_health <= 0.5
             {
-                //we should roll here to make it not always happen
+                //TODO: we should roll here to make it does not always happen
                 unit.attack_strategy = AttackStrategy::Heal;
+            }
+
+            // //check for trample
+            if unit.data.has_attribute(&Attribute::Trample) {
+                //TODO: make this depend on enemy locations
+                let trample_chance = 12;
+                if rng.next() % trample_chance == 0 {
+                    unit.attack_strategy = AttackStrategy::Trample { target: None };
+                }
             }
 
             match unit.attack_strategy {
@@ -1026,7 +1043,7 @@ fn step_through_battle(
                     // so i want to find the closest health pack
                     //then set that as new target move position
                     if unit.status_effects.contains(&Status::Healing) {
-                        //then do nothing and continue healing. This will automatic change when they finish healing
+                        //then do nothing and continue healing. This will automaticaly change when they finish healing
                     } else {
                         let pos = closest_health_pack(unit.pos, &traps);
                         if pos.is_some() {
@@ -1035,20 +1052,60 @@ fn step_through_battle(
                             let pos = pos.unwrap();
                             let pos = (pos.0, pos.1 - d_y);
                             unit.set_exact_move_position(pos);
-                            if let Some(display) = unit.display.as_mut() {
-                                if pos.0 > unit.pos.0 {
-                                    display.is_facing_left = false;
-                                } else {
-                                    display.is_facing_left = true;
-                                }
-                            }
                         } else {
                             unit.attack_strategy = AttackStrategy::AttackClosest;
                         }
                     }
                 }
+                AttackStrategy::Trample { ref mut target } => match *target {
+                    Some(_) => {
+                        unit.attack_strategy = AttackStrategy::AttackClosest;
+                    }
+                    None => {
+                        let mut pos_x = unit.pos.0;
+                        let trample_dist = 60.0;
+                        let adj = if unit.team == 1 {
+                            -trample_dist
+                        } else {
+                            trample_dist
+                        };
+                        pos_x = (pos_x + adj).clamp(MAP_BOUNDS.0, MAP_BOUNDS.1);
+                        let target_pos = (pos_x, unit.pos.1);
+                        *target = Some(target_pos);
+                        unit.set_exact_move_position(target_pos);
+                    }
+                },
                 _ => {
                     panic!("Unexpected Attack Strategy!!");
+                }
+            }
+        }
+        //do something to create trample attacks here
+        if let AttackStrategy::Trample { ref mut target } = unit.attack_strategy {
+            let collision_indices = overlapping_enemy_indices(&unit, &units_clone);
+
+            if collision_indices
+                .iter()
+                .any(|&i| units_clone[i].data.sprite_width > 16)
+            {
+                unit.attack_strategy = AttackStrategy::AttackClosest;
+                unit.state = UnitState::Idle;
+            } else {
+                for &i in &collision_indices {
+                    let attack = Attack::new(
+                        Some(unit.id),
+                        units_clone[i].id,
+                        2.,
+                        unit.pos,
+                        10000.0,
+                        0.0,
+                        1,
+                        Vec::new(),
+                    );
+                    // let attack = unit.start_attack(units_clone[i].id);
+                    // let modified_attack =
+                    //     modify_damage_from_artifacts(attack, &units_clone, artifacts);
+                    attacks.push(attack);
                 }
             }
         }
@@ -1196,11 +1253,9 @@ fn step_through_battle(
                 }
                 if let Some(attacker) = find_mutable_unit_by_id(units, attack.owner_id) {
                     attacker.stats.damage_dealt += total_damage as u32;
-                    // turbo::println!("DAMAGE FROM ATTACK: {}", total_damage);
-                    // turbo::println!("TOTAL DAMAGE: {}", attacker.stats.damage_dealt);
                     let old_kills = attacker.stats.kills;
                     attacker.stats.kills += kills;
-                    //check if kills put you over 3
+                    //check if kills put you over 3 to trigger Berserk
                     if attacker.stats.kills >= 3
                         && old_kills < 3
                         && attacker.data.has_attribute(&Attribute::Berserk)
@@ -1208,9 +1263,6 @@ fn step_through_battle(
                         let status = Status::Berserk { timer: (600) };
                         attacker.status_effects.push(status);
                     }
-                    //if kills is great than 3, attacker.trigger_frenzy
-                    // turbo::println!("KILLS: {}", kills);
-                    // turbo::println!("TOTAL KILLS: {}", attacker.stats.kills);
                 }
             }
 
@@ -1859,6 +1911,34 @@ fn has_some_team_won(units: &Vec<Unit>) -> Option<i32> {
         return Some(0);
     }
     None
+}
+
+fn overlapping_enemy_indices(unit: &Unit, units: &Vec<Unit>) -> Vec<usize> {
+    let (left1, right1, top1, bottom1) = get_bounds(unit);
+
+    units
+        .iter()
+        .enumerate()
+        .filter(|(_, other)| {
+            other.id != unit.id && other.team != unit.team && {
+                let (left2, right2, top2, bottom2) = get_bounds(other);
+                !(left1 > right2 || right1 < left2 || top1 > bottom2 || bottom1 < top2)
+            }
+        })
+        .map(|(i, _)| i)
+        .collect()
+}
+
+fn get_bounds(unit: &Unit) -> (f32, f32, f32, f32) {
+    let half_width = unit.data.bounding_box.2 as f32 / 2.0;
+    let half_height = unit.data.bounding_box.3 as f32 / 2.0;
+
+    let left = unit.pos.0 - half_width;
+    let right = unit.pos.0 + half_width;
+    let top = unit.pos.1 - half_height;
+    let bottom = unit.pos.1 + half_height;
+
+    (left, right, top, bottom)
 }
 
 fn all_living_units(units: &Vec<Unit>) -> Vec<String> {

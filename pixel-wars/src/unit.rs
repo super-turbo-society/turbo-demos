@@ -312,7 +312,6 @@ impl Unit {
             self.attack_strategy = AttackStrategy::TargetLowestHealth;
             let status = Status::Invisible { timer: 6000 };
             self.status_effects.push(status);
-            log!("Pushing Invisible Status");
         }
     }
 
@@ -521,8 +520,13 @@ impl Unit {
 
     pub fn set_exact_move_position(&mut self, target: (f32, f32)) {
         self.target_pos = target;
-        //face the right way
-
+        if let Some(display) = self.display.as_mut() {
+            if self.pos.0 > target.0 {
+                display.is_facing_left = true;
+            } else {
+                display.is_facing_left = false;
+            }
+        }
         self.state = UnitState::Moving;
     }
 
@@ -570,6 +574,7 @@ impl Unit {
         (new_x, new_y)
     }
 
+    //TODO: is there a better way to do this?
     pub fn reached_target(&self) -> bool {
         let mut reached_target = false;
         if distance_between(self.pos, self.target_pos) < self.calculated_speed() / 20. {
@@ -577,6 +582,7 @@ impl Unit {
         }
         reached_target
     }
+
     //Not using this for now - but if we need some more control over movement we can
     pub fn new_target_position(&mut self, target: &(f32, f32), rng: &mut RNG) {
         //Move toward the target xunits + some randomness
@@ -923,10 +929,12 @@ impl Unit {
         let flee_adj = 1.6;
         let haste_adj = 2.0;
         let berserk_adj = 1.5;
+        let trample_adj = 3.0;
 
         match self.attack_strategy {
             AttackStrategy::Flank { .. } => calc_speed *= flank_adj,
             AttackStrategy::Flee { .. } => calc_speed *= flee_adj,
+            AttackStrategy::Trample { .. } => calc_speed *= trample_adj,
             _ => {}
         }
 
@@ -967,6 +975,9 @@ pub enum AttackStrategy {
         defended_unit_id: Option<u32>,
     },
     Heal,
+    Trample {
+        target: Option<(f32, f32)>,
+    },
 }
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
@@ -991,6 +1002,7 @@ pub enum Attribute {
     PoisonAttack,
     Berserk,
     Stealth,
+    Trample,
 }
 
 impl FromStr for Attribute {
@@ -1012,6 +1024,7 @@ impl FromStr for Attribute {
             "PoisonAttack" => Ok(Attribute::PoisonAttack),
             "Berserk" => Ok(Attribute::Berserk),
             "Stealth" => Ok(Attribute::Stealth),
+            "Trample" => Ok(Attribute::Trample),
             _ => Err(format!("Unknown attribute: {}", s)),
         }
     }
