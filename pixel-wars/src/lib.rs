@@ -1179,9 +1179,8 @@ fn step_through_battle(
                         units.iter().position(|u| u.id == attack.target_unit_id)
                     {
                         let unit = &mut units[unit_index];
-                        unit.take_attack(&attack, rng);
-                        //TODO: Calculate damage based in the unit
-                        total_damage += attack.damage;
+                        let damage = unit.take_attack(&attack, rng);
+                        total_damage += damage;
                         if unit.health <= 0. {
                             kills += 1;
                             if unit.data.has_attribute(&Attribute::ExplodeOnDeath) {
@@ -1210,9 +1209,8 @@ fn step_through_battle(
                             && unit.state != UnitState::Dead
                             && unit.team == team
                         {
-                            unit.take_attack(&attack, rng);
-                            //TODO: Calculate damage in the unit
-                            total_damage += attack.damage;
+                            let damage = unit.take_attack(&attack, rng);
+                            total_damage += damage;
 
                             if unit.health <= 0.0 {
                                 kills += 1;

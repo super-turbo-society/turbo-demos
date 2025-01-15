@@ -609,6 +609,8 @@ impl Unit {
         self.state = UnitState::Moving;
     }
 
+    //TODO: Cause healing to remove poison/burn
+    //TODO: Count flee timer here instead of in stepthrough
     pub fn apply_status_effects(&mut self) {
         // Create a vector to store statuses that should be removed
         let mut statuses_to_remove = Vec::new();
@@ -714,71 +716,83 @@ impl Unit {
         //if kills > 3 -> trigger frenzy or something
     }
 
-    pub fn take_attack(&mut self, attack: &Attack, rng: &mut RNG) {
+    pub fn take_attack(&mut self, attack: &Attack, rng: &mut RNG) -> f32 {
+        let mut damage = attack.damage;
         if self.state != UnitState::Dead {
             //TODO: calculate any damage reduction here
-            self.apply_damage(attack.damage);
 
-            //let u = find_unit_by_id(units, id)
-            //apply terrifying effect to cause units to flee
-            if attack.attributes.contains(&Attribute::Terrifying)
-                && !self.data.has_attribute(&Attribute::Stalwart)
-            {
-                let flee_chance = 3;
-                if rng.next() % flee_chance == 0 {
-                    self.attack_strategy = AttackStrategy::Flee { timer: (5) };
-                    self.state = UnitState::Idle;
-                }
-
-            //Ranged units will sometimes flee when hit by melee units
-            } else if self.data.has_attribute(&Attribute::Ranged)
-                && !attack.attributes.contains(&Attribute::Ranged)
-                && !self.data.has_attribute(&Attribute::Stalwart)
-            {
-                let flee_chance = 2;
-                if rng.next() % flee_chance == 0 {
-                    self.attack_strategy = AttackStrategy::Flee { timer: (5) };
-                    self.state = UnitState::Idle;
+            if self.data.has_attribute(&Attribute::Shielded) {
+                if damage > 10.0 {
+                    damage = (damage - 10.0) + (10.0 * 0.5);
+                } else {
+                    damage *= 0.5;
                 }
             }
+            damage = damage.min(self.health);
+            self.apply_damage(damage);
 
-            //if you are defending and you take a melee attack, you should break ranks
-            if !attack.attributes.contains(&Attribute::Ranged)
-                && matches!(self.attack_strategy, AttackStrategy::Defend { .. })
-            {
-                self.attack_strategy = AttackStrategy::AttackClosest;
-            }
+            //apply status effect
+            if self.health > 0.0 {
+                //apply terrifying effect to cause units to flee
+                if attack.attributes.contains(&Attribute::Terrifying)
+                    && !self.data.has_attribute(&Attribute::Stalwart)
+                {
+                    let flee_chance = 3;
+                    if rng.next() % flee_chance == 0 {
+                        self.attack_strategy = AttackStrategy::Flee { timer: (5) };
+                        self.state = UnitState::Idle;
+                    }
 
-            //if it is a fire effect, then add a burn status to this unit
-            if !self.data.has_attribute(&Attribute::FireResistance)
-                && attack.attributes.contains(&Attribute::FireEffect)
-            {
-                let new_status = Status::Burn { timer: (300) };
-                self.status_effects.push(new_status);
-            } else if self.data.has_attribute(&Attribute::FireResistance)
-                && attack.attributes.contains(&Attribute::FireEffect)
-            {
-                turbo::println!("FIRE BLOCKED");
-            }
+                //Ranged units will sometimes flee when hit by melee units
+                } else if self.data.has_attribute(&Attribute::Ranged)
+                    && !attack.attributes.contains(&Attribute::Ranged)
+                    && !self.data.has_attribute(&Attribute::Stalwart)
+                {
+                    let flee_chance = 2;
+                    if rng.next() % flee_chance == 0 {
+                        self.attack_strategy = AttackStrategy::Flee { timer: (5) };
+                        self.state = UnitState::Idle;
+                    }
+                }
 
-            //if it is a freeze effect, then change you status and state to freeze
-            if attack.attributes.contains(&Attribute::FreezeAttack)
-                && self.state != UnitState::Frozen
-            {
-                let freeze_chance = 1;
-                let freeze_time = 180;
-                if rng.next() % freeze_chance == 0 {
-                    self.state = UnitState::Frozen;
-                    let new_status = Status::Freeze {
-                        timer: (freeze_time),
-                    };
+                //if you are defending and you take a melee attack, you should break ranks
+                if !attack.attributes.contains(&Attribute::Ranged)
+                    && matches!(self.attack_strategy, AttackStrategy::Defend { .. })
+                {
+                    self.attack_strategy = AttackStrategy::AttackClosest;
+                }
+
+                //if it is a fire effect, then add a burn status to this unit
+                if !self.data.has_attribute(&Attribute::FireResistance)
+                    && attack.attributes.contains(&Attribute::FireEffect)
+                {
+                    let new_status = Status::Burn { timer: (300) };
                     self.status_effects.push(new_status);
+                } else if self.data.has_attribute(&Attribute::FireResistance)
+                    && attack.attributes.contains(&Attribute::FireEffect)
+                {
+                    turbo::println!("FIRE BLOCKED");
                 }
-            }
-            if attack.attributes.contains(&Attribute::PoisonAttack)
-                && !self.status_effects.contains(&Status::Poison)
-            {
-                self.status_effects.push(Status::Poison);
+
+                //if it is a freeze effect, then change you status and state to freeze
+                if attack.attributes.contains(&Attribute::FreezeAttack)
+                    && self.state != UnitState::Frozen
+                {
+                    let freeze_chance = 1;
+                    let freeze_time = 180;
+                    if rng.next() % freeze_chance == 0 {
+                        self.state = UnitState::Frozen;
+                        let new_status = Status::Freeze {
+                            timer: (freeze_time),
+                        };
+                        self.status_effects.push(new_status);
+                    }
+                }
+                if attack.attributes.contains(&Attribute::PoisonAttack)
+                    && !self.status_effects.contains(&Status::Poison)
+                {
+                    self.status_effects.push(Status::Poison);
+                }
             }
 
             if self.display.as_ref().unwrap().blood_splatter.is_none() {
@@ -798,6 +812,7 @@ impl Unit {
                 self.display.as_mut().unwrap().blood_splatter = Some(new_splatter);
             }
         }
+        damage
     }
 
     pub fn start_healing(&mut self) {
