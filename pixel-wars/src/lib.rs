@@ -40,6 +40,7 @@ const TEAM_NAMES: [&str; 12] = [
 ];
 
 const UNIT_ANIM_SPEED: i32 = 8;
+//TODO: Figure out if we want to use this again
 const MAX_Y_ATTACK_DISTANCE: f32 = 10.;
 const FOOTPRINT_LIFETIME: u32 = 240;
 const MAP_BOUNDS: (f32, f32, f32, f32) = (10.0, 340.0, 0.0, 200.0);
@@ -811,6 +812,8 @@ fn step_through_battle(
                 }
             }
 
+            apply_idle_artifacts(unit, rng, artifacts);
+
             match unit.attack_strategy {
                 AttackStrategy::AttackClosest => {
                     //find closest enemy
@@ -1251,6 +1254,23 @@ fn step_through_battle(
                     craters.push(crater);
                 }
                 if let Some(attacker) = find_mutable_unit_by_id(units, attack.owner_id) {
+                    //if you have the blood sucker artifact, add 10% of damage to unit health
+                    let team = attacker.team;
+                    // Check for bloodsucker artifact
+                    if let Some(bloodsucker) = artifacts
+                        .iter()
+                        .find(|a| a.team == team && a.artifact_kind == ArtifactKind::BloodSucker)
+                    {
+                        if let ArtifactConfig::LifeSteal { steal_factor } = bloodsucker.config {
+                            if attacker.health > 0.0 {
+                                let heal_amount = total_damage as f32 * steal_factor;
+                                attacker.health =
+                                    (attacker.health + heal_amount).min(attacker.data.max_health);
+                                turbo::println!("BLOOD SUCKED: {}", heal_amount);
+                            }
+                        }
+                    }
+
                     attacker.stats.damage_dealt += total_damage as u32;
                     let old_kills = attacker.stats.kills;
                     attacker.stats.kills += kills;
@@ -1271,6 +1291,21 @@ fn step_through_battle(
     //go through traps, update and draw
     for trap in traps {
         trap.update();
+    }
+}
+
+fn apply_idle_artifacts(unit: &mut Unit, rng: &mut RNG, artifacts: &Vec<Artifact>) {
+    for artifact in artifacts {
+        match artifact.artifact_kind {
+            ArtifactKind::SeeingGhosts => {
+                if let ArtifactConfig::SuddenFright { chance_to_occur } = artifact.config {
+                    if rng.next() % chance_to_occur == 0 {
+                        unit.attack_strategy = AttackStrategy::Flee { timer: (5) };
+                    }
+                }
+            }
+            _ => {}
+        }
     }
 }
 
@@ -1318,7 +1353,21 @@ fn modify_damage_from_artifacts(
                 }
             }
 
-            // For FlameWard or any other kinds, no damage modification needed
+            //
+            ArtifactKind::GiantSlayer => {
+                if let Some(target_unit) = find_unit_by_id(units, Some(attack.target_unit_id)) {
+                    if let ArtifactConfig::LargeUnitDamageBoost {
+                        boost_factor,
+                        health_amount,
+                    } = artifact.config
+                    {
+                        if target_unit.data.max_health >= health_amount {
+                            attack.damage *= boost_factor;
+                            turbo::println!("Boosted Large Unit Attack");
+                        }
+                    }
+                }
+            }
             _ => {}
         }
     }
@@ -2122,6 +2171,59 @@ fn draw_team_info_and_buttons(state: &mut GameState) {
             y_pos += y_spacing;
         }
     }
+    let final_y_pos = {
+        let mut y = y_start;
+        y += y_spacing; // Team name
+        y += unit_types.len() as i32 * y_spacing;
+        y
+    };
+    draw_artifact_info_and_buttons(state, final_y_pos);
+}
+
+fn draw_artifact_info_and_buttons(state: &mut GameState, y_start_pos: i32) {
+    let pos_0 = 20;
+    let pos_1 = 200;
+    let y_spacing = 20;
+    let button_width = 20;
+    let button_height = 10;
+
+    for (team_index, pos) in [(0, pos_0), (1, pos_1)].iter() {
+        let mut y_pos = y_start_pos;
+
+        text!("Artifacts:", x = *pos, y = y_pos);
+        y_pos += y_spacing;
+
+        for artifact_kind in ArtifactKind::iter() {
+            let has_artifact = state
+                .artifacts
+                .iter()
+                .any(|a| a.artifact_kind == artifact_kind && a.team == *team_index as i32);
+
+            let artifact_text =
+                format!("[{}] {:?}", if has_artifact { 1 } else { 0 }, artifact_kind);
+            text!(artifact_text.as_str(), x = *pos, y = y_pos, font = Font::M);
+
+            let plus_button = Button::new(
+                String::from("+"),
+                (*pos as f32 + 100.0, y_pos as f32),
+                (button_width as f32, button_height as f32),
+                GameEvent::AddArtifactToTeam(*team_index, artifact_kind),
+            );
+            plus_button.draw();
+            plus_button.handle_click(state);
+
+            let minus_button = Button::new(
+                String::from("-"),
+                (*pos as f32 + 130.0, y_pos as f32),
+                (button_width as f32, button_height as f32),
+                GameEvent::RemoveArtifactFromTeam(*team_index, artifact_kind),
+            );
+            minus_button.draw();
+            minus_button.handle_click(state);
+
+            y_pos += y_spacing;
+        }
+    }
 }
 
 fn draw_text_box(
@@ -2355,6 +2457,8 @@ impl Team {
 enum GameEvent {
     AddUnitToTeam(usize, String),
     RemoveUnitFromTeam(usize, String),
+    AddArtifactToTeam(usize, ArtifactKind),
+    RemoveArtifactFromTeam(usize, ArtifactKind),
     ChooseTeam(i32),
     RestartGame(),
 }

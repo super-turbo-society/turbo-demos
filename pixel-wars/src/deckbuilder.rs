@@ -756,6 +756,17 @@ pub fn dbgo(state: &mut GameState) {
             GameEvent::RemoveUnitFromTeam(team_index, unit_type) => {
                 state.teams[team_index].remove_unit(unit_type);
             }
+            GameEvent::AddArtifactToTeam(team_index, artifact_kind) => {
+                state
+                    .artifacts
+                    .push(Artifact::new(artifact_kind, team_index as i32));
+                turbo::println!("ADDING ARTIFACT: {:?}", artifact_kind);
+            }
+            GameEvent::RemoveArtifactFromTeam(team_index, artifact_kind) => {
+                state
+                    .artifacts
+                    .retain(|a| !(a.artifact_kind == artifact_kind && a.team == team_index as i32));
+            }
             GameEvent::ChooseTeam(team_num) => {
                 let mut team_choice_counter = TeamChoiceCounter {
                     team_0: 0,
@@ -979,14 +990,32 @@ pub fn initialize_first_team(data_store: UnitDataStore) -> Team {
 //artifacts
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 pub enum ArtifactConfig {
-    DeadUnitDamageBoost { percent_per_unit: f32 },
-    DistanceDamageBoost { percent_per_pixel: f32 },
-    FireResistance { resistance_percent: f32 },
-    TrapBoard { num_traps: u8 },
+    DeadUnitDamageBoost {
+        percent_per_unit: f32,
+    },
+    DistanceDamageBoost {
+        percent_per_pixel: f32,
+    },
+    FireResistance {
+        resistance_percent: f32,
+    },
+    TrapBoard {
+        num_traps: u8,
+    },
     TeamHaste,
+    LifeSteal {
+        steal_factor: f32,
+    },
+    LargeUnitDamageBoost {
+        boost_factor: f32,
+        health_amount: f32,
+    },
+    SuddenFright {
+        chance_to_occur: u32,
+    },
 }
 
-#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone, EnumIter)]
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone, Copy, EnumIter)]
 
 pub enum ArtifactKind {
     StrenghtOfTheFallen,
@@ -994,6 +1023,9 @@ pub enum ArtifactKind {
     FlameWard,
     TrapArtist,
     ShotOutACannon,
+    BloodSucker,
+    GiantSlayer,
+    SeeingGhosts,
 }
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
@@ -1001,10 +1033,11 @@ pub struct Artifact {
     pub artifact_kind: ArtifactKind,
     pub config: ArtifactConfig,
     pub text: String,
+    pub team: i32,
 }
 
 impl Artifact {
-    pub fn new(kind: ArtifactKind) -> Self {
+    pub fn new(kind: ArtifactKind, team: i32) -> Self {
         // Match the name to get the preconfigured artifact
         let (config, text) = match kind {
             ArtifactKind::StrenghtOfTheFallen => (
@@ -1027,11 +1060,28 @@ impl Artifact {
             ),
             ArtifactKind::TrapArtist => (
                 ArtifactConfig::TrapBoard { num_traps: 12 },
-                String::from("Add Traps to the Board"),
+                String::from("Add Traps to the board"),
             ),
             ArtifactKind::ShotOutACannon => (
                 ArtifactConfig::TeamHaste,
                 String::from("All your units start with Haste"),
+            ),
+            ArtifactKind::BloodSucker => (
+                ArtifactConfig::LifeSteal { steal_factor: 0.1 },
+                String::from("Suck life from your enemies"),
+            ),
+            ArtifactKind::GiantSlayer => (
+                ArtifactConfig::LargeUnitDamageBoost {
+                    boost_factor: 2.0,
+                    health_amount: 80.0,
+                },
+                String::from("Deal double damage to large enemies"),
+            ),
+            ArtifactKind::SeeingGhosts => (
+                ArtifactConfig::SuddenFright {
+                    chance_to_occur: 40,
+                },
+                String::from(""),
             ),
             _ => panic!("Unknown artifact kind"),
         };
@@ -1040,6 +1090,7 @@ impl Artifact {
             artifact_kind: kind,
             config,
             text,
+            team,
         }
     }
 
@@ -1102,6 +1153,15 @@ impl Artifact {
             }
             ArtifactKind::ShotOutACannon => {
                 color = ACID_GREEN;
+            }
+            ArtifactKind::BloodSucker => {
+                color = DAMAGE_TINT_RED;
+            }
+            ArtifactKind::GiantSlayer => {
+                color = WHITE;
+            }
+            ArtifactKind::SeeingGhosts => {
+                color = WHITE;
             }
         }
         //match on the artifact type to get the sprite
@@ -1262,7 +1322,7 @@ pub fn create_artifact_shop(
     // Select random kinds and create artifacts
     select_random_artifact_kinds(&available_kinds_refs, num_types, rng)
         .into_iter()
-        .map(|kind| Artifact::new(kind))
+        .map(|kind| Artifact::new(kind, 0))
         .collect()
 }
 
