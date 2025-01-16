@@ -1,6 +1,28 @@
 use crate::*;
 
 const TOTAL_ROUNDS: usize = 6;
+const UNIT_RATINGS: [(&str, u8); 18] = [
+    // Basic units
+    ("axeman", 4),
+    ("blade", 2),
+    ("hunter", 2),
+    ("pyro", 1),
+    ("bigpound", 2),
+    ("deathray", 3),
+    ("cosmo", 3),
+    ("zombie", 1),
+    ("shield", 3),
+    // Advanced units
+    ("sabre", 4),
+    ("flameboi", 5),
+    ("bazooka", 5),
+    ("draco", 7),
+    ("saucer", 6),
+    ("tanker", 7),
+    ("catapult", 5),
+    ("darkknight", 7),
+    ("yeti", 5),
+];
 
 pub fn title_screen_unit(rng: &mut RNG, data_store: &UnitDataStore) -> WalkingUnitPreview {
     let is_left_side = (rng.next() % 2) == 0;
@@ -1112,8 +1134,6 @@ pub fn create_unit_packs(
     while i < num_types {
         //create a pack
         //TODO: update this with a unit pack new function
-        //and make a unit preview based on the type
-        //we already have the data store so it shouldn't be too hard
         let unit_type = types[i].clone();
         let pos = ((i * 90 + 20) as f32, 50.);
         let data: &UnitData = data_store.get_unit_data(&unit_type).unwrap();
@@ -1131,11 +1151,18 @@ pub fn get_available_units(round: u32, data_store: &UnitDataStore) -> Vec<&Strin
     let all_types: Vec<&String> = data_store.data.keys().collect();
 
     let basic_units = vec![
-        "axeman", "blade", "hunter", "pyro", "bigpound", "deathray", "cosmo",
+        "axeman", "blade", "hunter", "pyro", "bigpound", "deathray", "cosmo", "zombie", "shield",
     ];
     let advanced_units = vec![
-        "axeman", "blade", "hunter", "pyro", "bigpound", "sabre", "flameboi", "deathray",
-        "bazooka", "cosmo", "draco", "saucer", "tanker",
+        "sabre",
+        "flameboi",
+        "bazooka",
+        "draco",
+        "saucer",
+        "tanker",
+        "catapult",
+        "darkknight",
+        "yeti",
     ];
 
     match round {
@@ -1144,11 +1171,7 @@ pub fn get_available_units(round: u32, data_store: &UnitDataStore) -> Vec<&Strin
             .filter(|&&unit| basic_units.contains(&unit.as_str()))
             .copied()
             .collect(),
-        3..=6 => all_types
-            .iter()
-            .filter(|&&unit| advanced_units.contains(&unit.as_str()))
-            .copied()
-            .collect(),
+        3..=6 => all_types.iter().copied().collect(),
         _ => all_types
             .iter()
             .filter(|&&unit| basic_units.contains(&unit.as_str()))
@@ -1157,75 +1180,57 @@ pub fn get_available_units(round: u32, data_store: &UnitDataStore) -> Vec<&Strin
     }
 }
 
-pub fn get_unit_count(round: u32, unit_type: &str) -> u32 {
-    match (round, unit_type) {
-        //basic types
-        (1..=2, "axeman") => 4,
-        (3..=4, "axeman") => 10,
-        (5..=6, "axeman") => 25,
+fn get_unit_count(round: u32, unit_type: &str) -> u32 {
+    let rating = get_unit_strength_rating(unit_type);
+    //TODO: add a little randomness here
+    match round {
+        //only basic units tier 1-3 in rounds 1 and 2
+        1..=2 => match rating {
+            1 => 12,
+            2 => 9,
+            3 => 6,
+            4 => 4,
+            _ => 1,
+        },
+        3..=4 => match rating {
+            1 => 28,
+            2 => 20,
+            3 => 14,
+            4 => 8,
+            5 => 5,
+            6 => 3,
+            7 => 2,
+            _ => 1,
+        },
+        5..=6 => match rating {
+            1 => 55,
+            2 => 38,
+            3 => 28,
+            4 => 16,
+            5 => 11,
+            6 => 5,
+            7 => 4,
+            _ => 1,
+        },
+        _ => 1,
+    }
+}
 
-        (1..=2, "blade") => 10,
-        (3..=4, "blade") => 25,
-        (5..=6, "blade") => 50,
-
-        (1..=2, "hunter") => 6,
-        (3..=4, "hunter") => 15,
-        (5..=6, "hunter") => 32,
-
-        (1..=2, "pyro") => 12,
-        (3..=4, "pyro") => 28,
-        (5..=6, "pyro") => 55,
-
-        (1..=2, "bigpound") => 3,
-        (3..=4, "bigpound") => 8,
-        (5..=6, "bigpound") => 20,
-
-        (1..=2, "deathray") => 4,
-        (3..=4, "deathray") => 10,
-        (5..=6, "deathray") => 25,
-
-        (1..=2, "cosmo") => 4,
-        (3..=4, "cosmo") => 9,
-        (5..=6, "cosmo") => 17,
-
-        (1..=2, "bazooka") => 2,
-        (3..=4, "bazooka") => 6,
-        (5..=6, "bazooka") => 12,
-
-        (1..=2, "sabre") => 3,
-        (3..=4, "sabre") => 8,
-        (5..=6, "sabre") => 18,
-
-        //advanced types
-        (1..=2, "flameboi") => 2,
-        (3..=4, "flameboi") => 5,
-        (5..=6, "flameboi") => 8,
-
-        (1..=2, "tanker") => 1,
-        (3..=4, "tanker") => 3,
-        (5..=6, "tanker") => 5,
-
-        (1..=2, "draco") => 2,
-        (3..=4, "draco") => 4,
-        (5..=6, "draco") => 6,
-
-        (1..=2, "saucer") => 2,
-        (3..=4, "saucer") => 4,
-        (5..=6, "saucer") => 8,
-
-        // Default case
-        _ => 10,
+fn get_unit_strength_rating(unit_type: &str) -> u8 {
+    match UNIT_RATINGS.iter().find(|(unit, _)| *unit == unit_type) {
+        Some((_, rating)) => *rating,
+        None => 5, // default rating
     }
 }
 
 pub fn get_power_level_for_round(round: u32) -> f32 {
     match round {
-        1 => 3.0,
-        2 => 5.0,
-        3 => 9.0,
-        4 => 14.0,
-        5 => 22.0,
-        6 => 32.0,
+        1 => 4.0,
+        2 => 7.0,
+        3 => 11.0,
+        4 => 16.0,
+        5 => 26.0,
+        6 => 50.0,
         _ => round as f32 * 10.0, // Default case, though shouldn't happen in 6-round game
     }
 }

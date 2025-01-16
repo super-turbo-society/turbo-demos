@@ -1184,10 +1184,11 @@ fn step_through_battle(
                         if unit.health <= 0. {
                             kills += 1;
                             if unit.data.has_attribute(&Attribute::ExplodeOnDeath) {
-                                let mut explosion_offset = (-24., -24.);
-                                if unit.flip_x() {
-                                    explosion_offset.0 = -24.;
-                                }
+                                //this needs to be calculated from unit size
+                                let explosion_offset = (-8., -24.);
+                                // if unit.flip_x() {
+                                //     explosion_offset.0 = -8.;
+                                // }
                                 let explosion_pos = (
                                     unit.pos.0 + explosion_offset.0,
                                     unit.pos.1 + explosion_offset.1,
@@ -1215,10 +1216,10 @@ fn step_through_battle(
                             if unit.health <= 0.0 {
                                 kills += 1;
                                 if unit.data.has_attribute(&Attribute::ExplodeOnDeath) {
-                                    let mut explosion_offset = (-24., -24.);
-                                    if unit.flip_x() {
-                                        explosion_offset.0 = -24.;
-                                    }
+                                    let explosion_offset = (-8., -24.);
+                                    // if unit.flip_x() {
+                                    //     explosion_offset.0 = -24.;
+                                    // }
                                     let explosion_pos = (
                                         unit.pos.0 + explosion_offset.0,
                                         unit.pos.1 + explosion_offset.1,
@@ -1233,7 +1234,7 @@ fn step_through_battle(
                 }
                 if attack.attributes.contains(&Attribute::ExplosiveAttack) {
                     //create explosion
-                    let explosion_offset = (-24., -24.);
+                    let explosion_offset = (-8., -24.);
                     let explosion_pos = (
                         attack.pos.0 + explosion_offset.0,
                         attack.pos.1 + explosion_offset.1,
@@ -2820,7 +2821,7 @@ fn create_unit_previews(
 fn create_trap(rng: &mut RNG) -> Trap {
     //choose a random trap and a random position within some bounds
     let random_number = rng.next_in_range(0, 2);
-    let random_number = 3 as u32;
+    let random_number = 2 as u32;
     let trap_type = match random_number {
         0 => TrapType::Poop,
         1 => TrapType::Acidleak,
