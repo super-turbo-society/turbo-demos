@@ -713,9 +713,9 @@ impl Unit {
 
     pub fn credit_kill(&mut self) {
         self.stats.kills += 1;
-        //if kills > 3 -> trigger frenzy or something
     }
 
+    //return the actual damage dealt, limiting to your max health in case the attack is larger
     pub fn take_attack(&mut self, attack: &Attack, rng: &mut RNG) -> f32 {
         let mut damage = attack.damage;
         if self.state != UnitState::Dead {
@@ -726,8 +726,10 @@ impl Unit {
                     damage *= 0.5;
                 }
             }
-            damage = damage.min(self.health);
-            turbo::println!("Damage: {}", damage);
+            if damage > self.health {
+                damage = self.health;
+            }
+
             self.apply_damage(damage);
 
             //apply status effect

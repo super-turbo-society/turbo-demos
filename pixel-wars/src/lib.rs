@@ -1361,7 +1361,6 @@ fn apply_start_of_battle_artifacts(
     rng: &mut RNG,
     artifacts: &Vec<Artifact>,
 ) {
-    turbo::println!("ARTIFACTS: {:?}", artifacts);
     let team_artifacts: Vec<(ArtifactKind, i32)> = artifacts
         .iter()
         .map(|a| (a.artifact_kind, a.team))
@@ -1370,7 +1369,6 @@ fn apply_start_of_battle_artifacts(
     for unit in units.iter_mut() {
         if team_artifacts.contains(&(ArtifactKind::FlameWard, unit.team)) {
             unit.data.attributes.push(Attribute::FireResistance);
-            turbo::println!("APPLYING FLAME WARD");
         }
         if team_artifacts.contains(&(ArtifactKind::ShotOutACannon, unit.team)) {
             unit.start_haste();

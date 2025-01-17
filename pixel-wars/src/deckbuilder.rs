@@ -480,9 +480,7 @@ pub fn dbgo(state: &mut GameState) {
             set_cam!(x = 192, y = 108);
             if state.battle_countdown_timer > 0 {
                 //this happens once at the start of battle phase
-                turbo::println!("BATTLE SET UP");
                 if state.battle_countdown_timer == BATTLE_COUNTDOWN_TIME {
-                    turbo::println!("BATTLE SET UP");
                     //handle start of battle artifacts
                     apply_start_of_battle_artifacts(
                         &mut state.units,
