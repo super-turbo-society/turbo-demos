@@ -662,6 +662,10 @@ pub fn dbgo(state: &mut GameState) {
                 for u in &mut state.units {
                     u.start_cheering();
                 }
+
+                //draw end game stats
+                draw_end_stats(&state.units, &state.data_store.as_ref().unwrap());
+
                 if winner_idx == 0 {
                     //then you win
                     draw_end_animation(Some(true));

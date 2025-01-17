@@ -10,6 +10,7 @@ use deckbuilder::*;
 use os::server;
 use rng::*;
 use std::cmp::{max, Ordering};
+use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::fmt::{format, Display};
 use std::str::FromStr;
@@ -663,6 +664,65 @@ fn old_go(mut state: &mut GameState) {
             if let Ok(msg) = std::str::from_utf8(&event.data) {
                 text!(msg, x = 10, y = 100, font = Font::L);
             }
+        }
+    }
+}
+
+fn draw_end_stats(units: &Vec<Unit>, data_store: &UnitDataStore) {
+    let mut team_units: BTreeMap<(String, i32), Vec<&Unit>> = BTreeMap::new();
+    for unit in units {
+        team_units
+            .entry((unit.unit_type.clone(), unit.team))
+            .or_default()
+            .push(unit);
+    }
+
+    for team in [0, 1] {
+        let pos = if team == 0 { (10, 80) } else { (270, 80) };
+
+        rect!(
+            x = pos.0,
+            y = pos.1,
+            h = 100,
+            w = 100,
+            color = DARK_GRAY,
+            border_color = OFF_BLACK,
+            border_radius = 6,
+            border_width = 2
+        );
+
+        let mut y_offset = pos.1 + 10;
+
+        power_text!("Unit", x = pos.0 + 5, y = y_offset, underline = true);
+        power_text!("Damage", x = pos.0 + 50, y = y_offset, underline = true);
+        y_offset += 15;
+
+        for ((unit_type, t), units) in team_units.iter() {
+            if *t != team {
+                continue;
+            }
+
+            let data = data_store.data.get(&**unit_type);
+            let x_adj = data.unwrap().bounding_box.0;
+            let y_adj = data.unwrap().bounding_box.1;
+            let sw = data.unwrap().sprite_width;
+
+            let count = units.len();
+            let total_damage: u32 = units.iter().map(|u| u.stats.damage_dealt).sum();
+
+            let count_text = format!("{}", count);
+            let sprite_name = format!("{}_idle", unit_type);
+            sprite!(
+                &sprite_name,
+                x = pos.0 - x_adj as usize + 16,
+                y = y_offset - y_adj as usize,
+                sw = sw,
+            );
+            let damage_text = format!("{}", total_damage);
+
+            text!(&count_text, x = pos.0 + 5, y = y_offset);
+            text!(&damage_text, x = pos.0 + 60, y = y_offset);
+            y_offset += 12;
         }
     }
 }

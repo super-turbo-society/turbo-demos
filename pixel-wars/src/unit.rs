@@ -727,6 +727,7 @@ impl Unit {
                 }
             }
             damage = damage.min(self.health);
+            turbo::println!("Damage: {}", damage);
             self.apply_damage(damage);
 
             //apply status effect
