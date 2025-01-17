@@ -457,53 +457,6 @@ pub fn dbgo(state: &mut GameState) {
                 }
             }
             if ready_to_transition {
-                // Handle FlameWard effects
-                if state
-                    .artifacts
-                    .iter()
-                    .any(|a| a.artifact_kind == ArtifactKind::FlameWard)
-                {
-                    for unit in &mut state.units {
-                        if unit.team == 0
-                            && !unit.data.attributes.contains(&Attribute::FireResistance)
-                        {
-                            unit.data.attributes.push(Attribute::FireResistance);
-                        }
-                    }
-                }
-
-                // Handle TrapArtist effects
-                if state
-                    .artifacts
-                    .iter()
-                    .any(|a| a.artifact_kind == ArtifactKind::TrapArtist)
-                {
-                    let trap_artifact = state
-                        .artifacts
-                        .iter()
-                        .find(|a| a.artifact_kind == ArtifactKind::TrapArtist)
-                        .unwrap();
-
-                    if let ArtifactConfig::TrapBoard { num_traps } = trap_artifact.config {
-                        let mut i = 0;
-                        while i < num_traps {
-                            let t = create_trap(&mut state.rng);
-                            state.traps.push(t);
-                            i += 1;
-                        }
-                    }
-                }
-                if state
-                    .artifacts
-                    .iter()
-                    .any(|a| a.artifact_kind == ArtifactKind::ShotOutACannon)
-                {
-                    for unit in &mut state.units {
-                        if unit.team == 0 {
-                            unit.start_haste();
-                        }
-                    }
-                }
                 state.dbphase = DBPhase::Battle;
             }
         }
@@ -526,7 +479,17 @@ pub fn dbgo(state: &mut GameState) {
         DBPhase::Battle => {
             set_cam!(x = 192, y = 108);
             if state.battle_countdown_timer > 0 {
+                //this happens once at the start of battle phase
+                turbo::println!("BATTLE SET UP");
                 if state.battle_countdown_timer == BATTLE_COUNTDOWN_TIME {
+                    turbo::println!("BATTLE SET UP");
+                    //handle start of battle artifacts
+                    apply_start_of_battle_artifacts(
+                        &mut state.units,
+                        &mut state.traps,
+                        &mut state.rng,
+                        &mut state.artifacts,
+                    );
                     for u in &mut state.units {
                         if u.pos.0 > 100. {
                             if let Some(display) = u.display.as_mut() {
@@ -1081,7 +1044,7 @@ impl Artifact {
                 ArtifactConfig::SuddenFright {
                     chance_to_occur: 40,
                 },
-                String::from(""),
+                String::from("Some enemies will flee for no reason"),
             ),
             _ => panic!("Unknown artifact kind"),
         };

@@ -719,8 +719,6 @@ impl Unit {
     pub fn take_attack(&mut self, attack: &Attack, rng: &mut RNG) -> f32 {
         let mut damage = attack.damage;
         if self.state != UnitState::Dead {
-            //TODO: calculate any damage reduction here
-
             if self.data.has_attribute(&Attribute::Shielded) {
                 if damage > 10.0 {
                     damage = (damage - 10.0) + (10.0 * 0.5);

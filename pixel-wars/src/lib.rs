@@ -23,7 +23,7 @@ const DAMAGE_EFFECT_TIME: u32 = 12;
 //avg number of units to balance each generated team around
 const TEAM_POWER_MULTIPLIER: f32 = 25.0;
 const TEAM_SELECTION_TIME: u32 = 3600;
-const BATTLE_COUNTDOWN_TIME: u32 = 0;
+const BATTLE_COUNTDOWN_TIME: u32 = 1;
 const TEAM_NAMES: [&str; 12] = [
     "Pixel Peeps",
     "Battle Bois",
@@ -1083,7 +1083,7 @@ fn step_through_battle(
                 }
             }
         }
-        //do something to create trample attacks here
+
         if let AttackStrategy::Trample { ref mut target } = unit.attack_strategy {
             let collision_indices = overlapping_enemy_indices(&unit, &units_clone);
 
@@ -1182,6 +1182,7 @@ fn step_through_battle(
                         units.iter().position(|u| u.id == attack.target_unit_id)
                     {
                         let unit = &mut units[unit_index];
+                        //TODO: If any artifacts effect damage on this end, add them in here
                         let damage = unit.take_attack(&attack, rng);
                         total_damage += damage;
                         if unit.health <= 0. {
@@ -1294,8 +1295,46 @@ fn step_through_battle(
     }
 }
 
+fn apply_start_of_battle_artifacts(
+    units: &mut Vec<Unit>,
+    traps: &mut Vec<Trap>,
+    rng: &mut RNG,
+    artifacts: &Vec<Artifact>,
+) {
+    turbo::println!("ARTIFACTS: {:?}", artifacts);
+    let team_artifacts: Vec<(ArtifactKind, i32)> = artifacts
+        .iter()
+        .map(|a| (a.artifact_kind, a.team))
+        .collect();
+
+    for unit in units.iter_mut() {
+        if team_artifacts.contains(&(ArtifactKind::FlameWard, unit.team)) {
+            unit.data.attributes.push(Attribute::FireResistance);
+            turbo::println!("APPLYING FLAME WARD");
+        }
+        if team_artifacts.contains(&(ArtifactKind::ShotOutACannon, unit.team)) {
+            unit.start_haste();
+        }
+    }
+
+    // Handle traps separately
+    if let Some(trap_artifact) = artifacts
+        .iter()
+        .find(|a| a.artifact_kind == ArtifactKind::TrapArtist)
+    {
+        if let ArtifactConfig::TrapBoard { num_traps } = trap_artifact.config {
+            for _ in 0..num_traps {
+                traps.push(create_trap(rng));
+            }
+        }
+    }
+}
+
 fn apply_idle_artifacts(unit: &mut Unit, rng: &mut RNG, artifacts: &Vec<Artifact>) {
     for artifact in artifacts {
+        if artifact.team != unit.team {
+            continue;
+        }
         match artifact.artifact_kind {
             ArtifactKind::SeeingGhosts => {
                 if let ArtifactConfig::SuddenFright { chance_to_occur } = artifact.config {
@@ -1315,60 +1354,71 @@ fn modify_damage_from_artifacts(
     artifacts: &Vec<Artifact>,
 ) -> Attack {
     // Go through each artifact
-    for artifact in artifacts {
-        match artifact.artifact_kind {
-            ArtifactKind::StrenghtOfTheFallen => {
-                // Count dead friendly units
-                let dead_count = units
-                    .iter()
-                    .filter(|u| u.health <= 0. && u.team == 0)
-                    .count();
-
-                if let ArtifactConfig::DeadUnitDamageBoost { percent_per_unit } = artifact.config {
-                    // Increase damage by config percentage for each dead unit
-                    let damage_multiplier = 1.0 + (dead_count as f32 * percent_per_unit / 100.0);
-                    //turbo::println!("Unboosted Damage: {}", attack.damage);
-                    attack.damage *= damage_multiplier;
-                    //turbo::println!("Boosted Damage: {}", attack.damage);
-                }
+    if let Some(attacker) = find_unit_by_id(units, attack.owner_id) {
+        for artifact in artifacts {
+            if artifact.team != attacker.team {
+                continue;
             }
+            match artifact.artifact_kind {
+                ArtifactKind::StrenghtOfTheFallen => {
+                    // Count dead friendly units
+                    let dead_count = units
+                        .iter()
+                        .filter(|u| u.health <= 0. && u.team == artifact.team)
+                        .count();
 
-            ArtifactKind::SnipersFocus => {
-                if attack.attributes.contains(&Attribute::Ranged) {
-                    if let Some(target_unit) = find_unit_by_id(units, Some(attack.target_unit_id)) {
-                        if let ArtifactConfig::DistanceDamageBoost { percent_per_pixel } =
-                            artifact.config
-                        {
-                            // Calculate distance between attack position and target
-                            let dx = (target_unit.pos.0 - attack.pos.0) as f32;
-                            let dy = (target_unit.pos.1 - attack.pos.1) as f32;
-                            let distance = (dx * dx + dy * dy).sqrt();
-
-                            // Increase damage based on distance
-                            let damage_multiplier = 1.0 + (distance * percent_per_pixel / 100.0);
-                            attack.damage *= damage_multiplier;
-                            turbo::println!("Boosted: {}%", (damage_multiplier - 1.0));
-                        }
-                    }
-                }
-            }
-
-            //
-            ArtifactKind::GiantSlayer => {
-                if let Some(target_unit) = find_unit_by_id(units, Some(attack.target_unit_id)) {
-                    if let ArtifactConfig::LargeUnitDamageBoost {
-                        boost_factor,
-                        health_amount,
-                    } = artifact.config
+                    if let ArtifactConfig::DeadUnitDamageBoost { percent_per_unit } =
+                        artifact.config
                     {
-                        if target_unit.data.max_health >= health_amount {
-                            attack.damage *= boost_factor;
-                            turbo::println!("Boosted Large Unit Attack");
+                        // Increase damage by config percentage for each dead unit
+                        let damage_multiplier =
+                            1.0 + (dead_count as f32 * percent_per_unit / 100.0);
+                        //turbo::println!("Unboosted Damage: {}", attack.damage);
+                        attack.damage *= damage_multiplier;
+                        //turbo::println!("Boosted Damage: {}", attack.damage);
+                    }
+                }
+
+                ArtifactKind::SnipersFocus => {
+                    if attack.attributes.contains(&Attribute::Ranged) {
+                        if let Some(target_unit) =
+                            find_unit_by_id(units, Some(attack.target_unit_id))
+                        {
+                            if let ArtifactConfig::DistanceDamageBoost { percent_per_pixel } =
+                                artifact.config
+                            {
+                                // Calculate distance between attack position and target
+                                let dx = (target_unit.pos.0 - attack.pos.0) as f32;
+                                let dy = (target_unit.pos.1 - attack.pos.1) as f32;
+                                let distance = (dx * dx + dy * dy).sqrt();
+
+                                // Increase damage based on distance
+                                let damage_multiplier =
+                                    1.0 + (distance * percent_per_pixel / 100.0);
+                                attack.damage *= damage_multiplier;
+                                turbo::println!("Boosted: {}%", (damage_multiplier - 1.0));
+                            }
                         }
                     }
                 }
+
+                //
+                ArtifactKind::GiantSlayer => {
+                    if let Some(target_unit) = find_unit_by_id(units, Some(attack.target_unit_id)) {
+                        if let ArtifactConfig::LargeUnitDamageBoost {
+                            boost_factor,
+                            health_amount,
+                        } = artifact.config
+                        {
+                            if target_unit.data.max_health >= health_amount {
+                                attack.damage *= boost_factor;
+                                turbo::println!("Boosted Large Unit Attack");
+                            }
+                        }
+                    }
+                }
+                _ => {}
             }
-            _ => {}
         }
     }
 
