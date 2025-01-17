@@ -218,7 +218,7 @@ impl Unit {
         if display.damage_effect_timer > 0 {
             display.animator.change_tint_color(DAMAGE_TINT_RED);
             display.damage_effect_timer -= 1;
-        } else if self.health <= 0. {
+        } else if self.health <= 0. && display.animator.is_done() {
             display.animator.change_tint_color(0xFFFFFF80);
         } else if self.state == UnitState::Frozen {
             display.animator.change_tint_color(0xB0E2FF98);
@@ -812,6 +812,8 @@ impl Unit {
                 new_splatter.set_anim(name, 16, 4, UNIT_ANIM_SPEED, false);
                 self.display.as_mut().unwrap().blood_splatter = Some(new_splatter);
             }
+        } else {
+            damage = 0.0;
         }
         damage
     }

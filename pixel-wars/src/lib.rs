@@ -1243,6 +1243,7 @@ fn step_through_battle(
                     {
                         let unit = &mut units[unit_index];
                         //TODO: If any artifacts effect damage on this end, add them in here
+
                         let damage = unit.take_attack(&attack, rng);
                         total_damage += damage;
                         if unit.health <= 0. {
@@ -1390,14 +1391,13 @@ fn apply_start_of_battle_artifacts(
 
 fn apply_idle_artifacts(unit: &mut Unit, rng: &mut RNG, artifacts: &Vec<Artifact>) {
     for artifact in artifacts {
-        if artifact.team != unit.team {
-            continue;
-        }
         match artifact.artifact_kind {
             ArtifactKind::SeeingGhosts => {
-                if let ArtifactConfig::SuddenFright { chance_to_occur } = artifact.config {
-                    if rng.next() % chance_to_occur == 0 {
-                        unit.attack_strategy = AttackStrategy::Flee { timer: (5) };
+                if artifact.team != unit.team {
+                    if let ArtifactConfig::SuddenFright { chance_to_occur } = artifact.config {
+                        if rng.next() % chance_to_occur == 0 {
+                            unit.attack_strategy = AttackStrategy::Flee { timer: (5) };
+                        }
                     }
                 }
             }
