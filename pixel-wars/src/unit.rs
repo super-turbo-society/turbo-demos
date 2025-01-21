@@ -218,6 +218,7 @@ impl Unit {
         if display.damage_effect_timer > 0 {
             display.animator.change_tint_color(DAMAGE_TINT_RED);
             display.damage_effect_timer -= 1;
+            //fade out if they are dead and animation is done
         } else if self.health <= 0. && display.animator.is_done() {
             display.animator.change_tint_color(0xFFFFFF80);
         } else if self.state == UnitState::Frozen {
