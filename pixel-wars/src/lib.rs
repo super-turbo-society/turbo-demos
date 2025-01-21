@@ -709,20 +709,38 @@ fn draw_end_stats(units: &Vec<Unit>, data_store: &UnitDataStore) {
             let y_adj = data.unwrap().bounding_box.1;
             let sw = data.unwrap().sprite_width;
 
-            let count = units.len();
+            let total_count = units.len();
+            let living_count = units.iter().filter(|u| u.health > 0.0).count();
             let total_damage: u32 = units.iter().map(|u| u.stats.damage_dealt).sum();
 
-            let count_text = format!("{}", count);
-            let sprite_name = format!("{}_idle", unit_type);
+            let count_text: String = if total_count == living_count {
+                format!("")
+            } else {
+                format!("{}", total_count)
+            };
+            let living_text: String = if living_count == 0 {
+                format!("")
+            } else {
+                format!("{}", living_count)
+            };
+
+            let sprite_name = format!("{}_attack", unit_type);
             sprite!(
                 &sprite_name,
-                x = pos.0 - x_adj as usize + 16,
+                x = pos.0 - x_adj as usize + 24,
                 y = y_offset - y_adj as usize,
                 sw = sw,
             );
             let damage_text = format!("{}", total_damage);
 
-            text!(&count_text, x = pos.0 + 5, y = y_offset);
+            power_text!(
+                &count_text,
+                x = pos.0 + 5,
+                y = y_offset,
+                strikethrough = true,
+                color = DAMAGE_TINT_RED,
+            );
+            text!(&living_text, x = pos.0 + 12, y = y_offset);
             text!(&damage_text, x = pos.0 + 60, y = y_offset);
             y_offset += 12;
         }
@@ -3291,6 +3309,7 @@ macro_rules! power_text {
        let mut absolute: bool = false;
        let mut drop_shadow: Option<u32> = None;
        let mut underline: bool = false;
+       let mut strikethrough: bool = false;
        let mut center_width: Option<i32> = None;  // Width of area to center within
 
        $($crate::paste::paste!{ [< $key >] = power_text!(@coerce $key, $val); })*
@@ -3348,6 +3367,14 @@ macro_rules! power_text {
 
         }
        }
+
+       if strikethrough{
+        if $text.len() != 0{
+        let  text_width = char_width * $text.len() as i32 + 1;
+
+        rect!(x =x-1, y = y + char_height/2, color = color, w = text_width, h = 1);
+        }
+       }
    }};
 
    // Add coercion rules for new parameters
@@ -3358,5 +3385,7 @@ macro_rules! power_text {
    (@coerce color, $val:expr) => { $val as u32 };
    (@coerce drop_shadow, $val:expr) => { Some($val as u32) };
    (@coerce underline, $val:expr) => { $val as bool };
+   (@coerce strikethrough, $val:expr) => { $val as bool };
    (@coerce center_width, $val:expr) => { Some($val as i32) };
+
 }

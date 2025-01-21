@@ -659,6 +659,8 @@ pub fn dbgo(state: &mut GameState) {
                 false,
                 is_chosen_team,
             );
+
+            //TODO: Move all this into the wrap_up game state and transition on winner = some
             let mut text = "Click to Play Again";
             if let Some(winner_idx) = has_some_team_won(&state.units) {
                 for u in &mut state.units {
@@ -668,23 +670,20 @@ pub fn dbgo(state: &mut GameState) {
                 //draw end game stats
                 draw_end_stats(&state.units, &state.data_store.as_ref().unwrap());
 
-                if winner_idx == 0 {
-                    //then you win
-                    draw_end_animation(Some(true));
-                    if m.left.just_pressed() {
-                        //if you are playing a sandbox game, go back to sandbox mode and keep the current teams
-                        if state.is_playing_sandbox_game {
-                            let teams = state.teams.clone();
-                            let artifacts = state.artifacts.clone();
-                            *state = GameState::default();
-                            state.teams = teams;
-                            state.artifacts = artifacts;
-                            state.dbphase = DBPhase::Sandbox;
-                        } else {
-                            //go to next round
+                if m.left.just_pressed() {
+                    if state.is_playing_sandbox_game {
+                        // Return to sandbox with current teams
+                        let teams = state.teams.clone();
+                        let artifacts = state.artifacts.clone();
+                        *state = GameState::default();
+                        state.teams = teams;
+                        state.artifacts = artifacts;
+                        state.dbphase = DBPhase::Sandbox;
+                    } else {
+                        // Handle win/loss
+                        if winner_idx == 0 {
+                            // Win: proceed to next round
                             let mut your_team = state.teams[0].clone();
-
-                            // Create a new Vec with just the living units' types
                             let living_unit_types: Vec<String> = state
                                 .units
                                 .iter()
@@ -692,7 +691,6 @@ pub fn dbgo(state: &mut GameState) {
                                 .map(|unit| unit.unit_type.clone())
                                 .collect();
 
-                            // Replace your_team's units with just the living ones
                             your_team.units = living_unit_types;
                             let artifacts = state.artifacts.clone();
                             let r = state.round + 1;
@@ -700,17 +698,21 @@ pub fn dbgo(state: &mut GameState) {
                             state.teams.push(your_team);
                             state.round = r;
                             state.artifacts = artifacts;
+                        } else {
+                            // Loss: reset game
+                            *state = GameState::default();
                         }
                     }
+                }
+
+                // Draw appropriate end animation and text
+                if winner_idx == 0 {
+                    draw_end_animation(Some(true));
                     text = "Click to Continue";
                 } else {
-                    //then you lose
                     draw_end_animation(Some(false));
-                    if m.left.just_pressed() {
-                        *state = GameState::default();
-                    }
                 }
-                //show some text for what to do next
+
                 power_text!(
                     &text,
                     x = 0,
