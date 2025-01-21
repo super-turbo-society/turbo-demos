@@ -468,12 +468,16 @@ pub fn dbgo(state: &mut GameState) {
                     &mut state.rng,
                     &state.data_store.as_ref().unwrap(),
                 );
+                state.is_playing_sandbox_game = true;
                 state.dbphase = DBPhase::Battle;
             }
             if gp.down.pressed() {
                 set_cam!(y = cam!().1 + 3);
             } else if gp.up.pressed() {
                 set_cam!(y = cam!().1 - 3);
+            } else if gp.left.just_pressed() {
+                *state = GameState::default();
+                set_cam!(x = 192, y = 108);
             }
         }
         DBPhase::Battle => {
@@ -667,27 +671,36 @@ pub fn dbgo(state: &mut GameState) {
                 if winner_idx == 0 {
                     //then you win
                     draw_end_animation(Some(true));
-
                     if m.left.just_pressed() {
-                        //go to next round
-                        let mut your_team = state.teams[0].clone();
+                        //if you are playing a sandbox game, go back to sandbox mode and keep the current teams
+                        if state.is_playing_sandbox_game {
+                            let teams = state.teams.clone();
+                            let artifacts = state.artifacts.clone();
+                            *state = GameState::default();
+                            state.teams = teams;
+                            state.artifacts = artifacts;
+                            state.dbphase = DBPhase::Sandbox;
+                        } else {
+                            //go to next round
+                            let mut your_team = state.teams[0].clone();
 
-                        // Create a new Vec with just the living units' types
-                        let living_unit_types: Vec<String> = state
-                            .units
-                            .iter()
-                            .filter(|unit| unit.team == 0 && unit.health > 0.0)
-                            .map(|unit| unit.unit_type.clone())
-                            .collect();
+                            // Create a new Vec with just the living units' types
+                            let living_unit_types: Vec<String> = state
+                                .units
+                                .iter()
+                                .filter(|unit| unit.team == 0 && unit.health > 0.0)
+                                .map(|unit| unit.unit_type.clone())
+                                .collect();
 
-                        // Replace your_team's units with just the living ones
-                        your_team.units = living_unit_types;
-                        let artifacts = state.artifacts.clone();
-                        let r = state.round + 1;
-                        *state = GameState::default();
-                        state.teams.push(your_team);
-                        state.round = r;
-                        state.artifacts = artifacts;
+                            // Replace your_team's units with just the living ones
+                            your_team.units = living_unit_types;
+                            let artifacts = state.artifacts.clone();
+                            let r = state.round + 1;
+                            *state = GameState::default();
+                            state.teams.push(your_team);
+                            state.round = r;
+                            state.artifacts = artifacts;
+                        }
                     }
                     text = "Click to Continue";
                 } else {

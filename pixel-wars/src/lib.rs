@@ -102,6 +102,7 @@ turbo::init! {
         previous_battle: Option<Battle>,
         battle_countdown_timer: u32,
         battle_simulation_requested: bool,
+        is_playing_sandbox_game: bool,
     } = {
         Self {
             transition: None,
@@ -138,6 +139,7 @@ turbo::init! {
             previous_battle: None,
             battle_countdown_timer: BATTLE_COUNTDOWN_TIME,
             battle_simulation_requested: false,
+            is_playing_sandbox_game: false,
         }
     }
 }
@@ -1243,7 +1245,6 @@ fn step_through_battle(
                     {
                         let unit = &mut units[unit_index];
                         //TODO: If any artifacts effect damage on this end, add them in here
-
                         let damage = unit.take_attack(&attack, rng);
                         total_damage += damage;
                         if unit.health <= 0. {
