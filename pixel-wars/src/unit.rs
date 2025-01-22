@@ -1022,6 +1022,7 @@ pub enum Attribute {
     Berserk,
     Stealth,
     Trample,
+    Large,
 }
 
 impl FromStr for Attribute {
@@ -1044,6 +1045,7 @@ impl FromStr for Attribute {
             "Berserk" => Ok(Attribute::Berserk),
             "Stealth" => Ok(Attribute::Stealth),
             "Trample" => Ok(Attribute::Trample),
+            "Large" => Ok(Attribute::Large),
             _ => Err(format!("Unknown attribute: {}", s)),
         }
     }

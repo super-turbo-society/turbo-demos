@@ -1169,7 +1169,7 @@ fn step_through_battle(
 
             if collision_indices
                 .iter()
-                .any(|&i| units_clone[i].data.sprite_width > 16)
+                .any(|&i| units_clone[i].data.has_attribute(&Attribute::Large))
             {
                 unit.attack_strategy = AttackStrategy::AttackClosest;
                 unit.state = UnitState::Idle;
@@ -1482,12 +1482,10 @@ fn modify_damage_from_artifacts(
                 //
                 ArtifactKind::GiantSlayer => {
                     if let Some(target_unit) = find_unit_by_id(units, Some(attack.target_unit_id)) {
-                        if let ArtifactConfig::LargeUnitDamageBoost {
-                            boost_factor,
-                            health_amount,
-                        } = artifact.config
+                        if let ArtifactConfig::LargeUnitDamageBoost { boost_factor } =
+                            artifact.config
                         {
-                            if target_unit.data.max_health >= health_amount {
+                            if target_unit.data.has_attribute(&Attribute::Large) {
                                 attack.damage *= boost_factor;
                                 turbo::println!("Boosted Large Unit Attack");
                             }

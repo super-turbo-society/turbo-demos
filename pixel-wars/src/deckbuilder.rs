@@ -640,12 +640,13 @@ pub fn dbgo(state: &mut GameState) {
                 true,
                 is_chosen_team,
             );
-            //draw team0 artifacts start from left side of the bar
-            for (i, a) in state.artifacts.clone().iter().enumerate() {
-                let x_offset = i as i32 * 16; // 16 pixels right for each item
+            //draw team0 artifacts
+            for (i, a) in state.artifacts.iter().filter(|a| a.team == 0).enumerate() {
+                let x_offset = i as i32 * 16;
                 let pos = (team_0_pos.0 as i32 + x_offset, team_0_pos.1 as i32 + 14);
                 a.draw_sprite_scaled(pos, 0.5);
             }
+
             is_chosen_team = false;
             if state.selected_team_index == Some(1) {
                 is_chosen_team = true;
@@ -659,6 +660,15 @@ pub fn dbgo(state: &mut GameState) {
                 false,
                 is_chosen_team,
             );
+            //draw team1 artifacts
+            for (i, a) in state.artifacts.iter().filter(|a| a.team == 1).enumerate() {
+                let x_offset = i as i32 * 16;
+                let pos = (
+                    team_1_pos.0 as i32 + x_offset + 60,
+                    team_1_pos.1 as i32 + 14,
+                );
+                a.draw_sprite_scaled(pos, 0.5);
+            }
 
             //TODO: Move all this into the wrap_up game state and transition on winner = some
             let mut text = "Click to Play Again";
@@ -970,29 +980,14 @@ pub fn initialize_first_team(data_store: UnitDataStore) -> Team {
 //artifacts
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 pub enum ArtifactConfig {
-    DeadUnitDamageBoost {
-        percent_per_unit: f32,
-    },
-    DistanceDamageBoost {
-        percent_per_pixel: f32,
-    },
-    FireResistance {
-        resistance_percent: f32,
-    },
-    TrapBoard {
-        num_traps: u8,
-    },
+    DeadUnitDamageBoost { percent_per_unit: f32 },
+    DistanceDamageBoost { percent_per_pixel: f32 },
+    FireResistance { resistance_percent: f32 },
+    TrapBoard { num_traps: u8 },
     TeamHaste,
-    LifeSteal {
-        steal_factor: f32,
-    },
-    LargeUnitDamageBoost {
-        boost_factor: f32,
-        health_amount: f32,
-    },
-    SuddenFright {
-        chance_to_occur: u32,
-    },
+    LifeSteal { steal_factor: f32 },
+    LargeUnitDamageBoost { boost_factor: f32 },
+    SuddenFright { chance_to_occur: u32 },
 }
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone, Copy, EnumIter)]
@@ -1051,10 +1046,7 @@ impl Artifact {
                 String::from("Suck life from your enemies"),
             ),
             ArtifactKind::GiantSlayer => (
-                ArtifactConfig::LargeUnitDamageBoost {
-                    boost_factor: 2.0,
-                    health_amount: 80.0,
-                },
+                ArtifactConfig::LargeUnitDamageBoost { boost_factor: 2.0 },
                 String::from("Deal double damage to large enemies"),
             ),
             ArtifactKind::SeeingGhosts => (
