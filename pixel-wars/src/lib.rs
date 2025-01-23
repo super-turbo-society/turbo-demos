@@ -1252,7 +1252,7 @@ fn step_through_battle(
         //go through attacks and update, then draw
         attacks.retain_mut(|attack| {
             let should_keep = !attack.update(&units_clone);
-            //attack.draw();
+            attack.draw();
             if !should_keep {
                 let mut total_damage = 0.0;
                 let mut kills = 0;
