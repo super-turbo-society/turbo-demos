@@ -298,10 +298,10 @@ impl Unit {
                 };
             }
         } else {
-            let target_chance = 6;
-            if rng.next() % target_chance == 0 {
-                self.attack_strategy = AttackStrategy::SeekTarget;
-            }
+            // let target_chance = 6;
+            // if rng.next() % target_chance == 0 {
+            //     self.attack_strategy = AttackStrategy::SeekTarget;
+            // }
         }
         if self.data.has_attribute(&Attribute::Defender) {
             self.attack_strategy = AttackStrategy::Defend {
@@ -855,6 +855,11 @@ impl Unit {
             size,
             self.data.attributes.clone(),
         );
+        if attack.attributes.contains(&Attribute::ExplosiveAttack) {
+            log!("Explosive Attack Created");
+        } else {
+            log!("Non explosive attack");
+        }
         attack
     }
 
@@ -1023,6 +1028,7 @@ pub enum Attribute {
     Stealth,
     Trample,
     Large,
+    ParabolicAttack,
 }
 
 impl FromStr for Attribute {
@@ -1046,6 +1052,7 @@ impl FromStr for Attribute {
             "Stealth" => Ok(Attribute::Stealth),
             "Trample" => Ok(Attribute::Trample),
             "Large" => Ok(Attribute::Large),
+            "ParabolicAttack" => Ok(Attribute::ParabolicAttack),
             _ => Err(format!("Unknown attribute: {}", s)),
         }
     }

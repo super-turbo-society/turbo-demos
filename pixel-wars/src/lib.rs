@@ -1268,7 +1268,6 @@ fn step_through_battle(
                         if unit.health <= 0. {
                             kills += 1;
                             if unit.data.has_attribute(&Attribute::ExplodeOnDeath) {
-                                //this needs to be calculated from unit size
                                 let explosion_offset = (-8., -24.);
                                 // if unit.flip_x() {
                                 //     explosion_offset.0 = -8.;
@@ -1327,7 +1326,7 @@ fn step_through_battle(
                     explosion.set_anim("explosion".to_string(), 32, 14, 5, false);
                     explosions.push(explosion);
                     //make a crater
-                    let crater_pos = (explosion_pos.0 + 16., explosion_pos.1 + 16.);
+                    let crater_pos = (explosion_pos.0, explosion_pos.1);
                     let mut crater = AnimatedSprite::new(crater_pos, false);
 
                     crater.set_anim("crater_01".to_string(), 16, 1, 1, true);
@@ -1791,6 +1790,9 @@ struct Attack {
     splash_area: f32,
     size: i32,
     attributes: Vec<Attribute>,
+    start_pos: (f32, f32),
+    elapsed_frames: f32,
+    initial_distance: f32,
 }
 
 impl Attack {
@@ -1814,42 +1816,73 @@ impl Attack {
             splash_area,
             size,
             attributes,
+            start_pos: pos,
+            elapsed_frames: 0.0,
+            initial_distance: 0.0,
         }
     }
     fn update(&mut self, units: &Vec<Unit>) -> bool {
-        let distance = 0.;
-
         // Get the target unit's position
         let target_unit = find_unit_by_id(units, Some(self.target_unit_id));
         if target_unit.is_some() {
-            let target_position = target_unit.unwrap().pos;
+            if self.attributes.contains(&Attribute::ParabolicAttack) {
+                let target_position = target_unit.unwrap().pos;
+                // Move as a parabola
+                if self.elapsed_frames == 0.0 {
+                    // Initialize on first update
+                    let dx = target_position.0 - self.pos.0;
+                    let dy = target_position.1 - self.pos.1;
+                    self.initial_distance = (dx * dx + dy * dy).sqrt();
+                }
+                self.elapsed_frames += 1.0;
+                let flight_duration = self.initial_distance / self.speed;
+                let t = self.elapsed_frames / flight_duration;
+                let eased_t = t;
+                if t >= 1.0 {
+                    self.pos = target_position;
+                    return true;
+                }
+                let dx = target_position.0 - self.start_pos.0;
+                self.pos.0 = self.start_pos.0 + (dx * eased_t);
 
-            // Calculate the direction vector towards the target
-            let direction_x = target_position.0 - self.pos.0;
-            let direction_y = target_position.1 - self.pos.1;
+                // Parabolic arc for vertical movement
+                let height_factor = -0.6; // Maximum height relative to distance
+                let parabola =
+                    4.0 * height_factor * self.initial_distance * (eased_t - eased_t * eased_t);
+                self.pos.1 = self.start_pos.1 + parabola;
+            } else {
+                let target_position = target_unit.unwrap().pos;
 
-            // Calculate the distance to the target
-            let distance = (direction_x * direction_x + direction_y * direction_y).sqrt();
+                // Calculate the direction vector towards the target
+                let direction_x = target_position.0 - self.pos.0;
+                let direction_y = target_position.1 - self.pos.1;
 
-            // Normalize the direction vector and scale by speed
-            if distance > 0.0 {
-                self.pos.0 += self.speed * (direction_x / distance);
-                self.pos.1 += self.speed * (direction_y / distance);
+                // Calculate the distance to the target
+                let distance = (direction_x * direction_x + direction_y * direction_y).sqrt();
+
+                // Normalize the direction vector and scale by speed
+                if distance > 0.0 {
+                    self.pos.0 += self.speed * (direction_x / distance);
+                    self.pos.1 += self.speed * (direction_y / distance);
+                }
+                //if distance is less than speed, we want to remove the attack and deal the damage
+                return distance <= self.speed;
             }
-            //if distance is less than speed, we want to remove the attack and deal the damage
-            return distance <= self.speed;
         }
+
         false
     }
 
     fn draw(&self) {
-        // Draw a small red circle at the current position (x, y)
-        circ!(
-            x = self.pos.0 as i32,
-            y = self.pos.1 as i32,
-            d = 5 * self.size,
-            color = 0xff0000ff
-        ); // Diameter 5, Red color
+        //only draw the catapult attack
+        if self.attributes.contains(&Attribute::ParabolicAttack) {
+            circ!(
+                x = self.pos.0 as i32,
+                y = self.pos.1 as i32,
+                d = 4 * self.size,
+                color = LIGHT_GRAY
+            );
+        }
     }
 }
 
