@@ -1,9 +1,13 @@
+mod artifact;
+mod attribute;
 mod backend;
 mod deckbuilder;
 mod rng;
 mod trap;
 mod unit;
 
+use artifact::*;
+use attribute::*;
 use backend::*;
 use csv::{Reader, ReaderBuilder};
 use deckbuilder::*;
@@ -15,6 +19,7 @@ use std::collections::HashMap;
 use std::fmt::{format, Display};
 use std::str::FromStr;
 use strum::IntoEnumIterator;
+use strum_macros::Display;
 use strum_macros::EnumIter;
 use trap::*;
 use unit::*;
@@ -218,13 +223,21 @@ turbo::go!({
         state.traps.push(t);
     }
     if gp.b.just_pressed() {
-        for unit in &mut state.units {
-            if unit.data.has_attribute(&Attribute::Trample) {
-                unit.state = UnitState::Idle;
-                unit.attack_strategy = AttackStrategy::Trample { target: None };
-            }
+        // for unit in &mut state.units {
+        //     if unit.data.has_attribute(&Attribute::Trample) {
+        //         unit.state = UnitState::Idle;
+        //         unit.attack_strategy = AttackStrategy::Trample { target: None };
+        //     }
+        // }
+
+        for artifact in &mut state.artifacts {
+            artifact.play_effect();
         }
     }
+
+    //POTENTIAL FLAG FOR SHADER
+    //rect!(color = 0xe3e3ffff, w = 1, h = 1);
+
     state.save();
 });
 
@@ -819,7 +832,7 @@ fn _simulate_battle(state: &mut GameState) {
             &mut state.explosions, //look into a callback to replace this
             &mut state.craters,    //look into a callback to replace this
             &mut state.rng,
-            &Vec::new(),
+            &mut Vec::new(),
         );
         i += 1;
         if i > 10000 {
@@ -868,7 +881,7 @@ fn step_through_battle(
     explosions: &mut Vec<AnimatedSprite>,
     craters: &mut Vec<AnimatedSprite>,
     rng: &mut RNG,
-    artifacts: &Vec<Artifact>,
+    artifacts: &mut Vec<Artifact>,
 ) {
     let units_clone = units.clone();
     //=== MOVEMENT AND ATTACKING ===
@@ -1326,7 +1339,7 @@ fn step_through_battle(
                     explosion.set_anim("explosion".to_string(), 32, 14, 5, false);
                     explosions.push(explosion);
                     //make a crater
-                    let crater_pos = (explosion_pos.0, explosion_pos.1);
+                    let crater_pos = (explosion_pos.0, explosion_pos.1 + 16.0);
                     let mut crater = AnimatedSprite::new(crater_pos, false);
 
                     crater.set_anim("crater_01".to_string(), 16, 1, 1, true);
@@ -1407,7 +1420,7 @@ fn apply_start_of_battle_artifacts(
     }
 }
 
-fn apply_idle_artifacts(unit: &mut Unit, rng: &mut RNG, artifacts: &Vec<Artifact>) {
+fn apply_idle_artifacts(unit: &mut Unit, rng: &mut RNG, artifacts: &mut Vec<Artifact>) {
     for artifact in artifacts {
         match artifact.artifact_kind {
             ArtifactKind::SeeingGhosts => {
@@ -1415,6 +1428,7 @@ fn apply_idle_artifacts(unit: &mut Unit, rng: &mut RNG, artifacts: &Vec<Artifact
                     if let ArtifactConfig::SuddenFright { chance_to_occur } = artifact.config {
                         if rng.next() % chance_to_occur == 0 {
                             unit.attack_strategy = AttackStrategy::Flee { timer: (5) };
+                            artifact.play_effect();
                         }
                     }
                 }
@@ -1436,7 +1450,7 @@ fn modify_damage_from_artifacts(
                 continue;
             }
             match artifact.artifact_kind {
-                ArtifactKind::StrenghtOfTheFallen => {
+                ArtifactKind::StrengthOfTheFallen => {
                     // Count dead friendly units
                     let dead_count = units
                         .iter()
@@ -1874,6 +1888,7 @@ impl Attack {
     }
 
     fn draw(&self) {
+        //log!("attack draw");
         //only draw the catapult attack
         if self.attributes.contains(&Attribute::ParabolicAttack) {
             circ!(
@@ -2685,7 +2700,7 @@ impl Animator {
     }
 
     fn set_cur_anim(&mut self, new_anim: Animation) {
-        if self.cur_anim.name != new_anim.name {
+        if self.cur_anim != new_anim {
             self.cur_anim = new_anim;
             self.anim_timer = 0;
         }

@@ -151,7 +151,7 @@ unsafe extern "C" fn simulate_battle_os() -> usize {
             &mut explosions,
             &mut craters,
             &mut simulation_rng,
-            &Vec::new(),
+            &mut Vec::new(),
         );
         i += 1;
         if let Some(winner_idx) = has_some_team_won(&units) {

@@ -855,11 +855,6 @@ impl Unit {
             size,
             self.data.attributes.clone(),
         );
-        if attack.attributes.contains(&Attribute::ExplosiveAttack) {
-            log!("Explosive Attack Created");
-        } else {
-            log!("Non explosive attack");
-        }
         attack
     }
 
