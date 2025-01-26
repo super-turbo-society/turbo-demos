@@ -3249,7 +3249,7 @@ pub struct Transition {
 
 impl Transition {
     pub fn new(rng: &mut RNG) -> Self {
-        let square_size = 12; // Changed from 24 to 4
+        let square_size = 4; // Changed from 24 to 4
         let cols = 384 / square_size;
         let rows = 216 / square_size;
 
@@ -3271,7 +3271,7 @@ impl Transition {
         // Create randomized order for squares
         let mut squares_to_change: Vec<usize> = (0..squares.len()).collect();
         for i in (1..squares_to_change.len()).rev() {
-            let j = rng.next_in_range(0, i as u32) as usize;
+            let j: usize = rng.next_in_range(0, i as u32) as usize;
             squares_to_change.swap(i, j);
         }
 
@@ -3297,8 +3297,7 @@ impl Transition {
             self.current_timer = 0;
 
             // Change multiple squares per frame
-            for _ in 0..20 {
-                // Do 20 squares at once
+            for _ in 0..150 {
                 if !self.squares_to_change.is_empty() {
                     let square_index = self.squares_to_change.pop().unwrap();
                     self.squares[square_index].opacity =
@@ -3328,12 +3327,18 @@ impl Transition {
 
     pub fn draw(&self) {
         for square in &self.squares {
+            let mut color: usize = 0x3637f0ff;
+            if square.opacity == 0.0 {
+                color = 0x00000000;
+            } else {
+                color = 0x696682ff;
+            }
             rect!(
                 x = square.x,
                 y = square.y,
                 w = self.square_size as f32,
                 h = self.square_size as f32,
-                color = 0x000000 | ((square.opacity * 255.0) as u32),
+                color = color,
             );
         }
     }
