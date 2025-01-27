@@ -15,7 +15,7 @@ tanker,30,200,3,60,200,12,48,1,28,22,18,"ExplodeOnDeath, Stalwart, ExplosiveAtta
 catapult,50,50,2,180,320,12,32,5,15,20,16,"Ranged, ExplosiveAttack, Large, ParabolicAttack"
 zombie,3,50,4,8,40,0,16,3,4,6,10,"PoisonAttack"
 shield,2,100,7,8,40,0,16,2,6,7,9,"Shielded, Defender, Stalwart"
-darkknight,50,250,10,24,40,0,32,5,13,18,14,"Terrifying, Stalwart, Trample, Large"
+darkknight,25,125,10,24,40,0,32,5,13,18,14,"Terrifying, Stalwart, Trample, Large"
 yeti,20,100,6,16,40,0,32,11,18,10,12,"FreezeAttack, Large"
 serpent,7,20,5,8,40,0,32,11,19,8,10,"PoisonAttack"
 igor,30,80,4,8,40,0,32,10,17,12,13,"Stalwart, Terrifying, Large"

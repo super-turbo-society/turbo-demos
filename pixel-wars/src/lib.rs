@@ -910,27 +910,43 @@ fn step_through_battle(
             match unit.attack_strategy {
                 AttackStrategy::AttackClosest => {
                     //find closest enemy
-                    if let Some(target) =
+                    if let Some(closest_target) =
                         find_target(&units_clone, unit.team, unit.pos, TargetPriority::Closest)
                     {
-                        if unit.is_unit_in_range(target) {
+                        if unit.is_unit_in_range(closest_target) {
+                            // In range - determine best target
+                            let target = if unit.data.splash_area > 0.0
+                                && unit.data.has_attribute(&Attribute::Ranged)
+                            {
+                                find_target(
+                                    &units_clone,
+                                    unit.team,
+                                    unit.pos,
+                                    TargetPriority::AreaDensity {
+                                        attack_range: unit.data.range,
+                                        splash_range: unit.data.splash_area,
+                                    },
+                                )
+                                .unwrap_or(closest_target)
+                            } else {
+                                closest_target
+                            };
+
+                            // Attack logic
                             let mut attack = unit.start_attack(target.id);
                             attack = modify_damage_from_artifacts(attack, &units_clone, artifacts);
-
                             attacks.push(attack);
-                            if unit.pos.0 > target.pos.0 {
-                                if let Some(display) = unit.display.as_mut() {
-                                    display.is_facing_left = true;
-                                }
-                            } else {
-                                if let Some(display) = unit.display.as_mut() {
-                                    display.is_facing_left = false;
-                                }
+
+                            // Face direction
+                            if let Some(display) = unit.display.as_mut() {
+                                display.is_facing_left = unit.pos.0 > target.pos.0;
                             }
+                            unit.target_id = target.id;
                         } else {
-                            unit.set_new_target_move_position(&target.pos, rng);
+                            // Not in range - move toward closest
+                            unit.set_new_target_move_position(&closest_target.pos, rng);
+                            unit.target_id = closest_target.id;
                         }
-                        unit.target_id = target.id;
                     }
                 }
                 AttackStrategy::TargetLowestHealth => {
@@ -1298,13 +1314,13 @@ fn step_through_battle(
                 }
                 //if it has splash area, then look for all enemy units within range
                 if attack.splash_area > 0. {
-                    let team = find_unit_by_id(units, Some(attack.target_unit_id))
-                        .unwrap()
-                        .team;
+                    // let team = find_unit_by_id(units, Some(attack.target_unit_id))
+                    //     .unwrap()
+                    //     .team;
                     for unit in &mut *units {
                         if distance_between(attack.pos, unit.pos) <= attack.splash_area
                             && unit.state != UnitState::Dead
-                            && unit.team == team
+                        // && unit.team == team
                         {
                             let damage = unit.take_attack(&attack, rng);
                             total_damage += damage;
@@ -1471,7 +1487,6 @@ fn modify_damage_from_artifacts(
                 }
 
                 ArtifactKind::SnipersFocus => {
-                    //RANDOM TEST
                     if attack.attributes.contains(&Attribute::Ranged) {
                         if let Some(target_unit) =
                             find_unit_by_id(units, Some(attack.target_unit_id))
@@ -1843,28 +1858,38 @@ impl Attack {
         if target_unit.is_some() {
             if self.attributes.contains(&Attribute::ParabolicAttack) {
                 let target_position = target_unit.unwrap().pos;
-                // Move as a parabola
+
                 if self.elapsed_frames == 0.0 {
-                    // Initialize on first update
                     let dx = target_position.0 - self.pos.0;
                     let dy = target_position.1 - self.pos.1;
                     self.initial_distance = (dx * dx + dy * dy).sqrt();
                 }
+
                 self.elapsed_frames += 1.0;
-                let flight_duration = self.initial_distance / self.speed;
+
+                let current_dx = target_position.0 - self.start_pos.0;
+                let current_dy = target_position.1 - self.start_pos.1;
+                let current_distance = (current_dx * current_dx + current_dy * current_dy).sqrt();
+                let flight_duration = current_distance / self.speed;
+
                 let t = self.elapsed_frames / flight_duration;
                 let eased_t = t;
+
                 if t >= 1.0 {
+                    // Add one extra frame at end position
+                    if t < 1.1 {
+                        self.pos = target_position;
+                        return false;
+                    }
                     self.pos = target_position;
                     return true;
                 }
-                let dx = target_position.0 - self.start_pos.0;
-                self.pos.0 = self.start_pos.0 + (dx * eased_t);
 
-                // Parabolic arc for vertical movement
-                let height_factor = -0.6; // Maximum height relative to distance
+                self.pos.0 = self.start_pos.0 + (current_dx * eased_t);
+
+                let height_factor = -0.6;
                 let parabola =
-                    4.0 * height_factor * self.initial_distance * (eased_t - eased_t * eased_t);
+                    4.0 * height_factor * current_distance * (eased_t - eased_t * eased_t);
                 self.pos.1 = self.start_pos.1 + parabola;
             } else {
                 let target_position = target_unit.unwrap().pos;
@@ -1916,6 +1941,10 @@ enum TargetPriority {
     Closest,             // Attack nearest enemy
     Backline,            // Attack ranged units first, then lowest health
     SpecificTarget(u32), // Attack specific unit by ID
+    AreaDensity {
+        attack_range: f32,
+        splash_range: f32,
+    },
 }
 
 // Main targeting function
@@ -2001,6 +2030,25 @@ fn find_target(
                         .find(|u| u.id == id && is_valid_target(u, team))
                 })
         }
+        TargetPriority::AreaDensity {
+            attack_range,
+            splash_range,
+        } => units
+            .iter()
+            .filter(|u| is_valid_target(u, team) && !is_frozen(u))
+            .map(|unit| {
+                let nearby_count = units
+                    .iter()
+                    .filter(|other| {
+                        is_valid_target(other, team)
+                            && distance_between(unit.pos, other.pos) <= splash_range
+                    })
+                    .count();
+                (unit, nearby_count)
+            })
+            .filter(|(unit, _)| distance_between(pos, unit.pos) <= attack_range)
+            .max_by_key(|(_, count)| *count)
+            .map(|(unit, _)| unit),
     }
 }
 
