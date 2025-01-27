@@ -1441,7 +1441,7 @@ fn apply_idle_artifacts(unit: &mut Unit, rng: &mut RNG, artifacts: &mut Vec<Arti
 fn modify_damage_from_artifacts(
     mut attack: Attack,
     units: &Vec<Unit>,
-    artifacts: &Vec<Artifact>,
+    artifacts: &mut Vec<Artifact>,
 ) -> Attack {
     // Go through each artifact
     if let Some(attacker) = find_unit_by_id(units, attack.owner_id) {
@@ -1466,6 +1466,7 @@ fn modify_damage_from_artifacts(
                         //turbo::println!("Unboosted Damage: {}", attack.damage);
                         attack.damage *= damage_multiplier;
                         //turbo::println!("Boosted Damage: {}", attack.damage);
+                        artifact.play_effect();
                     }
                 }
 
@@ -1486,7 +1487,7 @@ fn modify_damage_from_artifacts(
                                 let damage_multiplier =
                                     1.0 + (distance * percent_per_pixel / 100.0);
                                 attack.damage *= damage_multiplier;
-                                turbo::println!("Boosted: {}%", (damage_multiplier - 1.0));
+                                artifact.play_effect();
                             }
                         }
                     }
@@ -1500,7 +1501,7 @@ fn modify_damage_from_artifacts(
                         {
                             if target_unit.data.has_attribute(&Attribute::Large) {
                                 attack.damage *= boost_factor;
-                                turbo::println!("Boosted Large Unit Attack");
+                                artifact.play_effect();
                             }
                         }
                     }

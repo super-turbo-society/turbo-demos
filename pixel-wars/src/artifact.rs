@@ -207,8 +207,6 @@ impl Artifact {
             is_looping: false,
         };
         self.animator.set_cur_anim(anim);
-        log!("animator info: {:?}", self.animator.cur_anim);
-
         self.animator.set_next_anim(Some(next_anim));
     }
 
