@@ -1471,6 +1471,7 @@ fn modify_damage_from_artifacts(
                 }
 
                 ArtifactKind::SnipersFocus => {
+                    //RANDOM TEST
                     if attack.attributes.contains(&Attribute::Ranged) {
                         if let Some(target_unit) =
                             find_unit_by_id(units, Some(attack.target_unit_id))
