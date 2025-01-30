@@ -90,12 +90,15 @@ impl Unit {
             //set your position to the target and switch to idle
         }
         if self.state == UnitState::Moving {
-            //move toward taget pos at some speed
-            self.pos = self.move_towards_target();
-
-            if self.reached_target() {
-                self.state = UnitState::Idle;
+            if self.initial_delay > 0 {
+                self.initial_delay -= 1;
             } else {
+                //move toward taget pos at some speed
+                self.pos = self.move_towards_target();
+
+                if self.reached_target() {
+                    self.state = UnitState::Idle;
+                }
             }
         }
         if self.state == UnitState::Attacking {
@@ -159,8 +162,11 @@ impl Unit {
         };
 
         if self.state == UnitState::Moving || self.state == UnitState::MarchingIn {
-            new_anim.name += "_walk";
-            display.animator.set_cur_anim(new_anim);
+            if self.initial_delay > 0 {
+            } else {
+                new_anim.name += "_walk";
+                display.animator.set_cur_anim(new_anim);
+            }
         } else if self.state == UnitState::Dead {
             new_anim.name += "_death";
             new_anim.is_looping = false;
@@ -310,11 +316,13 @@ impl Unit {
                 timer: 60,
                 defended_unit_id: None,
             };
-        }
-        if self.data.has_attribute(&Attribute::Stealth) {
+        } else if self.data.has_attribute(&Attribute::Stealth) {
             self.attack_strategy = AttackStrategy::TargetLowestHealth;
             let status = Status::Invisible { timer: 6000 };
             self.status_effects.push(status);
+        } else {
+            let delay = rng.next_in_range(0, 100) as u8;
+            self.initial_delay = delay;
         }
     }
 

@@ -483,6 +483,25 @@ pub fn dbgo(state: &mut GameState) {
             }
         }
         DBPhase::Battle => {
+            if state.battle_countdown_timer == BATTLE_COUNTDOWN_TIME {
+                //handle start of battle artifacts
+                apply_start_of_battle_artifacts(
+                    &mut state.units,
+                    &mut state.traps,
+                    &mut state.rng,
+                    &mut state.artifacts,
+                );
+                for u in &mut state.units {
+                    if u.pos.0 > 100. {
+                        if let Some(display) = u.display.as_mut() {
+                            display.is_facing_left = true;
+                        }
+                    }
+                    //Do any special sequencing stuff here
+                    //u.set_march_position();
+                    //probably give them a target, set to moving, and give them a new state like (marching in),
+                }
+            }
             //figure out the length of the simulation
             if state.simulation_result.is_none() {
                 simulate_battle_locally(state);
@@ -495,25 +514,7 @@ pub fn dbgo(state: &mut GameState) {
             // }
             if state.battle_countdown_timer > 0 {
                 //this happens once at the start of battle phase
-                if state.battle_countdown_timer == BATTLE_COUNTDOWN_TIME {
-                    //handle start of battle artifacts
-                    apply_start_of_battle_artifacts(
-                        &mut state.units,
-                        &mut state.traps,
-                        &mut state.rng,
-                        &mut state.artifacts,
-                    );
-                    for u in &mut state.units {
-                        if u.pos.0 > 100. {
-                            if let Some(display) = u.display.as_mut() {
-                                display.is_facing_left = true;
-                            }
-                        }
-                        //Do any special sequencing stuff here
-                        //u.set_march_position();
-                        //probably give them a target, set to moving, and give them a new state like (marching in),
-                    }
-                }
+
                 // for u in &mut state.units {
                 //     u.start_cheering();
                 //     u.update();
@@ -536,6 +537,7 @@ pub fn dbgo(state: &mut GameState) {
                         &mut state.craters,
                         &mut state.rng,
                         &mut state.artifacts,
+                        false,
                     );
                     state.elapsed_frames += 1;
                 }

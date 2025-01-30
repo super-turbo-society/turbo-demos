@@ -102,7 +102,6 @@ turbo::init! {
         zoom_tween_x: Tween<f32>,
         zoom_tween_y: Tween<f32>,
         zoom_tween_z: Tween<f32>,
-        //test variables
         auto_assign_teams: bool,
         user: UserStats,
         last_winning_team: Option<Team>,
@@ -469,6 +468,7 @@ fn old_go(mut state: &mut GameState) {
                         &mut state.craters,
                         &mut state.rng,
                         &mut state.artifacts,
+                        false,
                     );
                 }
             }
@@ -838,7 +838,8 @@ fn simulate_battle_locally(state: &mut GameState) {
             &mut state.explosions, //look into a callback to replace this
             &mut state.craters,    //look into a callback to replace this
             &mut state.rng,
-            &mut Vec::new(),
+            &mut state.artifacts,
+            true,
         );
         i += 1;
         if i > 20000 {
@@ -876,6 +877,7 @@ fn step_through_battle(
     craters: &mut Vec<AnimatedSprite>,
     rng: &mut RNG,
     artifacts: &mut Vec<Artifact>,
+    sim: bool,
 ) {
     let units_clone = units.clone();
     //=== MOVEMENT AND ATTACKING ===
@@ -899,7 +901,7 @@ fn step_through_battle(
                 }
             }
 
-            apply_idle_artifacts(unit, rng, artifacts);
+            apply_idle_artifacts(unit, rng, artifacts, sim);
 
             match unit.attack_strategy {
                 AttackStrategy::AttackClosest => {
@@ -1430,7 +1432,7 @@ fn apply_start_of_battle_artifacts(
     }
 }
 
-fn apply_idle_artifacts(unit: &mut Unit, rng: &mut RNG, artifacts: &mut Vec<Artifact>) {
+fn apply_idle_artifacts(unit: &mut Unit, rng: &mut RNG, artifacts: &mut Vec<Artifact>, sim: bool) {
     for artifact in artifacts {
         match artifact.artifact_kind {
             ArtifactKind::SeeingGhosts => {
