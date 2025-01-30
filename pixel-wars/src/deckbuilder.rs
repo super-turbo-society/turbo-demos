@@ -470,6 +470,7 @@ pub fn dbgo(state: &mut GameState) {
                 );
                 state.is_playing_sandbox_game = true;
                 state.dbphase = DBPhase::Battle;
+                reset_cam();
             }
             if gp.down.pressed() {
                 set_cam!(y = cam!().1 + 3);
@@ -477,11 +478,21 @@ pub fn dbgo(state: &mut GameState) {
                 set_cam!(y = cam!().1 - 3);
             } else if gp.left.just_pressed() {
                 *state = GameState::default();
-                set_cam!(x = 192, y = 108);
+
+                reset_cam();
             }
         }
         DBPhase::Battle => {
-            set_cam!(x = 192, y = 108);
+            //figure out the length of the simulation
+            if state.simulation_result.is_none() {
+                simulate_battle_locally(state);
+            }
+            // } else {
+            //     log!(
+            //         "NUM Frames in sim: {:?}",
+            //         state.simulation_result.as_ref().unwrap().num_frames
+            //     );
+            // }
             if state.battle_countdown_timer > 0 {
                 //this happens once at the start of battle phase
                 if state.battle_countdown_timer == BATTLE_COUNTDOWN_TIME {
@@ -526,9 +537,107 @@ pub fn dbgo(state: &mut GameState) {
                         &mut state.rng,
                         &mut state.artifacts,
                     );
+                    state.elapsed_frames += 1;
                 }
             }
 
+            //check if you are near the end but not finished.
+            //if so zoom into one of the surviving units
+            let max_zoom = 2.0;
+            let zoom_duration = 20;
+            let easing = Easing::EaseInQuad;
+
+            if let Some(s_r) = &state.simulation_result {
+                if state.elapsed_frames > 0
+                    && state.elapsed_frames < s_r.num_frames
+                    && state.elapsed_frames + 120 > s_r.num_frames
+                {
+                    if let Some(winning_team) = s_r.winning_team {
+                        if let Some(unit) = state
+                            .units
+                            .iter()
+                            .find(|u| u.team != winning_team && u.state != UnitState::Dead)
+                        {
+                            //set the tweens if they are 0
+                            if state.zoom_tween_x.get() == 0.0 {
+                                let s = cam!().0 as f32;
+                                state.zoom_tween_x = Tween::new(s);
+                                state.zoom_tween_x.set(unit.pos.0);
+                                state.zoom_tween_x.set_duration(zoom_duration);
+                                state.zoom_tween_x.set_ease(easing);
+                            }
+                            if state.zoom_tween_y.get() == 0.0 {
+                                let s = cam!().1 as f32;
+                                state.zoom_tween_y = Tween::new(s);
+                                state.zoom_tween_y.set(unit.pos.1);
+                                state.zoom_tween_y.set_duration(zoom_duration);
+                                state.zoom_tween_y.set_ease(easing);
+                            }
+                            if state.zoom_tween_z.get() == 0.0 {
+                                state.zoom_tween_z = Tween::new(1.0);
+                                state.zoom_tween_z.set(max_zoom);
+                                state.zoom_tween_z.set_duration(zoom_duration);
+                                state.zoom_tween_z.set_ease(easing);
+                            }
+                            let (x, y, z) = (
+                                state.zoom_tween_x.get(),
+                                state.zoom_tween_y.get(),
+                                state.zoom_tween_z.get(),
+                            );
+                            set_cam!(x = x, y = y, z = z);
+                        }
+                    }
+                } else if state.elapsed_frames > s_r.num_frames {
+                    if state.elapsed_frames == s_r.num_frames + 15 {
+                        log!("RESETTING TWEENS");
+                        let s = cam!().0 as f32;
+                        state.zoom_tween_x = Tween::new(s);
+                        state.zoom_tween_x.set(192.0);
+                        state.zoom_tween_x.set_duration(zoom_duration);
+                        state.zoom_tween_x.set_ease(easing);
+
+                        let s = cam!().1 as f32;
+                        state.zoom_tween_y = Tween::new(s);
+                        state.zoom_tween_y.set(108.0);
+                        state.zoom_tween_y.set_duration(zoom_duration);
+                        state.zoom_tween_y.set_ease(easing);
+
+                        state.zoom_tween_z = Tween::new(max_zoom);
+                        state.zoom_tween_z.set(1.0);
+                        state.zoom_tween_z.set_duration(zoom_duration);
+                        state.zoom_tween_z.set_ease(easing);
+                    }
+                    let (x, y, z) = (
+                        state.zoom_tween_x.get(),
+                        state.zoom_tween_y.get(),
+                        state.zoom_tween_z.get(),
+                    );
+                    set_cam!(x = x, y = y, z = z);
+                }
+            }
+
+            // let team1_count = state
+            //     .units
+            //     .iter()
+            //     .filter(|u| u.team == 0 && u.state != UnitState::Dead)
+            //     .count();
+            // let team2_count = state
+            //     .units
+            //     .iter()
+            //     .filter(|u| u.team == 1 && u.state != UnitState::Dead)
+            //     .count();
+
+            // if team1_count <= 2 || team2_count <= 2 {
+            //     let target_team = if team1_count <= 2 { 0 } else { 1 };
+            //     if let Some(unit) = state
+            //         .units
+            //         .iter()
+            //         .find(|u| u.team == target_team && u.state != UnitState::Dead)
+            //     {
+            //         zoom_cam_to_center_point(unit.pos);
+            //     }
+            // }
+            //if so choose one and zoom into that point
             /////////////
             //Draw Code//
             /////////////
@@ -542,7 +651,6 @@ pub fn dbgo(state: &mut GameState) {
             for u in &mut state.units {
                 for fp in &mut u.display.as_mut().unwrap().footprints {
                     fp.draw();
-                    //format!()
                 }
             }
             for t in &mut state.traps {
@@ -602,15 +710,6 @@ pub fn dbgo(state: &mut GameState) {
                 }
             }
 
-            //Draw round indicator
-            let txt = format!("Round {}/{}", state.round, TOTAL_ROUNDS);
-            let len = txt.len();
-            let char_length = 8;
-            let center_x = canvas_size!()[0] / 2;
-            let text_width = len as u32 * char_length;
-            let x = center_x - (text_width / 2);
-            text!(&txt, x = x, y = 10, font = Font::L, color = OFF_BLACK);
-
             //Draw team health bars
             let mut team0_base_health = 0.0;
             let mut team0_current_health = 0.0;
@@ -626,58 +725,70 @@ pub fn dbgo(state: &mut GameState) {
                     team1_current_health += unit.health as f32;
                 }
             }
-            let mut is_chosen_team = false;
-            if state.selected_team_index == Some(0) {
-                is_chosen_team = true;
+            let mut is_chosen_team = true;
+            if state.selected_team_index == Some(1) {
+                is_chosen_team = false;
             }
             let (team_0_pos, team_1_pos) = ((24.0, 20.0), (232.0, 20.0));
-            // Draw health bar for team 0
-            draw_team_health_bar(
-                team0_base_health,
-                team0_current_health,
-                team_0_pos,
-                &state.teams[0].name.to_uppercase(),
-                true,
-                is_chosen_team,
-            );
-            //draw team0 artifacts
-            for (i, a) in state
-                .artifacts
-                .iter_mut()
-                .filter(|a| a.team == 0)
-                .enumerate()
-            {
-                let x_offset = i as i32 * 16;
-                let pos = (team_0_pos.0 as i32 + x_offset, team_0_pos.1 as i32 + 14);
-                a.draw_sprite_scaled(pos, 0.5);
-            }
-
-            is_chosen_team = false;
-            if state.selected_team_index == Some(1) {
-                is_chosen_team = true;
-            }
-            // Draw health bar for team 1
-            draw_team_health_bar(
-                team1_base_health,
-                team1_current_health,
-                team_1_pos,
-                &state.teams[1].name.to_uppercase(),
-                false,
-                is_chosen_team,
-            );
-            //draw team1 artifacts
-            for (i, a) in state
-                .artifacts
-                .iter_mut()
-                .filter(|a| a.team == 1)
-                .enumerate()
-            {
-                let x_offset = i as i32 * 16;
-                let pos = (
-                    team_1_pos.0 as i32 + x_offset + 60,
-                    team_1_pos.1 as i32 + 14,
+            //hide health bar if camera zoom isn't 1.0
+            let z = cam!().2;
+            if z == 1.0 {
+                //Draw round indicator
+                let txt = format!("{}/{}", state.round, TOTAL_ROUNDS);
+                let len = txt.len();
+                let char_length = 8;
+                let center_x = canvas_size!()[0] / 2;
+                let text_width = len as u32 * char_length;
+                let x = center_x - (text_width / 2);
+                text!(&txt, x = x, y = 10, font = Font::L, color = OFF_BLACK);
+                // Draw health bar for team 0
+                draw_team_health_bar(
+                    team0_base_health,
+                    team0_current_health,
+                    team_0_pos,
+                    &state.teams[0].name.to_uppercase(),
+                    true,
+                    is_chosen_team,
                 );
-                a.draw_sprite_scaled(pos, 0.5);
+                //draw team0 artifacts
+                for (i, a) in state
+                    .artifacts
+                    .iter_mut()
+                    .filter(|a| a.team == 0)
+                    .enumerate()
+                {
+                    let x_offset = i as i32 * 16;
+                    let pos = (team_0_pos.0 as i32 + x_offset, team_0_pos.1 as i32 + 14);
+                    a.draw_sprite_scaled(pos, 0.5);
+                }
+
+                is_chosen_team = false;
+                if state.selected_team_index == Some(1) {
+                    is_chosen_team = true;
+                }
+                // Draw health bar for team 1
+                draw_team_health_bar(
+                    team1_base_health,
+                    team1_current_health,
+                    team_1_pos,
+                    &state.teams[1].name.to_uppercase(),
+                    false,
+                    is_chosen_team,
+                );
+                //draw team1 artifacts
+                for (i, a) in state
+                    .artifacts
+                    .iter_mut()
+                    .filter(|a| a.team == 1)
+                    .enumerate()
+                {
+                    let x_offset = i as i32 * 16;
+                    let pos = (
+                        team_1_pos.0 as i32 + x_offset + 60,
+                        team_1_pos.1 as i32 + 14,
+                    );
+                    a.draw_sprite_scaled(pos, 0.5);
+                }
             }
 
             //TODO: Move all this into the wrap_up game state and transition on winner = some
@@ -686,10 +797,13 @@ pub fn dbgo(state: &mut GameState) {
                 for u in &mut state.units {
                     u.start_cheering();
                 }
+                if z == 1.0 {
+                    //draw end game stats
+                    draw_end_stats(&state.units, &state.data_store.as_ref().unwrap());
+                }
 
-                //draw end game stats
-                draw_end_stats(&state.units, &state.data_store.as_ref().unwrap());
-
+                //move to the next round, of if in sandbox go back to sandbox and keep the
+                //current settings
                 if m.left.just_pressed() {
                     if state.is_playing_sandbox_game {
                         // Return to sandbox with current teams
@@ -806,6 +920,31 @@ pub fn dbgo(state: &mut GameState) {
             state.transition = None;
         }
     }
+}
+
+// pub fn zoom_cam_to_center_point(point: (f32, f32)) {
+//     let (current_x, current_y, z) = cam!();
+//     let dx = point.0 - current_x as f32;
+//     let dy = point.1 - current_y as f32;
+//     let distance = (dx * dx + dy * dy).sqrt();
+
+//     if distance > 0.5 {
+//         let new_x = current_x as f32 + dx.signum() * 0.5;
+//         let new_y = current_y as f32 + dy.signum() * 0.5;
+//         set_cam!(x = new_x, y = new_y);
+//     } else {
+//         set_cam!(x = point.0, y = point.1);
+//     }
+//     zoom_cam();
+// }
+
+// pub fn zoom_cam() {
+
+//     set_cam!(z = z);
+// }
+
+pub fn reset_cam() {
+    set_cam!(x = 192, y = 108, z = 1);
 }
 
 pub fn generate_team_db(

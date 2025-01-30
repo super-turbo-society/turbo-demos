@@ -142,7 +142,7 @@ unsafe extern "C" fn simulate_battle_os() -> usize {
     let mut traps = Vec::new();
     let mut craters = Vec::new();
     let mut explosions = Vec::new();
-    let mut i = 0;
+    let mut i: u32 = 0;
     let winning_team_index = loop {
         step_through_battle(
             &mut units,
@@ -164,6 +164,7 @@ unsafe extern "C" fn simulate_battle_os() -> usize {
         seed: battle.team_seed,
         living_units,
         winning_team: Some(winning_team_index),
+        num_frames: i,
     };
     let bytes = sim_result.try_to_vec().unwrap();
     let Ok(_) = os::server::write_file("current_result", &bytes) else {

@@ -30,6 +30,7 @@ pub struct Unit {
     pub attack_timer: i32,
     pub status_effects: Vec<Status>,
     pub display: Option<UnitDisplay>,
+    pub initial_delay: u8,
 }
 
 impl Unit {
@@ -58,6 +59,7 @@ impl Unit {
             attack_strategy: AttackStrategy::AttackClosest,
             attack_timer: 0,
             status_effects: Vec::new(),
+            initial_delay: 0,
             display: Some(UnitDisplay {
                 damage_effect_timer: 0,
                 blood_splatter: None,

@@ -98,6 +98,10 @@ turbo::init! {
         game_over_anim: AnimatedSprite,
         selected_team_index: Option<i32>,
         simulation_result: Option<SimulationResult>,
+        elapsed_frames: u32,
+        zoom_tween_x: Tween<f32>,
+        zoom_tween_y: Tween<f32>,
+        zoom_tween_z: Tween<f32>,
         //test variables
         auto_assign_teams: bool,
         user: UserStats,
@@ -137,6 +141,10 @@ turbo::init! {
             auto_assign_teams: true,
             selected_team_index: None,
             simulation_result: None,
+            elapsed_frames: 0,
+            zoom_tween_x: Tween::new(0.0),
+            zoom_tween_y: Tween::new(0.0),
+            zoom_tween_z: Tween::new(0.0),
             user: UserStats{points: 100},
             last_winning_team: None,
             team_selection_timer: TEAM_SELECTION_TIME,//TODO: This should come from TURBO OS
@@ -545,6 +553,7 @@ fn old_go(mut state: &mut GameState) {
                     seed: 0,
                     living_units: Vec::new(),
                     winning_team: None,
+                    num_frames: 1,
                 });
                 turbo::println!("SIM RESULT 2: {:?}", result);
                 //turbo::println!("Unwrapped sim result");
@@ -813,17 +822,14 @@ fn draw_end_animation(is_win: Option<bool>) {
     }
 }
 
-//Local simulation - not using anymore
-fn _simulate_battle(state: &mut GameState) {
+//local sim
+fn simulate_battle_locally(state: &mut GameState) {
     // Store initial state
     let initial_state = state.clone();
-    // for u in &mut initial_state.units {
-    //     u.display = None;
-    // }
-    // turbo::println!("BYTES: {}", initial_state.units.try_to_vec().unwrap().len());
+
     // Run simulation with fresh RNG
     state.rng = RNG::new(state.rng.seed);
-    let mut i = 1;
+    let mut i = 0;
     let winning_team_index = loop {
         step_through_battle(
             &mut state.units,
@@ -835,7 +841,7 @@ fn _simulate_battle(state: &mut GameState) {
             &mut Vec::new(),
         );
         i += 1;
-        if i > 10000 {
+        if i > 20000 {
             log!("Simulation is taking too long!!");
             panic!("ITS TAKING TOO LONG");
         }
@@ -849,26 +855,14 @@ fn _simulate_battle(state: &mut GameState) {
         living_units: all_living_units(&state.units),
         seed: state.rng.seed,
         winning_team: Some(winning_team_index),
+        num_frames: i,
     };
 
-    // Handle points
-    if state.selected_team_index.is_some() {
-        let is_won = state.selected_team_index == Some(winning_team_index);
-        //let points_change = calculate_points_change(is_won);
-        commit_points_change(&mut state.user, is_won);
-    }
     //let updated_user = state.user.clone();
     // Reset state
     *state = initial_state;
     state.simulation_result = Some(simulation_result);
     //state.user = updated_user;
-
-    state.last_winning_team = Some(state.teams[winning_team_index as usize].clone());
-
-    // Update win streak
-    if let Some(winning_team) = &mut state.last_winning_team {
-        winning_team.win_streak += 1;
-    }
 
     // Reset RNG to match simulation
     state.rng = RNG::new(state.rng.seed);
@@ -1942,6 +1936,7 @@ enum TargetPriority {
     Backline,            // Attack ranged units first, then lowest health
     SpecificTarget(u32), // Attack specific unit by ID
     AreaDensity {
+        // Attack unit with most other units within splash range
         attack_range: f32,
         splash_range: f32,
     },
@@ -3250,6 +3245,7 @@ struct SimulationResult {
     seed: u32,
     living_units: Vec<String>,
     winning_team: Option<i32>,
+    num_frames: u32,
 }
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
