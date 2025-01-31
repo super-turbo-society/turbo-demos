@@ -1,7 +1,7 @@
 use crate::*;
 
 const TOTAL_ROUNDS: usize = 6;
-const UNIT_RATINGS: [(&str, u8); 18] = [
+const UNIT_RATINGS: [(&str, u8); 20] = [
     // Basic units
     ("axeman", 4),
     ("blade", 2),
@@ -12,8 +12,9 @@ const UNIT_RATINGS: [(&str, u8); 18] = [
     ("cosmo", 3),
     ("zombie", 1),
     ("shield", 3),
+    ("serpent", 1),
     // Advanced units
-    ("sabre", 4),
+    ("sabre", 5),
     ("flameboi", 5),
     ("bazooka", 5),
     ("draco", 7),
@@ -22,6 +23,7 @@ const UNIT_RATINGS: [(&str, u8); 18] = [
     ("catapult", 5),
     ("darkknight", 7),
     ("yeti", 5),
+    ("igor", 4),
 ];
 
 pub fn title_screen_unit(rng: &mut RNG, data_store: &UnitDataStore) -> WalkingUnitPreview {
@@ -546,7 +548,7 @@ pub fn dbgo(state: &mut GameState) {
             //check if you are near the end but not finished.
             //if so zoom into one of the surviving units
             let max_zoom = 2.0;
-            let zoom_duration = 20;
+            let zoom_duration = 10;
             let easing = Easing::EaseInQuad;
 
             if let Some(s_r) = &state.simulation_result {
@@ -586,11 +588,24 @@ pub fn dbgo(state: &mut GameState) {
                                 state.zoom_tween_y.get(),
                                 state.zoom_tween_z.get(),
                             );
+
                             set_cam!(x = x, y = y, z = z);
+                        }
+                        let (x, y, z) = cam!();
+                        if z == max_zoom {
+                            rect!(
+                                color = 0xe3e3ffff,
+                                w = 2,
+                                h = 2,
+                                x = x as f32 - 96.0,
+                                y = y as f32 - 54.0
+                            );
                         }
                     }
                 } else if state.elapsed_frames > s_r.num_frames {
-                    if state.elapsed_frames == s_r.num_frames + 15 {
+                    //log!("TEST");
+                    if state.elapsed_frames == s_r.num_frames + 50 {
+                        let easing = Easing::EaseOutQuad;
                         log!("RESETTING TWEENS");
                         let s = cam!().0 as f32;
                         state.zoom_tween_x = Tween::new(s);
@@ -617,6 +632,8 @@ pub fn dbgo(state: &mut GameState) {
                     set_cam!(x = x, y = y, z = z);
                 }
             }
+            //rect!(color = 0xe3e3ffff, w = 500, h = 500, x = 0.0, y = 0.0);
+            //set_cam!(z = 2);
 
             // let team1_count = state
             //     .units
@@ -1160,7 +1177,7 @@ pub fn get_available_units(round: u32, data_store: &UnitDataStore) -> Vec<&Strin
     let all_types: Vec<&String> = data_store.data.keys().collect();
 
     let basic_units = vec![
-        "axeman", "blade", "hunter", "pyro", "bigpound", "deathray", "cosmo", "zombie", "shield",
+        "serpent", "blade", "hunter", "pyro", "bigpound", "deathray", "cosmo", "zombie", "shield",
     ];
     let advanced_units = vec![
         "sabre",
@@ -1172,6 +1189,8 @@ pub fn get_available_units(round: u32, data_store: &UnitDataStore) -> Vec<&Strin
         "catapult",
         "darkknight",
         "yeti",
+        "igor",
+        "axeman",
     ];
 
     match round {
@@ -1234,12 +1253,12 @@ fn get_unit_strength_rating(unit_type: &str) -> u8 {
 
 pub fn get_power_level_for_round(round: u32) -> f32 {
     match round {
-        1 => 4.0,
-        2 => 7.0,
+        1 => 5.0,
+        2 => 8.0,
         3 => 11.0,
-        4 => 16.0,
-        5 => 26.0,
-        6 => 50.0,
+        4 => 15.0,
+        5 => 22.0,
+        6 => 38.0,
         _ => round as f32 * 10.0, // Default case, though shouldn't happen in 6-round game
     }
 }
@@ -1250,12 +1269,14 @@ pub fn create_artifact_shop(
     existing_artifacts: &Vec<Artifact>,
 ) -> Vec<Artifact> {
     // Get all possible artifact kinds and filter out existing ones
-    let available_kinds: Vec<ArtifactKind> = ArtifactKind::iter()
+    let available_kinds: Vec<ArtifactKind> = ARTIFACT_KINDS
+        .iter()
         .filter(|kind| {
             !existing_artifacts
                 .iter()
-                .any(|artifact| artifact.artifact_kind == *kind)
+                .any(|artifact| artifact.artifact_kind == **kind)
         })
+        .copied()
         .collect();
 
     // Convert to slice of references

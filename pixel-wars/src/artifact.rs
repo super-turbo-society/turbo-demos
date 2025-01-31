@@ -15,9 +15,9 @@ pub enum ArtifactConfig {
 pub const ARTIFACT_KINDS: &[ArtifactKind] = &[
     ArtifactKind::StrengthOfTheFallen,
     ArtifactKind::SnipersFocus,
-    ArtifactKind::FlameWard,
-    ArtifactKind::TrapArtist,
-    ArtifactKind::ShotOutACannon,
+    // ArtifactKind::FlameWard,      // out
+    // ArtifactKind::TrapArtist,     // out
+    // ArtifactKind::ShotOutACannon, // out
     ArtifactKind::BloodSucker,
     ArtifactKind::GiantSlayer,
     ArtifactKind::SeeingGhosts,
@@ -87,7 +87,7 @@ impl Artifact {
                 ArtifactConfig::SuddenFright {
                     chance_to_occur: 40,
                 },
-                String::from("Some enemies will flee for no reason"),
+                String::from("Some enemies will get scared"),
             ),
             _ => panic!("Unknown artifact kind"),
         };
@@ -143,7 +143,7 @@ impl Artifact {
         );
         let sprite_pos = (pos.0 + 32, pos.1 + 10);
         let text_pos = (pos.0 + 3, pos.1 + 36);
-        self.draw_sprite(sprite_pos);
+        self.draw_sprite_scaled(sprite_pos, 2.0);
         self.draw_effect_text(text_pos);
     }
 
@@ -184,10 +184,20 @@ impl Artifact {
         // let d = 12.0 * scale;
         //sprite!(&sprite_name, x = pos.0, y = pos.1, sw = 16);
         //circ!(color = color, x = pos.0, y = pos.1, d = d);
-        self.animator.draw((pos.0 as f32, pos.1 as f32), false);
-        //log!("animator info: {:?}", self.animator.cur_anim);
+        if scale == 2.0 {
+            sprite!(
+                &sprite_name,
+                x = pos.0 - 8,
+                y = pos.1 - 8,
+                scale = scale,
+                sw = 16
+            );
+        } else {
+            self.animator.draw((pos.0 as f32, pos.1 as f32), false);
+            //log!("animator info: {:?}", self.animator.cur_anim);
 
-        self.animator.update();
+            self.animator.update();
+        }
     }
 
     pub fn play_effect(&mut self) {

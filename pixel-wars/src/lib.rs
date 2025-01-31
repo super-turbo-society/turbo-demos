@@ -29,7 +29,7 @@ const DAMAGE_EFFECT_TIME: u32 = 12;
 //avg number of units to balance each generated team around
 const TEAM_POWER_MULTIPLIER: f32 = 25.0;
 const TEAM_SELECTION_TIME: u32 = 3600;
-const BATTLE_COUNTDOWN_TIME: u32 = 1;
+const BATTLE_COUNTDOWN_TIME: u32 = 240;
 const TEAM_NAMES: [&str; 12] = [
     "Pixel Peeps",
     "Battle Bois",
@@ -243,7 +243,6 @@ turbo::go!({
     }
 
     //POTENTIAL FLAG FOR SHADER
-    //rect!(color = 0xe3e3ffff, w = 1, h = 1);
 
     state.save();
 });
@@ -1920,6 +1919,13 @@ impl Attack {
                 d = 4 * self.size,
                 color = LIGHT_GRAY
             );
+        } else if self.attributes.contains(&Attribute::Ranged) {
+            circ!(
+                x = self.pos.0 as i32,
+                y = self.pos.1 as i32,
+                d = 2 * self.size,
+                color = LIGHT_GRAY
+            );
         }
     }
 }
@@ -2221,12 +2227,12 @@ fn all_living_units(units: &Vec<Unit>) -> Vec<String> {
 
 fn draw_prematch_timer(time: u32) {
     let text = time / 60;
-    let text = format!("BATTLE STARTS IN: {}", text);
+    let text = format!("{}", text);
     power_text!(
         text.as_str(),
         x = 0,
-        y = 80,
-        font = Font::L,
+        y = 90,
+        font = Font::XL,
         center_width = 384,
         drop_shadow = SHADOW_COLOR,
         underline = true,
