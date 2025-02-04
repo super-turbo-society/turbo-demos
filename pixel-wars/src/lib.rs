@@ -1654,6 +1654,85 @@ fn is_unit_on_trap(unit: &Unit, trap: &Trap) -> bool {
 //         })
 // }
 
+fn draw_ui(state: &mut GameState) {
+    //Draw team health bars
+    let mut team0_base_health = 0.0;
+    let mut team0_current_health = 0.0;
+    let mut team1_base_health = 0.0;
+    let mut team1_current_health = 0.0;
+
+    for unit in &state.units {
+        if unit.team == 0 {
+            team0_base_health += unit.data.max_health as f32;
+            team0_current_health += unit.health as f32;
+        } else {
+            team1_base_health += unit.data.max_health as f32;
+            team1_current_health += unit.health as f32;
+        }
+    }
+    let mut is_chosen_team = true;
+    if state.selected_team_index == Some(1) {
+        is_chosen_team = false;
+    }
+    let (team_0_pos, team_1_pos) = ((24.0, 20.0), (232.0, 20.0));
+    ////Draw round indicator
+    let txt = format!("{}/{}", state.round, TOTAL_ROUNDS);
+    let len = txt.len();
+    let char_length = 8;
+    let center_x = canvas_size!()[0] / 2;
+    let text_width = len as u32 * char_length;
+    let x = center_x - (text_width / 2);
+    text!(&txt, x = x, y = 10, font = Font::L, color = OFF_BLACK);
+    // Draw health bar for team 0
+    draw_team_health_bar(
+        team0_base_health,
+        team0_current_health,
+        team_0_pos,
+        &state.teams[0].name.to_uppercase(),
+        true,
+        is_chosen_team,
+    );
+    //draw team0 artifacts
+    for (i, a) in state
+        .artifacts
+        .iter_mut()
+        .filter(|a| a.team == 0)
+        .enumerate()
+    {
+        let x_offset = i as i32 * 16;
+        let pos = (team_0_pos.0 as i32 + x_offset, team_0_pos.1 as i32 + 14);
+        a.draw_sprite_scaled(pos, 0.5);
+    }
+
+    is_chosen_team = false;
+    if state.selected_team_index == Some(1) {
+        is_chosen_team = true;
+    }
+    // Draw health bar for team 1
+    draw_team_health_bar(
+        team1_base_health,
+        team1_current_health,
+        team_1_pos,
+        &state.teams[1].name.to_uppercase(),
+        false,
+        is_chosen_team,
+    );
+    //draw team1 artifacts
+    for (i, a) in state
+        .artifacts
+        .iter_mut()
+        .filter(|a| a.team == 1)
+        .enumerate()
+    {
+        let x_offset = i as i32 * 16;
+        let pos = (
+            team_1_pos.0 as i32 + x_offset + 60,
+            team_1_pos.1 as i32 + 14,
+        );
+        a.draw_sprite_scaled(pos, 0.5);
+    }
+}
+
 fn can_defend(units: &Vec<Unit>, team: i32, pos: (f32, f32), rng: &mut RNG) -> Option<u32> {
     // First check if there's at least one enemy non-ranged unit
     let has_enemy_melee = units.iter().any(|unit| {
@@ -3430,7 +3509,7 @@ macro_rules! power_text {
         Font::S => 5,
         Font::M => 7,
         Font::L => 8,
-        Font::XL => 15,
+        Font::XL => 16,
      };
      let drop_shadow_distance = match font {
         Font::S => 1,
