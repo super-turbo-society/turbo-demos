@@ -65,7 +65,8 @@ struct Coin {
 
 turbo::go!({
     let mut state = GameState::load();
-
+    log!("TIME: {}", sys::time::now());
+    //log!(t);
     let input = gamepad(0);
 
     if !state.is_started {

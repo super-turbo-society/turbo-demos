@@ -735,6 +735,7 @@ pub fn dbgo(state: &mut GameState) {
                 draw_ui(state);
             }
             //TODO: Move all this into the wrap_up game state and transition on winner = some
+            //Also just generally make this code a little bit more flexible
             let mut text = "Click to Play Again";
             if let Some(winner_idx) = has_some_team_won(&state.units) {
                 for u in &mut state.units {
@@ -813,10 +814,14 @@ pub fn dbgo(state: &mut GameState) {
                 state.teams[team_index].remove_unit(unit_type);
             }
             GameEvent::AddArtifactToTeam(team_index, artifact_kind) => {
-                state
-                    .artifacts
-                    .push(Artifact::new(artifact_kind, team_index as i32));
-                turbo::println!("ADDING ARTIFACT: {:?}", artifact_kind);
+                if let Some(kind) = ARTIFACT_KINDS.iter().find(|&&k| {
+                    std::mem::discriminant(&k) == std::mem::discriminant(&artifact_kind)
+                }) {
+                    state
+                        .artifacts
+                        .push(Artifact::new(*kind, team_index as i32));
+                    turbo::println!("ADDING ARTIFACT: {:?}", kind);
+                }
             }
             GameEvent::RemoveArtifactFromTeam(team_index, artifact_kind) => {
                 state

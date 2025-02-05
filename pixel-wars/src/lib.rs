@@ -1361,11 +1361,13 @@ fn step_through_battle(
                     //if you have the blood sucker artifact, add 10% of damage to unit health
                     let team = attacker.team;
                     // Check for bloodsucker artifact
-                    if let Some(bloodsucker) = artifacts
-                        .iter()
-                        .find(|a| a.team == team && a.artifact_kind == ArtifactKind::BloodSucker)
-                    {
-                        if let ArtifactConfig::LifeSteal { steal_factor } = bloodsucker.config {
+                    if let Some(bloodsucker) = artifacts.iter().find(|a| {
+                        matches!(a.artifact_kind, ArtifactKind::BloodSucker { .. })
+                            && a.team == team
+                    }) {
+                        if let ArtifactKind::BloodSucker { steal_factor } =
+                            bloodsucker.artifact_kind
+                        {
                             if attacker.health > 0.0 {
                                 let heal_amount = total_damage as f32 * steal_factor;
                                 attacker.health =
@@ -1410,41 +1412,38 @@ fn apply_start_of_battle_artifacts(
         .collect();
 
     for unit in units.iter_mut() {
-        if team_artifacts.contains(&(ArtifactKind::FlameWard, unit.team)) {
+        if team_artifacts.iter().any(|&(kind, team)| {
+            matches!(kind, ArtifactKind::FlameWard { .. }) && team == unit.team
+        }) {
             unit.data.attributes.push(Attribute::FireResistance);
         }
-        if team_artifacts.contains(&(ArtifactKind::ShotOutACannon, unit.team)) {
+        if team_artifacts.iter().any(|&(kind, team)| {
+            matches!(kind, ArtifactKind::SpeedRunner { .. }) && team == unit.team
+        }) {
             unit.start_haste();
         }
     }
 
-    // Handle traps separately
-    if let Some(trap_artifact) = artifacts
-        .iter()
-        .find(|a| a.artifact_kind == ArtifactKind::TrapArtist)
-    {
-        if let ArtifactConfig::TrapBoard { num_traps } = trap_artifact.config {
-            for _ in 0..num_traps {
-                traps.push(create_trap(rng));
-            }
-        }
-    }
+    // // Handle traps separately
+    // if let Some(trap_artifact) = artifacts
+    //     .iter()
+    //     .find(|a| a.artifact_kind == ArtifactKind::TrapArtist)
+    // {
+    //     if let ArtifactConfig::TrapBoard { num_traps } = trap_artifact.config {
+    //         for _ in 0..num_traps {
+    //             traps.push(create_trap(rng));
+    //         }
+    //     }
+    // }
 }
 
 fn apply_idle_artifacts(unit: &mut Unit, rng: &mut RNG, artifacts: &mut Vec<Artifact>, sim: bool) {
     for artifact in artifacts {
-        match artifact.artifact_kind {
-            ArtifactKind::SeeingGhosts => {
-                if artifact.team != unit.team {
-                    if let ArtifactConfig::SuddenFright { chance_to_occur } = artifact.config {
-                        if rng.next() % chance_to_occur == 0 {
-                            unit.attack_strategy = AttackStrategy::Flee { timer: (5) };
-                            artifact.play_effect();
-                        }
-                    }
-                }
+        if let ArtifactKind::SeeingGhosts { chance_to_occur } = artifact.artifact_kind {
+            if artifact.team != unit.team && rng.next() % chance_to_occur == 0 {
+                unit.attack_strategy = AttackStrategy::Flee { timer: 5 };
+                artifact.play_effect();
             }
-            _ => {}
         }
     }
 }
@@ -1454,66 +1453,45 @@ fn modify_damage_from_artifacts(
     units: &Vec<Unit>,
     artifacts: &mut Vec<Artifact>,
 ) -> Attack {
-    // Go through each artifact
     if let Some(attacker) = find_unit_by_id(units, attack.owner_id) {
         for artifact in artifacts {
             if artifact.team != attacker.team {
                 continue;
             }
             match artifact.artifact_kind {
-                ArtifactKind::StrengthOfTheFallen => {
-                    // Count dead friendly units
+                ArtifactKind::StrengthOfTheFallen { percent_per_unit } => {
                     let dead_count = units
                         .iter()
                         .filter(|u| u.health <= 0. && u.team == artifact.team)
                         .count();
 
-                    if let ArtifactConfig::DeadUnitDamageBoost { percent_per_unit } =
-                        artifact.config
-                    {
-                        // Increase damage by config percentage for each dead unit
-                        let damage_multiplier =
-                            1.0 + (dead_count as f32 * percent_per_unit / 100.0);
-                        //turbo::println!("Unboosted Damage: {}", attack.damage);
-                        attack.damage *= damage_multiplier;
-                        //turbo::println!("Boosted Damage: {}", attack.damage);
-                        artifact.play_effect();
-                    }
+                    let damage_multiplier = 1.0 + (dead_count as f32 * percent_per_unit / 100.0);
+                    attack.damage *= damage_multiplier;
+                    artifact.play_effect();
                 }
 
-                ArtifactKind::SnipersFocus => {
+                ArtifactKind::SnipersFocus { percent_per_pixel } => {
                     if attack.attributes.contains(&Attribute::Ranged) {
                         if let Some(target_unit) =
                             find_unit_by_id(units, Some(attack.target_unit_id))
                         {
-                            if let ArtifactConfig::DistanceDamageBoost { percent_per_pixel } =
-                                artifact.config
-                            {
-                                // Calculate distance between attack position and target
-                                let dx = (target_unit.pos.0 - attack.pos.0) as f32;
-                                let dy = (target_unit.pos.1 - attack.pos.1) as f32;
-                                let distance = (dx * dx + dy * dy).sqrt();
+                            let dx = (target_unit.pos.0 - attack.pos.0) as f32;
+                            let dy = (target_unit.pos.1 - attack.pos.1) as f32;
+                            let distance = (dx * dx + dy * dy).sqrt();
 
-                                // Increase damage based on distance
-                                let damage_multiplier =
-                                    1.0 + (distance * percent_per_pixel / 100.0);
-                                attack.damage *= damage_multiplier;
-                                artifact.play_effect();
-                            }
+                            let damage_multiplier = 1.0 + (distance * percent_per_pixel / 100.0);
+                            attack.damage *= damage_multiplier;
+                            artifact.play_effect();
                         }
                     }
                 }
 
-                //
-                ArtifactKind::GiantSlayer => {
+                ArtifactKind::GiantSlayer { boost_factor } => {
                     if let Some(target_unit) = find_unit_by_id(units, Some(attack.target_unit_id)) {
-                        if let ArtifactConfig::LargeUnitDamageBoost { boost_factor } =
-                            artifact.config
-                        {
-                            if target_unit.data.has_attribute(&Attribute::Large) {
-                                attack.damage *= boost_factor;
-                                artifact.play_effect();
-                            }
+                        if target_unit.data.has_attribute(&Attribute::Large) {
+                            attack.damage *= boost_factor;
+                            //turbo::println!("BF: {}", boost_factor);
+                            artifact.play_effect();
                         }
                     }
                 }
@@ -1521,7 +1499,6 @@ fn modify_damage_from_artifacts(
             }
         }
     }
-
     attack
 }
 
@@ -1655,81 +1632,80 @@ fn is_unit_on_trap(unit: &Unit, trap: &Trap) -> bool {
 // }
 
 fn draw_ui(state: &mut GameState) {
-    //Draw team health bars
-    let mut team0_base_health = 0.0;
-    let mut team0_current_health = 0.0;
-    let mut team1_base_health = 0.0;
-    let mut team1_current_health = 0.0;
+    let (team0_health, team1_health) = calculate_team_healths(&state.units);
+    draw_round_indicator(state.round);
 
-    for unit in &state.units {
-        if unit.team == 0 {
-            team0_base_health += unit.data.max_health as f32;
-            team0_current_health += unit.health as f32;
-        } else {
-            team1_base_health += unit.data.max_health as f32;
-            team1_current_health += unit.health as f32;
-        }
-    }
-    let mut is_chosen_team = true;
-    if state.selected_team_index == Some(1) {
-        is_chosen_team = false;
-    }
     let (team_0_pos, team_1_pos) = ((24.0, 20.0), (232.0, 20.0));
-    ////Draw round indicator
-    let txt = format!("{}/{}", state.round, TOTAL_ROUNDS);
-    let len = txt.len();
-    let char_length = 8;
-    let center_x = canvas_size!()[0] / 2;
-    let text_width = len as u32 * char_length;
-    let x = center_x - (text_width / 2);
-    text!(&txt, x = x, y = 10, font = Font::L, color = OFF_BLACK);
-    // Draw health bar for team 0
+
+    // Team 0
+    let is_chosen = state.selected_team_index != Some(1);
     draw_team_health_bar(
-        team0_base_health,
-        team0_current_health,
+        team0_health.0,
+        team0_health.1,
         team_0_pos,
         &state.teams[0].name.to_uppercase(),
         true,
-        is_chosen_team,
+        is_chosen,
     );
-    //draw team0 artifacts
-    for (i, a) in state
-        .artifacts
-        .iter_mut()
-        .filter(|a| a.team == 0)
-        .enumerate()
-    {
-        let x_offset = i as i32 * 16;
-        let pos = (team_0_pos.0 as i32 + x_offset, team_0_pos.1 as i32 + 14);
-        a.draw_sprite_scaled(pos, 0.5);
-    }
+    draw_team_artifacts(state, 0, team_0_pos, false);
 
-    is_chosen_team = false;
-    if state.selected_team_index == Some(1) {
-        is_chosen_team = true;
-    }
-    // Draw health bar for team 1
+    // Team 1
+    let is_chosen = state.selected_team_index == Some(1);
     draw_team_health_bar(
-        team1_base_health,
-        team1_current_health,
+        team1_health.0,
+        team1_health.1,
         team_1_pos,
         &state.teams[1].name.to_uppercase(),
         false,
-        is_chosen_team,
+        is_chosen,
     );
-    //draw team1 artifacts
+    draw_team_artifacts(state, 1, team_1_pos, true);
+}
+
+fn calculate_team_healths(units: &[Unit]) -> ((f32, f32), (f32, f32)) {
+    units.iter().fold(((0.0, 0.0), (0.0, 0.0)), |acc, unit| {
+        if unit.team == 0 {
+            (
+                (
+                    acc.0 .0 + unit.data.max_health as f32,
+                    acc.0 .1 + unit.health as f32,
+                ),
+                acc.1,
+            )
+        } else {
+            (
+                acc.0,
+                (
+                    acc.1 .0 + unit.data.max_health as f32,
+                    acc.1 .1 + unit.health as f32,
+                ),
+            )
+        }
+    })
+}
+
+fn draw_round_indicator(round: u32) {
+    let txt = format!("{}/{}", round, TOTAL_ROUNDS);
+    let center_x = canvas_size!()[0] / 2;
+    let x = center_x - ((txt.len() as u32 * 8) / 2);
+    text!(&txt, x = x, y = 10, font = Font::L, color = OFF_BLACK);
+}
+
+fn draw_team_artifacts(state: &mut GameState, team: i32, pos: (f32, f32), right_aligned: bool) {
     for (i, a) in state
         .artifacts
         .iter_mut()
-        .filter(|a| a.team == 1)
+        .filter(|a| a.team == team)
         .enumerate()
     {
         let x_offset = i as i32 * 16;
-        let pos = (
-            team_1_pos.0 as i32 + x_offset + 60,
-            team_1_pos.1 as i32 + 14,
-        );
-        a.draw_sprite_scaled(pos, 0.5);
+        let x = if right_aligned {
+            pos.0 as i32 + x_offset + 60
+        } else {
+            pos.0 as i32 + x_offset
+        };
+        let y = pos.1 as i32 + 14;
+        a.draw_sprite_scaled((x, y), 0.5);
     }
 }
 
@@ -2499,13 +2475,14 @@ fn draw_artifact_info_and_buttons(state: &mut GameState, y_start_pos: i32) {
         y_pos += y_spacing;
 
         for artifact_kind in ArtifactKind::iter() {
-            let has_artifact = state
-                .artifacts
-                .iter()
-                .any(|a| a.artifact_kind == artifact_kind && a.team == *team_index as i32);
-
-            let artifact_text =
-                format!("[{}] {:?}", if has_artifact { 1 } else { 0 }, artifact_kind);
+            let has_artifact = state.artifacts.iter().any(|a| {
+                // Compare only the variant type, ignore the fields
+                std::mem::discriminant(&a.artifact_kind) == std::mem::discriminant(&artifact_kind)
+                    && a.team == *team_index as i32
+            });
+            let debug_str = format!("{:?}", artifact_kind);
+            let name = debug_str.split('{').next().unwrap_or("");
+            let artifact_text = format!("[{}] {}", if has_artifact { 1 } else { 0 }, name);
             text!(artifact_text.as_str(), x = *pos, y = y_pos, font = Font::M);
 
             let plus_button = Button::new(

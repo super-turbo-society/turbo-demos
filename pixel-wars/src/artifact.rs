@@ -1,45 +1,36 @@
 use crate::*;
 
-#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
-pub enum ArtifactConfig {
-    DeadUnitDamageBoost { percent_per_unit: f32 },
-    DistanceDamageBoost { percent_per_pixel: f32 },
-    FireResistance { resistance_percent: f32 },
-    TrapBoard { num_traps: u8 },
-    TeamHaste,
-    LifeSteal { steal_factor: f32 },
-    LargeUnitDamageBoost { boost_factor: f32 },
-    SuddenFright { chance_to_occur: u32 },
-}
-
 pub const ARTIFACT_KINDS: &[ArtifactKind] = &[
-    ArtifactKind::StrengthOfTheFallen,
-    ArtifactKind::SnipersFocus,
-    // ArtifactKind::FlameWard,      // out
-    // ArtifactKind::TrapArtist,     // out
-    // ArtifactKind::ShotOutACannon, // out
-    ArtifactKind::BloodSucker,
-    ArtifactKind::GiantSlayer,
-    ArtifactKind::SeeingGhosts,
+    ArtifactKind::StrengthOfTheFallen {
+        percent_per_unit: 1.0,
+    },
+    ArtifactKind::SnipersFocus {
+        percent_per_pixel: 0.5,
+    },
+    ArtifactKind::BloodSucker { steal_factor: 0.1 },
+    ArtifactKind::GiantSlayer { boost_factor: 2.0 },
+    ArtifactKind::SeeingGhosts {
+        chance_to_occur: 40,
+    },
+    ArtifactKind::SpeedRunner {
+        change_to_occur: 40,
+    },
 ];
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone, Copy, EnumIter, Display)]
-
 pub enum ArtifactKind {
-    StrengthOfTheFallen,
-    SnipersFocus,
-    FlameWard,
-    TrapArtist,
-    ShotOutACannon,
-    BloodSucker,
-    GiantSlayer,
-    SeeingGhosts,
+    StrengthOfTheFallen { percent_per_unit: f32 },
+    SnipersFocus { percent_per_pixel: f32 },
+    FlameWard { resistance_percent: f32 },
+    BloodSucker { steal_factor: f32 },
+    GiantSlayer { boost_factor: f32 },
+    SeeingGhosts { chance_to_occur: u32 },
+    SpeedRunner { change_to_occur: u32 },
 }
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 pub struct Artifact {
     pub artifact_kind: ArtifactKind,
-    pub config: ArtifactConfig,
     pub text: String,
     pub team: i32,
     pub animator: Animator,
@@ -47,60 +38,25 @@ pub struct Artifact {
 
 impl Artifact {
     pub fn new(kind: ArtifactKind, team: i32) -> Self {
-        // Match the name to get the preconfigured artifact
-        let (config, text) = match kind {
-            ArtifactKind::StrengthOfTheFallen => (
-                ArtifactConfig::DeadUnitDamageBoost {
-                    percent_per_unit: 1.0,
-                },
-                String::from("Increase damage for each dead unit on your team"),
-            ),
-            ArtifactKind::SnipersFocus => (
-                ArtifactConfig::DistanceDamageBoost {
-                    percent_per_pixel: 0.5,
-                },
-                String::from("Increase damage for all ranged attacks"),
-            ),
-            ArtifactKind::FlameWard => (
-                ArtifactConfig::FireResistance {
-                    resistance_percent: 50.0,
-                },
-                String::from("Give all of your units fire resistance"),
-            ),
-            ArtifactKind::TrapArtist => (
-                ArtifactConfig::TrapBoard { num_traps: 12 },
-                String::from("Add Traps to the board"),
-            ),
-            ArtifactKind::ShotOutACannon => (
-                ArtifactConfig::TeamHaste,
-                String::from("All your units start with Haste"),
-            ),
-            ArtifactKind::BloodSucker => (
-                ArtifactConfig::LifeSteal { steal_factor: 0.1 },
-                String::from("Suck life from your enemies"),
-            ),
-            ArtifactKind::GiantSlayer => (
-                ArtifactConfig::LargeUnitDamageBoost { boost_factor: 2.0 },
-                String::from("Deal double damage to large enemies"),
-            ),
-            ArtifactKind::SeeingGhosts => (
-                ArtifactConfig::SuddenFright {
-                    chance_to_occur: 40,
-                },
-                String::from("Some enemies will get scared"),
-            ),
-            _ => panic!("Unknown artifact kind"),
-        };
+        let text = match kind {
+            ArtifactKind::StrengthOfTheFallen { .. } => {
+                "Increase damage for each dead unit on your team"
+            }
+            ArtifactKind::SnipersFocus { .. } => "Increase damage for all ranged attacks",
+            ArtifactKind::FlameWard { .. } => "Give all of your units fire resistance",
+            ArtifactKind::BloodSucker { .. } => "Suck life from your enemies",
+            ArtifactKind::GiantSlayer { .. } => "Deal double damage to large enemies",
+            ArtifactKind::SeeingGhosts { .. } => "Some enemies will get scared",
+            ArtifactKind::SpeedRunner { .. } => "All your units start with Haste",
+        }
+        .to_string();
 
         Self {
             artifact_kind: kind,
-            config,
             text,
             team,
-            //TODO: Make this an option that doesn't show when you
-            //sim on the server
             animator: Animator::new(Animation {
-                name: kind.to_string(),
+                name: format!("{:?}", kind),
                 s_w: 16,
                 num_frames: 1,
                 loops_per_frame: 8,
