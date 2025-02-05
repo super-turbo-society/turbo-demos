@@ -545,6 +545,21 @@ pub fn dbgo(state: &mut GameState) {
                 }
             }
 
+            let winner_idx = has_some_team_won(&state.units);
+            if winner_idx.is_some() {
+                let needs_update_complete = !state.is_battle_complete;
+                if needs_update_complete {
+                    apply_end_of_battle_artifacts(
+                        winner_idx.unwrap() as usize,
+                        &mut state.units,
+                        &mut state.rng,
+                        &mut state.artifacts,
+                    );
+                    state.is_battle_complete = true;
+                    // Other updates
+                }
+            }
+
             //check if you are near the end but not finished.
             //if so zoom into one of the surviving units
             let max_zoom = 2.0;
@@ -592,6 +607,7 @@ pub fn dbgo(state: &mut GameState) {
                             set_cam!(x = x, y = y, z = z);
                         }
                         let (x, y, z) = cam!();
+                        //flag for shader
                         if z == max_zoom {
                             rect!(
                                 color = 0xe3e3ffff,
@@ -603,8 +619,12 @@ pub fn dbgo(state: &mut GameState) {
                         }
                     }
                 } else if state.elapsed_frames > s_r.num_frames {
-                    //log!("TEST");
-                    if state.elapsed_frames == s_r.num_frames + 50 {
+                    //TODO: Turn this into something that makes sense
+                    let (x, y, z) = cam!();
+                    if state.elapsed_frames > s_r.num_frames + 40
+                        && state.elapsed_frames < s_r.num_frames + 50
+                        && z == max_zoom
+                    {
                         let easing = Easing::EaseOutQuad;
                         log!("RESETTING TWEENS");
                         let s = cam!().0 as f32;
@@ -632,31 +652,7 @@ pub fn dbgo(state: &mut GameState) {
                     set_cam!(x = x, y = y, z = z);
                 }
             }
-            //rect!(color = 0xe3e3ffff, w = 500, h = 500, x = 0.0, y = 0.0);
-            //set_cam!(z = 2);
 
-            // let team1_count = state
-            //     .units
-            //     .iter()
-            //     .filter(|u| u.team == 0 && u.state != UnitState::Dead)
-            //     .count();
-            // let team2_count = state
-            //     .units
-            //     .iter()
-            //     .filter(|u| u.team == 1 && u.state != UnitState::Dead)
-            //     .count();
-
-            // if team1_count <= 2 || team2_count <= 2 {
-            //     let target_team = if team1_count <= 2 { 0 } else { 1 };
-            //     if let Some(unit) = state
-            //         .units
-            //         .iter()
-            //         .find(|u| u.team == target_team && u.state != UnitState::Dead)
-            //     {
-            //         zoom_cam_to_center_point(unit.pos);
-            //     }
-            // }
-            //if so choose one and zoom into that point
             /////////////
             //Draw Code//
             /////////////
@@ -824,9 +820,11 @@ pub fn dbgo(state: &mut GameState) {
                 }
             }
             GameEvent::RemoveArtifactFromTeam(team_index, artifact_kind) => {
-                state
-                    .artifacts
-                    .retain(|a| !(a.artifact_kind == artifact_kind && a.team == team_index as i32));
+                state.artifacts.retain(|a| {
+                    !(std::mem::discriminant(&a.artifact_kind)
+                        == std::mem::discriminant(&artifact_kind)
+                        && a.team == team_index as i32)
+                });
             }
             GameEvent::ChooseTeam(team_num) => {
                 let mut team_choice_counter = TeamChoiceCounter {

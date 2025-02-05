@@ -338,6 +338,11 @@ impl Unit {
         }
     }
 
+    pub fn revive_unit(&mut self) {
+        self.state = UnitState::Idle;
+        self.health = self.data.max_health;
+    }
+
     pub fn is_point_in_bounds(&self, point: (f32, f32)) -> bool {
         //get four corners of box
         let left = self.pos.0 - (0.5 * self.data.bounding_box.2 as f32);

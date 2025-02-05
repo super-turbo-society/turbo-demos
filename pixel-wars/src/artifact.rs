@@ -15,6 +15,8 @@ pub const ARTIFACT_KINDS: &[ArtifactKind] = &[
     ArtifactKind::SpeedRunner {
         change_to_occur: 40,
     },
+    ArtifactKind::DoctorsIn { num_kits: 6 },
+    ArtifactKind::Necromancer { revival_chance: 25 },
 ];
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone, Copy, EnumIter, Display)]
@@ -26,6 +28,8 @@ pub enum ArtifactKind {
     GiantSlayer { boost_factor: f32 },
     SeeingGhosts { chance_to_occur: u32 },
     SpeedRunner { change_to_occur: u32 },
+    DoctorsIn { num_kits: u8 },
+    Necromancer { revival_chance: u8 },
 }
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
@@ -48,15 +52,22 @@ impl Artifact {
             ArtifactKind::GiantSlayer { .. } => "Deal double damage to large enemies",
             ArtifactKind::SeeingGhosts { .. } => "Some enemies will get scared",
             ArtifactKind::SpeedRunner { .. } => "All your units start with Haste",
+            ArtifactKind::DoctorsIn { .. } => "Deploy Medkits on your team's side",
+            ArtifactKind::Necromancer { .. } => "Revive some of your units after the battle",
         }
         .to_string();
-
+        let display_name = format!("{:?}", kind)
+            .split('{')
+            .next()
+            .unwrap_or("")
+            .trim()
+            .to_string();
         Self {
             artifact_kind: kind,
             text,
             team,
             animator: Animator::new(Animation {
-                name: format!("{:?}", kind),
+                name: display_name,
                 s_w: 16,
                 num_frames: 1,
                 loops_per_frame: 8,
@@ -108,8 +119,8 @@ impl Artifact {
     }
 
     pub fn draw_sprite_scaled(&mut self, pos: (i32, i32), scale: f32) {
-        let mut color = ACID_GREEN;
         let sprite_name = self.artifact_kind.to_string();
+        //turbo::println!("A_N {}", sprite_name);
         // match self.artifact_kind {
         //     ArtifactKind::StrengthOfTheFallen => {
         //         color = POO_BROWN;

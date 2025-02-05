@@ -29,7 +29,7 @@ const DAMAGE_EFFECT_TIME: u32 = 12;
 //avg number of units to balance each generated team around
 const TEAM_POWER_MULTIPLIER: f32 = 25.0;
 const TEAM_SELECTION_TIME: u32 = 3600;
-const BATTLE_COUNTDOWN_TIME: u32 = 240;
+const BATTLE_COUNTDOWN_TIME: u32 = 1;
 const TEAM_NAMES: [&str; 12] = [
     "Pixel Peeps",
     "Battle Bois",
@@ -111,6 +111,7 @@ turbo::init! {
         battle_countdown_timer: u32,
         battle_simulation_requested: bool,
         is_playing_sandbox_game: bool,
+        is_battle_complete: bool,
     } = {
         Self {
             transition: None,
@@ -152,6 +153,7 @@ turbo::init! {
             battle_countdown_timer: BATTLE_COUNTDOWN_TIME,
             battle_simulation_requested: false,
             is_playing_sandbox_game: false,
+            is_battle_complete: false,
         }
     }
 }
@@ -226,7 +228,7 @@ turbo::go!({
     // }
     let gp = gamepad(0);
     if gp.a.just_pressed() {
-        let t = create_trap(&mut state.rng);
+        let t = create_trap(&mut state.rng, None, TrapSide::Middle);
         state.traps.push(t);
     }
     if gp.b.just_pressed() {
@@ -841,7 +843,7 @@ fn simulate_battle_locally(state: &mut GameState) {
             true,
         );
         i += 1;
-        if i > 20000 {
+        if i > 30000 {
             log!("Simulation is taking too long!!");
             panic!("ITS TAKING TOO LONG");
         }
@@ -849,7 +851,12 @@ fn simulate_battle_locally(state: &mut GameState) {
             break winner_idx;
         }
     };
-
+    apply_end_of_battle_artifacts(
+        winning_team_index as usize,
+        &mut state.units,
+        &mut state.rng,
+        &mut state.artifacts,
+    );
     // Create simulation result
     let simulation_result = SimulationResult {
         living_units: all_living_units(&state.units),
@@ -1272,6 +1279,7 @@ fn step_through_battle(
     if let Some(_winning_team) = has_some_team_won(units) {
         //clear all attacks if there's a winner so we don't kill someone after the simulation ended.
         attacks.clear();
+        //do end of game artifacts one time
     } else {
         //go through attacks and update, then draw
         attacks.retain_mut(|attack| {
@@ -1381,6 +1389,7 @@ fn step_through_battle(
                     let old_kills = attacker.stats.kills;
                     attacker.stats.kills += kills;
                     //check if kills put you over 3 to trigger Berserk
+
                     if attacker.stats.kills >= 3
                         && old_kills < 3
                         && attacker.data.has_attribute(&Attribute::Berserk)
@@ -1424,6 +1433,23 @@ fn apply_start_of_battle_artifacts(
         }
     }
 
+    if team_artifacts
+        .iter()
+        .any(|&(kind, team)| matches!(kind, ArtifactKind::DoctorsIn { .. }))
+    {
+        for &(kind, team) in team_artifacts.iter() {
+            if let ArtifactKind::DoctorsIn { num_kits } = kind {
+                let side = if team == 0 {
+                    TrapSide::Left
+                } else {
+                    TrapSide::Right
+                };
+                for _ in 0..num_kits {
+                    traps.push(create_trap(rng, Some(TrapType::Healing), side));
+                }
+            }
+        }
+    }
     // // Handle traps separately
     // if let Some(trap_artifact) = artifacts
     //     .iter()
@@ -1500,6 +1526,29 @@ fn modify_damage_from_artifacts(
         }
     }
     attack
+}
+
+fn apply_end_of_battle_artifacts(
+    winner_idx: usize,
+    units: &mut Vec<Unit>,
+    rng: &mut RNG,
+    artifacts: &mut Vec<Artifact>,
+) {
+    for artifact in artifacts {
+        if let ArtifactKind::Necromancer { revival_chance } = artifact.artifact_kind {
+            if artifact.team == winner_idx as i32 {
+                for unit in units.iter_mut() {
+                    if unit.state == UnitState::Dead && unit.team == artifact.team {
+                        if rng.next() % 100 < revival_chance as u32 {
+                            unit.revive_unit();
+                            artifact.play_effect();
+                        } else {
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 fn find_unit_by_id(units: &Vec<Unit>, id: Option<u32>) -> Option<&Unit> {
@@ -3204,24 +3253,33 @@ fn create_unit_previews(
     unit_previews
 }
 
-fn create_trap(rng: &mut RNG) -> Trap {
-    //choose a random trap and a random position within some bounds
-    let random_number = rng.next_in_range(0, 2);
-    let random_number = 2 as u32;
-    let trap_type = match random_number {
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone, Copy)]
+enum TrapSide {
+    Left,
+    Middle,
+    Right,
+}
+
+fn create_trap(rng: &mut RNG, trap_type: Option<TrapType>, trap_side: TrapSide) -> Trap {
+    let trap_type = trap_type.unwrap_or_else(|| match rng.next_in_range(0, 4) {
         0 => TrapType::Poop,
         1 => TrapType::Acidleak,
         2 => TrapType::Landmine,
         3 => TrapType::Healing,
         4 => TrapType::Spikes,
-        _ => unreachable!(), // This should never happen due to the range we specified
+        _ => unreachable!(),
+    });
+
+    let x_range = match trap_side {
+        TrapSide::Left => (40, 140),
+        TrapSide::Middle => (120, 264),
+        TrapSide::Right => (244, 344),
     };
-    let x_bounds = (120, 264);
-    let y_bounds = (40, 176);
-    let x = rng.next_in_range(x_bounds.0, x_bounds.1);
-    let y = rng.next_in_range(y_bounds.0, y_bounds.1);
-    let trap = Trap::new((x as f32, y as f32), trap_type);
-    trap
+
+    let x = rng.next_in_range(x_range.0, x_range.1) as f32;
+    let y = rng.next_in_range(40, 176) as f32;
+
+    Trap::new((x, y), trap_type)
 }
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
