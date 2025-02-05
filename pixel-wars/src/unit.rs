@@ -567,36 +567,51 @@ impl Unit {
     //     }
     //     separation
     // }
+    /// Configuration constant for movement calculation
+    /// This represents the number of frames or steps used in movement smoothing
+    const MOVEMENT_DIVISOR: f32 = 20.0;
+
     pub fn move_towards_target(&self) -> (f32, f32) {
         // Calculate direction towards target
         let dir_x = self.target_pos.0 - self.pos.0;
         let dir_y = self.target_pos.1 - self.pos.1;
+
+        // Calculate normalized direction
         let length = (dir_x * dir_x + dir_y * dir_y).sqrt();
-        let norm_dir_x = dir_x / length;
-        let norm_dir_y = dir_y / length;
-        // Calculate new position
-        let mut new_x = self.pos.0 + norm_dir_x * self.calculated_speed() / 20.;
-        let mut new_y = self.pos.1 + norm_dir_y * self.calculated_speed() / 20.;
-        if dir_x > 0. {
-            new_x = new_x.min(self.target_pos.0);
+
+        // Avoid division by zero
+        let (norm_dir_x, norm_dir_y) = if length > 0.0 {
+            (dir_x / length, dir_y / length)
         } else {
-            new_x = new_x.max(self.target_pos.0);
-        }
-        if dir_y > 0. {
-            new_y = new_y.min(self.target_pos.1);
+            (0.0, 0.0)
+        };
+
+        // Calculate new position with movement divisor as a constant
+        let speed_fraction = self.calculated_speed() / MOVEMENT_DIVISOR;
+        let mut new_x = self.pos.0 + norm_dir_x * speed_fraction;
+        let mut new_y = self.pos.1 + norm_dir_y * speed_fraction;
+
+        // Clamp x-coordinate
+        new_x = if dir_x > 0.0 {
+            new_x.min(self.target_pos.0)
         } else {
-            new_y = new_y.max(self.target_pos.1);
-        }
+            new_x.max(self.target_pos.0)
+        };
+
+        // Clamp y-coordinate
+        new_y = if dir_y > 0.0 {
+            new_y.min(self.target_pos.1)
+        } else {
+            new_y.max(self.target_pos.1)
+        };
+
         (new_x, new_y)
     }
 
-    //TODO: is there a better way to do this?
     pub fn reached_target(&self) -> bool {
-        let mut reached_target = false;
-        if distance_between(self.pos, self.target_pos) < self.calculated_speed() / 20. {
-            reached_target = true;
-        }
-        reached_target
+        // Use the same movement divisor for consistency
+        let proximity_threshold = self.calculated_speed() / MOVEMENT_DIVISOR;
+        distance_between(self.pos, self.target_pos) < proximity_threshold
     }
 
     //Not using this for now - but if we need some more control over movement we can

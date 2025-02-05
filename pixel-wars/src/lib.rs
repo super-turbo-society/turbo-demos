@@ -46,6 +46,9 @@ const TEAM_NAMES: [&str; 12] = [
 ];
 
 const UNIT_ANIM_SPEED: i32 = 8;
+//This is global unit speed. Lower is faster
+const MOVEMENT_DIVISOR: f32 = 16.0;
+
 //TODO: Figure out if we want to use this again
 const MAX_Y_ATTACK_DISTANCE: f32 = 10.;
 const FOOTPRINT_LIFETIME: u32 = 240;
