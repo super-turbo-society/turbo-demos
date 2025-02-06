@@ -486,6 +486,9 @@ pub fn dbgo(state: &mut GameState) {
         }
         DBPhase::Battle => {
             if state.battle_countdown_timer == BATTLE_COUNTDOWN_TIME {
+                //set up the map if it has traps
+                //TODO: Set up a system for this based on round number or something
+                //state.traps = setup_level(0, &mut state.rng);
                 //handle start of battle artifacts
                 apply_start_of_battle_artifacts(
                     &mut state.units,

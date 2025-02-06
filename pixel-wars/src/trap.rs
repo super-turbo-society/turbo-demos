@@ -1,6 +1,66 @@
 use crate::*;
 
+pub const LEVELS: [&[TrapDefinition]; 3] = [
+    // Level 1: Simple random middle traps
+    &[TrapDefinition {
+        trap_type: Some(TrapType::Landmine),
+        side: TrapSide::Middle,
+        count: 10,
+    }],
+    // Level 2: Mixed traps
+    &[
+        TrapDefinition {
+            trap_type: Some(TrapType::Landmine),
+            side: TrapSide::Middle,
+            count: 2,
+        },
+        TrapDefinition {
+            trap_type: Some(TrapType::Healing),
+            side: TrapSide::Left,
+            count: 2,
+        },
+        TrapDefinition {
+            trap_type: Some(TrapType::Healing),
+            side: TrapSide::Right,
+            count: 2,
+        },
+    ],
+    // Level 3: More complex setup
+    &[
+        TrapDefinition {
+            trap_type: None,
+            side: TrapSide::Left,
+            count: 3,
+        },
+        TrapDefinition {
+            trap_type: Some(TrapType::Spikes),
+            side: TrapSide::Middle,
+            count: 4,
+        },
+    ],
+];
+
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
+struct TrapDefinition {
+    trap_type: Option<TrapType>, // None means random
+    side: TrapSide,
+    count: usize, // Number of traps to generate
+}
+
+pub fn setup_level(level_index: usize, rng: &mut RNG) -> Vec<Trap> {
+    let level_traps = LEVELS[level_index];
+
+    level_traps
+        .iter()
+        .flat_map(|definition| {
+            (0..definition.count)
+                .map(|_| create_trap(rng, definition.trap_type, definition.side))
+                .collect::<Vec<_>>()
+        })
+        .collect()
+}
+
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone, Copy)]
 pub enum TrapType {
     Poop,
     Healing,

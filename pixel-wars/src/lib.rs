@@ -46,7 +46,7 @@ const TEAM_NAMES: [&str; 12] = [
 ];
 
 const UNIT_ANIM_SPEED: i32 = 8;
-//This is global unit speed. Lower is faster
+//This is global unit speed (how many frames it takes to go one pixel/unit speed). Lower is faster
 const MOVEMENT_DIVISOR: f32 = 16.0;
 
 //TODO: Figure out if we want to use this again
@@ -2017,8 +2017,7 @@ impl Attack {
     }
 
     fn draw(&self) {
-        //log!("attack draw");
-        //only draw the catapult attack
+        //this is for the catapult, a 4x gray circle
         if self.attributes.contains(&Attribute::ParabolicAttack) {
             circ!(
                 x = self.pos.0 as i32,
@@ -2026,6 +2025,7 @@ impl Attack {
                 d = 4 * self.size,
                 color = LIGHT_GRAY
             );
+            //other ranged attacks get a 2x gray circle
         } else if self.attributes.contains(&Attribute::Ranged) {
             circ!(
                 x = self.pos.0 as i32,
