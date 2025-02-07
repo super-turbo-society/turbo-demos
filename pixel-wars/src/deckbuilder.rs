@@ -425,7 +425,14 @@ pub fn dbgo(state: &mut GameState) {
             let m_pos = (m.position[0], m.position[1]);
             //generate 2 choices
             if state.artifact_shop.len() == 0 {
-                state.artifact_shop = create_artifact_shop(2, &mut state.rng, &state.artifacts);
+                let player_artifacts: Vec<Artifact> = state
+                    .artifacts
+                    .iter()
+                    .filter(|artifact| artifact.team == 0)
+                    .cloned()
+                    .collect();
+
+                state.artifact_shop = create_artifact_shop(2, &mut state.rng, &player_artifacts);
             }
             for (i, a) in state.artifact_shop.iter_mut().enumerate() {
                 let pos = (100 + (i as i32 * 100), 50);
@@ -460,6 +467,14 @@ pub fn dbgo(state: &mut GameState) {
             }
             if ready_to_transition {
                 state.dbphase = DBPhase::Battle;
+                //TODO: maybe turn this into a clearer transition step
+                //also make this into more of a game loop (like they get more in later levels)
+                let enemy_artifact_kinds = choose_artifacts_for_enemy_team(2, &mut state.rng);
+                let enemy_artifacts: Vec<Artifact> = enemy_artifact_kinds
+                    .into_iter()
+                    .map(|kind| Artifact::new(kind, 1))
+                    .collect();
+                state.artifacts.extend(enemy_artifacts);
             }
         }
         DBPhase::Sandbox => {
@@ -767,12 +782,18 @@ pub fn dbgo(state: &mut GameState) {
                                     .collect();
 
                                 your_team.units = living_unit_types;
-                                let artifacts = state.artifacts.clone();
+                                //store player artifacts for next round
+                                let player_artifacts = state
+                                    .artifacts
+                                    .iter()
+                                    .filter(|artifact| artifact.team == 0)
+                                    .cloned()
+                                    .collect();
                                 let r = state.round + 1;
                                 *state = GameState::default();
                                 state.teams.push(your_team);
                                 state.round = r;
-                                state.artifacts = artifacts;
+                                state.artifacts = player_artifacts;
                             } else {
                                 // Loss: reset game
                                 *state = GameState::default();
@@ -1246,6 +1267,14 @@ pub fn select_random_artifact_kinds(
     }
 
     selected_kinds
+}
+
+pub fn choose_artifacts_for_enemy_team(num_kinds: usize, rng: &mut RNG) -> Vec<ArtifactKind> {
+    // Convert ARTIFACT_KINDS to slice of references
+    let available_kinds = ARTIFACT_KINDS.iter().collect::<Vec<_>>();
+
+    // Use the existing select_random_artifact_kinds function
+    select_random_artifact_kinds(&available_kinds, num_kinds, rng)
 }
 
 pub fn split_text_at_spaces(text: &str) -> Vec<String> {

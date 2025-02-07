@@ -167,6 +167,46 @@ impl Artifact {
         }
     }
 
+    pub fn icon_is_hovered(&mut self, pos: (i32, i32), mouse_pos: (i32, i32)) -> bool {
+        let (icon_x, icon_y) = pos;
+        let (mouse_x, mouse_y) = mouse_pos;
+
+        mouse_x >= icon_x && mouse_x < icon_x + 12 && mouse_y >= icon_y && mouse_y < icon_y + 12
+    }
+
+    pub fn draw_name(&mut self, pos: (i32, i32)) {
+        // Get the name of the artifact from artifact kind
+        let name = format!("{:?}", self.artifact_kind)
+            .split('{')
+            .next()
+            .unwrap_or("")
+            .trim()
+            .to_string();
+
+        // Calculate width based on character length (each character = 5 pixels)
+        let width = name.len() as i32 * 5;
+
+        // Position and dimensions
+        let (x, y) = pos;
+        let height = 7;
+        let margin = 4;
+
+        // Draw background box
+        rect!(
+            x = x - margin - 12,
+            y = y - margin,
+            w = width + 2 * margin,
+            h = height + 2 * margin,
+            border_radius = 2,
+            border_color = SHADOW_COLOR,
+            border_width = 1,
+            color = DARK_GRAY
+        );
+
+        // Draw text
+        text!(&name, x = x - 12, y = y, color = WHITE);
+    }
+
     pub fn play_effect(&mut self) {
         let anim = Animation {
             name: self.artifact_kind.to_string(),

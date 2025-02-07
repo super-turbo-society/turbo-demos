@@ -1756,8 +1756,13 @@ fn draw_team_artifacts(state: &mut GameState, team: i32, pos: (f32, f32), right_
         } else {
             pos.0 as i32 + x_offset
         };
-        let y = pos.1 as i32 + 14;
+        let y = pos.1 as i32 + 12;
         a.draw_sprite_scaled((x, y), 0.5);
+        //artifact icon hover code
+        let mp = mouse(0).position;
+        if a.icon_is_hovered((x, y), (mp[0], mp[1])) {
+            a.draw_name((x, y + 20));
+        }
     }
 }
 
