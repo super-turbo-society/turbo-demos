@@ -969,6 +969,13 @@ pub enum DBPhase {
     Sandbox,
 }
 
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone, Copy)]
+pub enum AttributeType {
+    Damage,
+    Speed,
+    Health,
+}
+
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 pub struct UnitPack {
     pub unit_type: String,
@@ -1049,12 +1056,54 @@ impl UnitPack {
 
         // Stats rows - each line is 15 pixels apart
         let damage_text = format!("DAMAGE: {}", self.unit_preview.data.damage);
+        let damage_text_length = damage_text.len() as i32 * 5;
         let speed_text = format!("SPEED: {}", self.unit_preview.data.speed);
+        let speed_text_length = speed_text.len() as i32 * 5;
         let health_text = format!("HEALTH: {}", self.unit_preview.data.max_health);
+        let health_text_length = health_text.len() as i32 * 5;
 
         text!(&damage_text, x = px + 5., y = py + 25.);
+        self.draw_attributes(
+            (px - 2. + damage_text_length as f32, py + 25.0),
+            AttributeType::Damage,
+        );
         text!(&speed_text, x = px + 5., y = py + 35.);
+        self.draw_attributes(
+            (px - 2. + speed_text_length as f32, py + 35.0),
+            AttributeType::Speed,
+        );
         text!(&health_text, x = px + 5., y = py + 45.);
+        self.draw_attributes(
+            (px - 2. + health_text_length as f32, py + 45.0),
+            AttributeType::Health,
+        );
+    }
+
+    pub fn draw_attributes(&self, pos: (f32, f32), attribute_type: AttributeType) {
+        let mut offset_x = 0.0;
+        let (x, y) = pos;
+
+        for &attr in &self.unit_preview.data.attributes {
+            let sprite_name = match (attribute_type, attr) {
+                // Damage attributes
+                (AttributeType::Damage, Attribute::FireEffect) => "status_burning",
+                (AttributeType::Damage, Attribute::FreezeAttack) => "status_frozen",
+                (AttributeType::Damage, Attribute::PoisonAttack) => "status_poisoned",
+                (AttributeType::Damage, Attribute::Berserk) => "status_berserk",
+
+                // Speed attributes
+                (AttributeType::Speed, Attribute::Stealth) => "status_invisible",
+
+                // Health attributes
+                (AttributeType::Health, Attribute::Shielded) => "status_shield",
+
+                // If no match, skip this attribute
+                _ => continue,
+            };
+
+            sprite!(sprite_name, x = x + offset_x, y = y, sw = 16);
+            offset_x += 16.0;
+        }
     }
 
     pub fn draw(&mut self, mouse_pos: (i32, i32)) {

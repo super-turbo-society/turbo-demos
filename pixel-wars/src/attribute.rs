@@ -1,5 +1,5 @@
 use crate::*;
-#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone, Copy)]
 pub enum Attribute {
     ExplodeOnDeath,
     ExplosiveAttack,
