@@ -41,7 +41,7 @@ pub const LEVELS: [&[TrapDefinition]; 3] = [
 ];
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
-struct TrapDefinition {
+pub struct TrapDefinition {
     trap_type: Option<TrapType>, // None means random
     side: TrapSide,
     count: usize, // Number of traps to generate

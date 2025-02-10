@@ -340,7 +340,15 @@ pub fn dbgo(state: &mut GameState) {
             }
 
             if state.shop.len() == 0 {
-                state.shop = create_unit_packs(4, &ds, &mut state.rng, state.round);
+                //decide if we want to do a fallen unit pack
+                let mut fallen_units = None;
+                if state.last_round_dead_units.len() > 0
+                    && state.last_round_dead_units.len() * 3 > state.teams[0].units.len()
+                {
+                    fallen_units = Some(state.last_round_dead_units.clone());
+                }
+                //if we do add a variable to create_unit_packs
+                state.shop = create_unit_packs(4, &ds, &mut state.rng, state.round, fallen_units);
                 if state.round == 1 {
                     state.num_picks = 3;
                 } else {
@@ -782,6 +790,13 @@ pub fn dbgo(state: &mut GameState) {
                                     .collect();
 
                                 your_team.units = living_unit_types;
+                                let dead_unit_types: Vec<String> = state
+                                    .units
+                                    .iter()
+                                    .filter(|unit| unit.team == 0 && unit.health <= 0.0)
+                                    .map(|unit| unit.unit_type.clone())
+                                    .collect();
+
                                 //store player artifacts for next round
                                 let player_artifacts = state
                                     .artifacts
@@ -794,6 +809,9 @@ pub fn dbgo(state: &mut GameState) {
                                 state.teams.push(your_team);
                                 state.round = r;
                                 state.artifacts = player_artifacts;
+                                //using this for reviving the dead units
+                                state.last_round_dead_units = dead_unit_types;
+                                turbo::println!("{:?}", state.last_round_dead_units);
                             } else {
                                 // Loss: reset game
                                 *state = GameState::default();
@@ -976,32 +994,79 @@ pub enum AttributeType {
     Health,
 }
 
+//TODO: Refactor these enums to have the values related to their type
+//then update functions so this can work more easily
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
+pub enum UnitPackType {
+    Normal {
+        unit_preview: UnitPreview,
+        unit_count: u32,
+    },
+    FallenUnits {
+        fallen_unit_types: Vec<String>,
+    },
+}
+
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 pub struct UnitPack {
     pub unit_type: String,
-    pub unit_count: u32,
-    pub unit_preview: UnitPreview,
     pub is_picked: bool,
     pub pos: (f32, f32),
     pub width: u32,
     pub height: u32,
+    pub pack_type: UnitPackType, // New field to distinguish pack types
 }
 
 impl UnitPack {
-    pub fn new(
+    pub fn new_normal(
         unit_type: String,
-        unit_count: u32,
         unit_preview: UnitPreview,
+        unit_count: u32,
         pos: (f32, f32),
     ) -> Self {
         UnitPack {
             unit_type,
-            unit_count,
-            unit_preview,
-            is_picked: false, // Default value
+            pack_type: UnitPackType::Normal {
+                unit_preview,
+                unit_count,
+            },
+            is_picked: false,
             pos,
-            width: 80,  // Default value
-            height: 80, // Default value
+            width: 80,
+            height: 80,
+        }
+    }
+
+    pub fn new_fallen_units(fallen_unit_types: Vec<String>, pos: (f32, f32)) -> Self {
+        let unit_type = if fallen_unit_types.len() > 1 {
+            "Fallen Units".to_string()
+        } else if !fallen_unit_types.is_empty() {
+            fallen_unit_types[0].clone()
+        } else {
+            "Empty Pack".to_string()
+        };
+
+        UnitPack {
+            unit_type,
+            pack_type: UnitPackType::FallenUnits { fallen_unit_types },
+            is_picked: false,
+            pos,
+            width: 80,
+            height: 80,
+        }
+    }
+
+    pub fn unit_count(&self) -> u32 {
+        match &self.pack_type {
+            UnitPackType::Normal { unit_count, .. } => *unit_count,
+            UnitPackType::FallenUnits { fallen_unit_types } => fallen_unit_types.len() as u32,
+        }
+    }
+
+    pub fn unit_preview(&self) -> Option<&UnitPreview> {
+        match &self.pack_type {
+            UnitPackType::Normal { unit_preview, .. } => Some(unit_preview),
+            UnitPackType::FallenUnits { .. } => None,
         }
     }
 
@@ -1049,89 +1114,147 @@ impl UnitPack {
             border_width = 2
         );
 
-        // Header
-        let c = Self::capitalize(&self.unit_type);
-        let txt = format!("{} {}s", self.unit_count, c);
-        text!(&txt, x = px + 5., y = py + 5.);
+        if let UnitPackType::Normal {
+            unit_preview,
+            unit_count,
+        } = &self.pack_type
+        {
+            // Header
+            let c = Self::capitalize(&self.unit_type);
+            let txt = format!("{} {}s", unit_count, c);
+            text!(&txt, x = px + 5., y = py + 5.);
 
-        // Stats rows - each line is 15 pixels apart
-        let damage_text = format!("DAMAGE: {}", self.unit_preview.data.damage);
-        let damage_text_length = damage_text.len() as i32 * 5;
-        let speed_text = format!("SPEED: {}", self.unit_preview.data.speed);
-        let speed_text_length = speed_text.len() as i32 * 5;
-        let health_text = format!("HEALTH: {}", self.unit_preview.data.max_health);
-        let health_text_length = health_text.len() as i32 * 5;
+            // Stats rows - each line is 15 pixels apart
+            let damage_text = format!("DAMAGE: {}", unit_preview.data.damage);
+            let damage_text_length = damage_text.len() as i32 * 5;
+            let speed_text = format!("SPEED: {}", unit_preview.data.speed);
+            let speed_text_length = speed_text.len() as i32 * 5;
+            let health_text = format!("HEALTH: {}", unit_preview.data.max_health);
+            let health_text_length = health_text.len() as i32 * 5;
 
-        text!(&damage_text, x = px + 5., y = py + 25.);
-        self.draw_attributes(
-            (px - 2. + damage_text_length as f32, py + 25.0),
-            AttributeType::Damage,
-        );
-        text!(&speed_text, x = px + 5., y = py + 35.);
-        self.draw_attributes(
-            (px - 2. + speed_text_length as f32, py + 35.0),
-            AttributeType::Speed,
-        );
-        text!(&health_text, x = px + 5., y = py + 45.);
-        self.draw_attributes(
-            (px - 2. + health_text_length as f32, py + 45.0),
-            AttributeType::Health,
-        );
+            text!(&damage_text, x = px + 5., y = py + 25.);
+            self.draw_attributes(
+                (px - 2. + damage_text_length as f32, py + 25.0),
+                AttributeType::Damage,
+            );
+            text!(&speed_text, x = px + 5., y = py + 35.);
+            self.draw_attributes(
+                (px - 2. + speed_text_length as f32, py + 35.0),
+                AttributeType::Speed,
+            );
+            text!(&health_text, x = px + 5., y = py + 45.);
+            self.draw_attributes(
+                (px - 2. + health_text_length as f32, py + 45.0),
+                AttributeType::Health,
+            );
+        } else if let UnitPackType::FallenUnits { fallen_unit_types } = &self.pack_type {
+            power_text!("Revive", x = px, y = py + 5., center_width = self.width);
+
+            // Count occurrences of each unit type
+            let mut unit_counts: HashMap<String, usize> = HashMap::new();
+            for unit_type in fallen_unit_types {
+                *unit_counts.entry(unit_type.clone()).or_insert(0) += 1;
+            }
+
+            // Sort the unit types to ensure consistent display
+            let mut sorted_units: Vec<_> = unit_counts.into_iter().collect();
+            sorted_units.sort_by_key(|&(ref k, _)| k.clone());
+
+            // Display unit counts
+            let mut y_offset = 25.0;
+            for (unit_type, count) in sorted_units {
+                let capitalized_type = Self::capitalize(&unit_type);
+                let unit_text = format!("{}x {}", count, capitalized_type);
+                text!(&unit_text, x = px + 5., y = py + y_offset);
+                y_offset += 15.0;
+            }
+        }
     }
 
     pub fn draw_attributes(&self, pos: (f32, f32), attribute_type: AttributeType) {
-        let mut offset_x = 0.0;
-        let (x, y) = pos;
+        // Only proceed if it's a Normal pack
+        if let UnitPackType::Normal { unit_preview, .. } = &self.pack_type {
+            let mut offset_x = 0.0;
+            let (x, y) = pos;
 
-        for &attr in &self.unit_preview.data.attributes {
-            let sprite_name = match (attribute_type, attr) {
-                // Damage attributes
-                (AttributeType::Damage, Attribute::FireEffect) => "status_burning",
-                (AttributeType::Damage, Attribute::FreezeAttack) => "status_frozen",
-                (AttributeType::Damage, Attribute::PoisonAttack) => "status_poisoned",
-                (AttributeType::Damage, Attribute::Berserk) => "status_berserk",
+            // Collect matching attributes first
+            let matching_attrs: Vec<_> = unit_preview
+                .data
+                .attributes
+                .iter()
+                .filter_map(|&attr| match (attribute_type, attr) {
+                    // Damage attributes
+                    (AttributeType::Damage, Attribute::FireEffect) => Some("status_burning"),
+                    (AttributeType::Damage, Attribute::FreezeAttack) => Some("status_frozen"),
+                    (AttributeType::Damage, Attribute::PoisonAttack) => Some("status_poisoned"),
+                    (AttributeType::Damage, Attribute::Berserk) => Some("status_berserk"),
 
-                // Speed attributes
-                (AttributeType::Speed, Attribute::Stealth) => "status_invisible",
+                    // Speed attributes
+                    (AttributeType::Speed, Attribute::Stealth) => Some("status_invisible"),
 
-                // Health attributes
-                (AttributeType::Health, Attribute::Shielded) => "status_shield",
+                    // Health attributes
+                    (AttributeType::Health, Attribute::Shielded) => Some("status_shield"),
 
-                // If no match, skip this attribute
-                _ => continue,
-            };
+                    // If no match, return None
+                    _ => None,
+                })
+                .collect();
 
-            sprite!(sprite_name, x = x + offset_x, y = y, sw = 16);
-            offset_x += 16.0;
+            // If there are matching attributes, draw the "+" sign
+            if !matching_attrs.is_empty() {
+                text!("+", x = x + 7.0, y = y, color = WHITE);
+
+                // Draw sprites after the "+" sign
+                for sprite_name in matching_attrs {
+                    offset_x += 5.0; // Add 5 pixels after the "+"
+                    sprite!(sprite_name, x = x + offset_x, y = y, sw = 16);
+                    offset_x += 16.0;
+                }
+            }
         }
     }
 
     pub fn draw(&mut self, mouse_pos: (i32, i32)) {
         if !self.is_picked {
-            self.unit_preview.pos.0 = self.pos.0 + 30.;
-            self.unit_preview.pos.1 = self.pos.1 + self.height as f32 - 10.;
-            self.unit_preview.update();
+            if let UnitPackType::Normal { unit_preview, .. } = &mut self.pack_type {
+                unit_preview.pos.0 = self.pos.0 + 30.;
+                unit_preview.pos.1 = self.pos.1 + self.height as f32 - 10.;
+                unit_preview.update();
+            }
+
             self.draw_pack_card(mouse_pos);
-            self.unit_preview.draw();
+
+            if let UnitPackType::Normal { unit_preview, .. } = &self.pack_type {
+                unit_preview.draw();
+            }
         }
     }
     //draw unit preview
 }
 
 pub fn select_unit_pack(pack_index: usize, state: &mut GameState) {
-    //get team 0
     let pack = &mut state.shop[pack_index];
     if state.teams.len() == 0 {
         let team = initialize_first_team(state.data_store.as_ref().unwrap().clone());
         state.teams.push(team);
     }
-    //add the units to team 0
-    let num = pack.unit_count;
-    let mut i = 0;
-    while i < num {
-        state.teams[0].add_unit(pack.unit_type.clone());
-        i += 1;
+
+    match &pack.pack_type {
+        UnitPackType::Normal { unit_count, .. } => {
+            let mut i = 0;
+            while i < *unit_count {
+                state.teams[0].add_unit(pack.unit_type.clone());
+                i += 1;
+            }
+        }
+        UnitPackType::FallenUnits { fallen_unit_types } => {
+            // Directly add fallen unit types to the team
+            for unit_type in fallen_unit_types {
+                state.teams[0].add_unit(unit_type.clone());
+            }
+        }
     }
+
     pack.is_picked = true;
 }
 
@@ -1149,24 +1272,37 @@ pub fn create_unit_packs(
     data_store: &UnitDataStore,
     rng: &mut RNG,
     round: u32,
+    fallen_units: Option<Vec<String>>,
 ) -> Vec<UnitPack> {
-    //choose some number of packs to make
-    //add them to the game state
     let mut unitpacks = Vec::new();
+
+    // If fallen units exist, create a fallen units pack first
+    if let Some(ref fallen_unit_types) = fallen_units {
+        let pos = (20.0, 50.0);
+        let fallen_pack = UnitPack::new_fallen_units(fallen_unit_types.clone(), pos);
+        unitpacks.push(fallen_pack);
+    }
+
+    // Adjust the number of types based on whether a fallen units pack was created
+    let num_additional_types = if fallen_units.is_some() {
+        num_types - 1
+    } else {
+        num_types
+    };
+
     let available_types = get_available_units(round, data_store);
-    let types = select_random_unit_types(&available_types, num_types, rng);
-    let mut i = 0;
-    while i < num_types {
-        //create a pack
-        //TODO: update this with a unit pack new function
-        let unit_type = types[i].clone();
-        let pos = ((i * 90 + 20) as f32, 50.);
-        let data: &UnitData = data_store.get_unit_data(&unit_type).unwrap();
-        let unit_count = get_unit_count(round, &unit_type);
-        let unit_preview = UnitPreview::new(unit_type, data.clone(), pos, false);
-        let unitpack = UnitPack::new(types[i].clone(), unit_count as u32, unit_preview, pos);
+    let types = select_random_unit_types(&available_types, num_additional_types, rng);
+
+    for (i, unit_type) in types.iter().enumerate() {
+        let pos = (
+            ((i + (fallen_units.is_some() as usize)) * 90 + 20) as f32,
+            50.,
+        );
+        let data: &UnitData = data_store.get_unit_data(unit_type).unwrap();
+        let unit_count = get_unit_count(round, unit_type);
+        let unit_preview = UnitPreview::new(unit_type.clone(), data.clone(), pos, false);
+        let unitpack = UnitPack::new_normal(unit_type.clone(), unit_preview, unit_count, pos);
         unitpacks.push(unitpack);
-        i += 1;
     }
 
     unitpacks

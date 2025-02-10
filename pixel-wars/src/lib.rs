@@ -108,6 +108,7 @@ turbo::init! {
         auto_assign_teams: bool,
         user: UserStats,
         last_winning_team: Option<Team>,
+        last_round_dead_units: Vec<String>,
         team_selection_timer: u32,
         team_generation_requested: bool,
         previous_battle: Option<Battle>,
@@ -150,6 +151,7 @@ turbo::init! {
             zoom_tween_z: Tween::new(0.0),
             user: UserStats{points: 100},
             last_winning_team: None,
+            last_round_dead_units: Vec::new(),
             team_selection_timer: TEAM_SELECTION_TIME,//TODO: This should come from TURBO OS
             team_generation_requested: false,
             previous_battle: None,
@@ -163,92 +165,13 @@ turbo::init! {
 
 turbo::go!({
     let mut state = GameState::load();
-    //old_go(&mut state);
     dbgo(&mut state);
-    // let gp = gamepad(0);
-    // if gp.right.just_pressed() {
-    //     state = GameState::default();
-    //     state.auto_assign_teams = false;
-    // }
-    // if gp.left.just_pressed() {
-    //     state = GameState::default();
-    //     state.auto_assign_teams = true;
-    // }
-    // //handle event queue
-    // while let Some(event) = state.event_queue.pop() {
-    //     match event {
-    //         GameEvent::AddUnitToTeam(team_index, unit_type) => {
-    //             state.teams[team_index].add_unit(unit_type);
-    //         }
-    //         GameEvent::RemoveUnitFromTeam(team_index, unit_type) => {
-    //             state.teams[team_index].remove_unit(unit_type);
-    //         }
-    //         GameEvent::ChooseTeam(team_num) => {
-    //             let mut team_choice_counter = TeamChoiceCounter {
-    //                 team_0: 0,
-    //                 team_1: 0,
-    //             };
-    //             if state.selected_team_index.is_some() {
-    //                 if state.selected_team_index == Some(0) && team_num == 1 {
-    //                     team_choice_counter.team_0 = -1;
-    //                     team_choice_counter.team_1 = 1;
-    //                 } else if state.selected_team_index == Some(1) && team_num == 0 {
-    //                     team_choice_counter.team_0 = 1;
-    //                     team_choice_counter.team_1 = -1;
-    //                 }
-    //             } else {
-    //                 if team_num == 0 {
-    //                     team_choice_counter.team_0 = 1;
-    //                     team_choice_counter.team_1 = 0;
-    //                 } else if team_num == 1 {
-    //                     team_choice_counter.team_0 = 0;
-    //                     team_choice_counter.team_1 = 1;
-    //                 }
-    //             }
-
-    //             let bytes = borsh::to_vec(&team_choice_counter).unwrap();
-    //             os::client::exec("pixel-wars", "choose_team", &bytes);
-    //         }
-    //         GameEvent::RestartGame() => {
-    //             let t = state.last_winning_team;
-    //             let u = state.user;
-    //             let battle = match os::client::watch_file("pixel-wars", "current_battle")
-    //                 .data
-    //                 .and_then(|file| Battle::try_from_slice(&file.contents).ok())
-    //             {
-    //                 Some(battle) => battle,
-    //                 None => {
-    //                     return;
-    //                 }
-    //             };
-    //             state = GameState::default();
-    //             //retain these values between rounds
-    //             state.last_winning_team = t;
-    //             state.user = u;
-    //             state.previous_battle = Some(battle);
-    //         }
-    //     }
-    // }
     let gp = gamepad(0);
     if gp.a.just_pressed() {
         let t = create_trap(&mut state.rng, None, TrapSide::Middle);
         state.traps.push(t);
     }
-    if gp.b.just_pressed() {
-        // for unit in &mut state.units {
-        //     if unit.data.has_attribute(&Attribute::Trample) {
-        //         unit.state = UnitState::Idle;
-        //         unit.attack_strategy = AttackStrategy::Trample { target: None };
-        //     }
-        // }
-
-        for artifact in &mut state.artifacts {
-            artifact.play_effect();
-        }
-    }
-
-    //POTENTIAL FLAG FOR SHADER
-
+    if gp.b.just_pressed() {}
     state.save();
 });
 

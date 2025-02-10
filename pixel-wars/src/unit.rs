@@ -569,7 +569,6 @@ impl Unit {
     // }
     /// Configuration constant for movement calculation
     /// This represents the number of frames or steps used in movement smoothing
-    const MOVEMENT_DIVISOR: f32 = 20.0;
 
     pub fn move_towards_target(&self) -> (f32, f32) {
         // Calculate direction towards target
