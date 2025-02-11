@@ -1,3 +1,5 @@
+use core::num;
+
 use crate::*;
 
 pub const TOTAL_ROUNDS: usize = 6;
@@ -14,14 +16,14 @@ const UNIT_RATINGS: [(&str, u8); 20] = [
     ("shield", 3),
     ("serpent", 1),
     // Advanced units
-    ("sabre", 5),
+    ("sabre", 4),
     ("flameboi", 5),
     ("bazooka", 5),
-    ("draco", 7),
-    ("saucer", 6),
+    ("draco", 6),
+    ("saucer", 5),
     ("tanker", 7),
-    ("catapult", 5),
-    ("darkknight", 7),
+    ("catapult", 7),
+    ("darkknight", 6),
     ("yeti", 5),
     ("igor", 4),
 ];
@@ -190,6 +192,7 @@ pub fn dbgo(state: &mut GameState) {
                 state.data_store = Some(UnitDataStore::new());
             }
         }
+        //print out unit powers
     }
     let mut ready_to_transition = false;
     if let Some(transition) = &mut state.transition {
@@ -342,10 +345,22 @@ pub fn dbgo(state: &mut GameState) {
             if state.shop.len() == 0 {
                 //decide if we want to do a fallen unit pack
                 let mut fallen_units = None;
-                if state.last_round_dead_units.len() > 0
-                    && state.last_round_dead_units.len() * 3 > state.teams[0].units.len()
-                {
-                    fallen_units = Some(state.last_round_dead_units.clone());
+                let num_units = state.last_round_dead_units.len();
+                if num_units > 0 && num_units * 2 > state.teams[0].units.len() {
+                    let percent_to_include = 60;
+                    let num_to_include = (num_units * percent_to_include / 100).max(1); // Ensure at least 1 unit
+
+                    // Clone the fallen units
+                    let mut shuffled_units = state.last_round_dead_units.clone();
+
+                    // Custom shuffle using state.rng
+                    for i in (0..shuffled_units.len()).rev() {
+                        let j = state.rng.next() as usize % (i + 1);
+                        shuffled_units.swap(i, j);
+                    }
+
+                    // Take the first num_to_include units
+                    fallen_units = Some(shuffled_units[0..num_to_include].to_vec());
                 }
                 //if we do add a variable to create_unit_packs
                 state.shop = create_unit_packs(4, &ds, &mut state.rng, state.round, fallen_units);
@@ -477,12 +492,13 @@ pub fn dbgo(state: &mut GameState) {
                 state.dbphase = DBPhase::Battle;
                 //TODO: maybe turn this into a clearer transition step
                 //also make this into more of a game loop (like they get more in later levels)
-                let enemy_artifact_kinds = choose_artifacts_for_enemy_team(2, &mut state.rng);
-                let enemy_artifacts: Vec<Artifact> = enemy_artifact_kinds
-                    .into_iter()
-                    .map(|kind| Artifact::new(kind, 1))
-                    .collect();
-                state.artifacts.extend(enemy_artifacts);
+                //TODO: Figure out what to do with enemy team artifacts better than this
+                // let enemy_artifact_kinds = choose_artifacts_for_enemy_team(2, &mut state.rng);
+                // let enemy_artifacts: Vec<Artifact> = enemy_artifact_kinds
+                //     .into_iter()
+                //     .map(|kind| Artifact::new(kind, 1))
+                //     .collect();
+                // state.artifacts.extend(enemy_artifacts);
             }
         }
         DBPhase::Sandbox => {
@@ -965,6 +981,13 @@ pub fn generate_team_db(
         .map(|(unit_type, unit_data)| (unit_type.clone(), calculate_single_unit_power(unit_data)))
         .collect();
 
+    let mut sorted_powers: Vec<_> = unit_powers.iter().collect();
+    sorted_powers.sort_by(|a, b| b.1.partial_cmp(a.1).unwrap());
+
+    for (unit_type, power) in sorted_powers {
+        log!("{}: {:.2}", unit_type, power);
+    }
+
     // Calculate target power
     let target_power = match match_team {
         Some(team) => get_team_total_power(team),
@@ -1097,9 +1120,14 @@ impl UnitPack {
         let pw = 80; // Made panel wider to accommodate text
         let ph = 80;
         let border_color = OFF_BLACK;
-        let mut panel_color = DARK_GRAY;
+        let (panel_color, hover_color) = match self.pack_type {
+            UnitPackType::Normal { .. } => (DARK_GRAY, LIGHT_GRAY),
+            UnitPackType::FallenUnits { .. } => (COLOR_BRONZE, COLOR_LIGHT_BRONZE),
+        };
+
+        let mut current_panel_color = panel_color;
         if self.is_hovered(mouse_pos) {
-            panel_color = LIGHT_GRAY;
+            current_panel_color = hover_color;
         }
         let px = self.pos.0;
         let py = self.pos.1;
@@ -1108,7 +1136,7 @@ impl UnitPack {
             y = py,
             h = ph,
             w = pw,
-            color = panel_color,
+            color = current_panel_color,
             border_color = border_color,
             border_radius = 6,
             border_width = 2

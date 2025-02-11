@@ -1,6 +1,7 @@
 mod artifact;
 mod attribute;
 mod backend;
+mod colors;
 mod deckbuilder;
 mod rng;
 mod trap;
@@ -9,6 +10,7 @@ mod unit;
 use artifact::*;
 use attribute::*;
 use backend::*;
+use colors::*;
 use csv::{Reader, ReaderBuilder};
 use deckbuilder::*;
 use os::server;
@@ -16,6 +18,7 @@ use rng::*;
 use std::cmp::{max, Ordering};
 use std::collections::BTreeMap;
 use std::collections::HashMap;
+use std::f32::consts::E;
 use std::fmt::{format, Display};
 use std::str::FromStr;
 use strum::IntoEnumIterator;
@@ -53,17 +56,6 @@ const MOVEMENT_DIVISOR: f32 = 16.0;
 const MAX_Y_ATTACK_DISTANCE: f32 = 10.;
 const FOOTPRINT_LIFETIME: u32 = 240;
 const MAP_BOUNDS: (f32, f32, f32, f32) = (10.0, 340.0, 0.0, 200.0);
-
-//colors
-const POO_BROWN: usize = 0x654321FF;
-const ACID_GREEN: usize = 0x32CD32FF;
-const WHITE: usize = 0xffffffff;
-const DAMAGE_TINT_RED: usize = 0xb9451dff;
-const OFF_BLACK: u32 = 0x1A1A1AFF;
-const DARK_GRAY: u32 = 0x808080FF;
-const LIGHT_GRAY: u32 = 0xA6A6A6FF;
-const SHADOW_COLOR: usize = 0x696682ff;
-const _HOVER_GRAY: u32 = 0xCCCCCCFF;
 
 //TODO: Add back turbo OS later
 turbo::cfg! {r#"
@@ -3027,21 +3019,32 @@ fn generate_team(
 
 //TODO: Make this system more fair
 fn calculate_single_unit_power(unit_data: &UnitData) -> f32 {
-    let power_level = unit_data.max_health
-        + (unit_data.damage / (unit_data.attack_time as f32 / 60.0))
-        + unit_data.speed;
+    // Calculate base DPS
+    let dps = unit_data.damage / (unit_data.attack_time as f32 / 60.0);
 
-    let mut final_power = power_level;
+    // Range multiplier
+    let range_multiplier = if unit_data.range > 50.0 {
+        6.0
+    } else if unit_data.range > 20.0 {
+        3.0
+    } else {
+        1.0
+    };
 
-    if unit_data.range > 20.0 {
-        final_power += unit_data.range;
-    }
+    // Splash multiplier
+    let splash_multiplier = if unit_data.splash_area > 9.0 {
+        10.0
+    } else if unit_data.splash_area > 0.0 {
+        3.0
+    } else {
+        1.0
+    };
 
-    if unit_data.splash_area > 0.0 {
-        final_power = final_power * 3.;
-    }
+    // Combine all factors
+    let power_level =
+        unit_data.max_health + (dps * range_multiplier * splash_multiplier) + unit_data.speed;
 
-    final_power
+    power_level
 }
 
 pub fn calculate_team_power_target(
