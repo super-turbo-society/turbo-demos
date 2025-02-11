@@ -3023,7 +3023,9 @@ fn calculate_single_unit_power(unit_data: &UnitData) -> f32 {
     let dps = unit_data.damage / (unit_data.attack_time as f32 / 60.0);
 
     // Range multiplier
-    let range_multiplier = if unit_data.range > 50.0 {
+    let range_multiplier = if unit_data.range > 125. {
+        8.0
+    } else if unit_data.range > 50.0 {
         6.0
     } else if unit_data.range > 20.0 {
         3.0

@@ -29,7 +29,7 @@ const UNIT_RATINGS: [(&str, u8); 20] = [
 ];
 
 pub fn title_screen_unit(rng: &mut RNG, data_store: &UnitDataStore) -> WalkingUnitPreview {
-    let is_left_side = (rng.next() % 2) == 0;
+    //let is_left_side = (rng.next() % 2) == 0;
     let x_pos = -64.0;
     let y_pos = rng.next_in_range(0, 160) as f32;
     let pos = (x_pos, y_pos);
@@ -75,12 +75,13 @@ fn draw_checkerboard_background() {
 }
 
 fn draw_textured_background() {
-    let tile_size: usize = 2;
+    let tile_size: i32 = 2;
     let base_color: u32 = 0x8f8cacff;
     let variation = 8; // Reduced variation for subtlety
 
-    for row in 0..(216 / tile_size) {
-        for col in 0..(384 / tile_size) {
+    // Extend the drawing area slightly in each direction
+    for row in -4..(216 / tile_size + 4) {
+        for col in -4..(384 / tile_size + 4) {
             let x = (col * tile_size) as usize;
             let y = (row * tile_size) as usize;
 
@@ -294,7 +295,7 @@ pub fn dbgo(state: &mut GameState) {
                 );
             }
             if m.left.just_pressed() {
-                if state.round == 7 {
+                if state.round == TOTAL_ROUNDS as u32 + 1 {
                     *state = GameState::default();
                 } else {
                     state.dbphase = DBPhase::Shop;
@@ -343,10 +344,10 @@ pub fn dbgo(state: &mut GameState) {
             }
 
             if state.shop.len() == 0 {
-                //decide if we want to do a fallen unit pack
+                //let player revive 60 perent fo units if they lost 1/3 of units in battle after round 2
                 let mut fallen_units = None;
                 let num_units = state.last_round_dead_units.len();
-                if num_units > 0 && num_units * 2 > state.teams[0].units.len() {
+                if num_units > 0 && num_units * 2 > state.teams[0].units.len() && state.round > 2 {
                     let percent_to_include = 60;
                     let num_to_include = (num_units * percent_to_include / 100).max(1); // Ensure at least 1 unit
 
@@ -363,7 +364,24 @@ pub fn dbgo(state: &mut GameState) {
                     fallen_units = Some(shuffled_units[0..num_to_include].to_vec());
                 }
                 //if we do add a variable to create_unit_packs
-                state.shop = create_unit_packs(4, &ds, &mut state.rng, state.round, fallen_units);
+                //get the unit types on the current team
+                let mut unit_types = Vec::new();
+                if state.teams.len() != 0 {
+                    unit_types = state.teams[0].units.clone();
+                    unit_types.extend(state.last_round_dead_units.clone());
+                    unit_types.sort();
+                    unit_types.dedup();
+                }
+                turbo::println!("TYPES: {:?}", unit_types);
+
+                state.shop = create_unit_packs(
+                    4,
+                    &ds,
+                    &mut state.rng,
+                    state.round,
+                    fallen_units,
+                    unit_types,
+                );
                 if state.round == 1 {
                     state.num_picks = 3;
                 } else {
@@ -959,7 +977,7 @@ pub fn generate_team_db(
     round: u32, // Added round parameter
 ) -> Team {
     // Get available unit types based on round
-    let mut available_types = get_available_units(round, data_store);
+    let mut available_types = get_available_units(round, data_store, Vec::new());
 
     // If matching a team, remove its unit types from available options
     if let Some(team) = match_team {
@@ -981,12 +999,14 @@ pub fn generate_team_db(
         .map(|(unit_type, unit_data)| (unit_type.clone(), calculate_single_unit_power(unit_data)))
         .collect();
 
-    let mut sorted_powers: Vec<_> = unit_powers.iter().collect();
-    sorted_powers.sort_by(|a, b| b.1.partial_cmp(a.1).unwrap());
+    //UNIT POWER LEVELS
 
-    for (unit_type, power) in sorted_powers {
-        log!("{}: {:.2}", unit_type, power);
-    }
+    // let mut sorted_powers: Vec<_> = unit_powers.iter().collect();
+    // sorted_powers.sort_by(|a, b| b.1.partial_cmp(a.1).unwrap());
+
+    // for (unit_type, power) in sorted_powers {
+    //     log!("{}: {:.2}", unit_type, power);
+    // }
 
     // Calculate target power
     let target_power = match match_team {
@@ -1301,6 +1321,7 @@ pub fn create_unit_packs(
     rng: &mut RNG,
     round: u32,
     fallen_units: Option<Vec<String>>,
+    current_team_unit_types: Vec<String>,
 ) -> Vec<UnitPack> {
     let mut unitpacks = Vec::new();
 
@@ -1318,7 +1339,7 @@ pub fn create_unit_packs(
         num_types
     };
 
-    let available_types = get_available_units(round, data_store);
+    let available_types = get_available_units(round, data_store, current_team_unit_types);
     let types = select_random_unit_types(&available_types, num_additional_types, rng);
 
     for (i, unit_type) in types.iter().enumerate() {
@@ -1336,11 +1357,16 @@ pub fn create_unit_packs(
     unitpacks
 }
 
-pub fn get_available_units(round: u32, data_store: &UnitDataStore) -> Vec<&String> {
+pub fn get_available_units(
+    round: u32,
+    data_store: &UnitDataStore,
+    current_team_unit_types: Vec<String>,
+) -> Vec<&String> {
     let all_types: Vec<&String> = data_store.data.keys().collect();
 
     let basic_units = vec![
-        "serpent", "blade", "hunter", "pyro", "bigpound", "deathray", "cosmo", "zombie", "shield",
+        "axeman", "serpent", "blade", "hunter", "pyro", "bigpound", "deathray", "cosmo", "zombie",
+        "shield",
     ];
     let advanced_units = vec![
         "sabre",
@@ -1353,8 +1379,17 @@ pub fn get_available_units(round: u32, data_store: &UnitDataStore) -> Vec<&Strin
         "darkknight",
         "yeti",
         "igor",
-        "axeman",
     ];
+
+    // If the team already has 6 or more unique unit types,
+    // only offer those types
+    if current_team_unit_types.len() >= 6 {
+        return all_types
+            .iter()
+            .filter(|&&unit| current_team_unit_types.contains(unit))
+            .copied()
+            .collect();
+    }
 
     match round {
         1..=2 => all_types
@@ -1377,30 +1412,30 @@ fn get_unit_count(round: u32, unit_type: &str) -> u32 {
     match round {
         //only basic units tier 1-3 in rounds 1 and 2
         1..=2 => match rating {
-            1 => 12,
-            2 => 9,
-            3 => 6,
-            4 => 4,
+            1 => 8,
+            2 => 6,
+            3 => 4,
+            4 => 2,
             _ => 1,
         },
         3..=4 => match rating {
-            1 => 28,
-            2 => 20,
-            3 => 14,
-            4 => 8,
-            5 => 5,
-            6 => 3,
-            7 => 2,
+            1 => 15,
+            2 => 10,
+            3 => 8,
+            4 => 4,
+            5 => 3,
+            6 => 2,
+            7 => 1,
             _ => 1,
         },
-        5..=6 => match rating {
-            1 => 55,
-            2 => 38,
-            3 => 28,
-            4 => 16,
-            5 => 11,
-            6 => 5,
-            7 => 4,
+        5..=8 => match rating {
+            1 => 30,
+            2 => 20,
+            3 => 16,
+            4 => 8,
+            5 => 6,
+            6 => 4,
+            7 => 2,
             _ => 1,
         },
         _ => 1,
@@ -1416,13 +1451,15 @@ fn get_unit_strength_rating(unit_type: &str) -> u8 {
 
 pub fn get_power_level_for_round(round: u32) -> f32 {
     match round {
-        1 => 5.0,
-        2 => 8.0,
-        3 => 11.0,
-        4 => 15.0,
-        5 => 22.0,
-        6 => 38.0,
-        _ => round as f32 * 10.0, // Default case, though shouldn't happen in 6-round game
+        1 => 3.,
+        2 => 5.,
+        3 => 8.,
+        4 => 10.,
+        5 => 13.,
+        6 => 18.,
+        7 => 23.,
+        8 => 29.,
+        _ => round as f32 * 7.0, // Default case, though shouldn't happen in 6-round game
     }
 }
 
