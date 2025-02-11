@@ -1021,7 +1021,7 @@ fn step_through_battle(
                             let mut attack = unit.start_attack(target_unit.id);
                             attack = modify_damage_from_artifacts(attack, &units_clone, artifacts);
                             attacks.push(attack);
-
+                            //unit.attack_strategy = AttackStrategy::AttackClosest;
                             if let Some(display) = unit.display.as_mut() {
                                 display.is_facing_left = unit_position.0 > target_unit.pos.0;
                             }

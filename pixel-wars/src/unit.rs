@@ -120,6 +120,8 @@ impl Unit {
                     self.state = UnitState::Idle;
                     *timer = 30;
                 }
+            } else {
+                self.state = UnitState::Idle;
             }
         }
         if self.state == UnitState::Frozen {

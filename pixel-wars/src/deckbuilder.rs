@@ -344,11 +344,11 @@ pub fn dbgo(state: &mut GameState) {
             }
 
             if state.shop.len() == 0 {
-                //let player revive 60 perent fo units if they lost 1/3 of units in battle after round 2
+                //let player revive units if they lost 1/3 of units in battle after round 2
                 let mut fallen_units = None;
                 let num_units = state.last_round_dead_units.len();
                 if num_units > 0 && num_units * 2 > state.teams[0].units.len() && state.round > 2 {
-                    let percent_to_include = 60;
+                    let percent_to_include = 80;
                     let num_to_include = (num_units * percent_to_include / 100).max(1); // Ensure at least 1 unit
 
                     // Clone the fallen units
