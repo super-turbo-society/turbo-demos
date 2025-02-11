@@ -79,9 +79,9 @@ fn draw_textured_background() {
     let base_color: u32 = 0x8f8cacff;
     let variation = 8; // Reduced variation for subtlety
 
-    // Extend the drawing area slightly in each direction
-    for row in -4..(216 / tile_size + 4) {
-        for col in -4..(384 / tile_size + 4) {
+    // Extend the drawing area 50 pixels in each direction
+    for row in -50..(216 / tile_size + 50) {
+        for col in -50..(384 / tile_size + 50) {
             let x = (col * tile_size) as usize;
             let y = (row * tile_size) as usize;
 
@@ -332,11 +332,13 @@ pub fn dbgo(state: &mut GameState) {
 
             //create the enemy team
             if state.enemy_team_placeholder == None {
+                let team_name =
+                    TEAM_NAMES[(state.rng.next() as usize) % TEAM_NAMES.len()].to_string();
                 let t = generate_team_db(
                     &state.data_store.as_ref().unwrap(),
                     &mut state.rng,
                     None,
-                    "Bad Bois".to_string(),
+                    team_name,
                     get_power_level_for_round(state.round),
                     state.round,
                 );
