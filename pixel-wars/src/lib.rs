@@ -32,7 +32,7 @@ const DAMAGE_EFFECT_TIME: u32 = 12;
 //avg number of units to balance each generated team around
 const TEAM_POWER_MULTIPLIER: f32 = 25.0;
 const TEAM_SELECTION_TIME: u32 = 3600;
-const BATTLE_COUNTDOWN_TIME: u32 = 1;
+const BATTLE_COUNTDOWN_TIME: u32 = 240;
 const TEAM_NAMES: [&str; 12] = [
     "Pixel Peeps",
     "Battle Bois",
