@@ -27,7 +27,7 @@ pub struct Unit {
     pub state: UnitState,
     pub target_pos: (f32, f32),
     pub attack_strategy: AttackStrategy,
-    pub attack_timer: i32,
+    pub attack_timer: u16,
     pub status_effects: Vec<Status>,
     pub display: Option<UnitDisplay>,
     pub initial_delay: u8,
@@ -146,7 +146,11 @@ impl Unit {
 
         //calculate unitanimspeed so it can adjust based on haste/etc.
         let speed_mult = self.calculated_speed_multiplier();
-        let anim_speed = UNIT_ANIM_SPEED / speed_mult as i32;
+        let anim_speed = if speed_mult <= 0. {
+            UNIT_ANIM_SPEED
+        } else {
+            (UNIT_ANIM_SPEED as f32 / speed_mult).min(255.) as u8
+        };
         let attack_time = self.calculated_attack_time();
 
         // Early return if no display
@@ -944,7 +948,7 @@ impl Unit {
         self.display.as_ref().unwrap().is_facing_left
     }
 
-    pub fn calculated_attack_time(&self) -> i32 {
+    pub fn calculated_attack_time(&self) -> u16 {
         let mut multiple = 1.0;
         let haste_adj = 2.0;
         let berserk_adj = 1.5;
@@ -967,7 +971,7 @@ impl Unit {
         // if val < 40.0 {
         //     turbo::println!("VALUE: {}", val);
         // }
-        val as i32
+        val as u16
     }
 
     pub fn calculated_speed(&self) -> f32 {
@@ -1063,10 +1067,10 @@ pub struct UnitData {
     pub max_health: f32,
     pub speed: f32,
     pub range: f32,
-    pub attack_time: i32,
+    pub attack_time: u16,
     pub splash_area: f32,
-    pub sprite_width: i32,
-    pub bounding_box: (i32, i32, i32, i32),
+    pub sprite_width: u8,
+    pub bounding_box: (u8, u8, u8, u8),
     pub attributes: Vec<Attribute>,
 }
 

@@ -48,7 +48,7 @@ const TEAM_NAMES: [&str; 12] = [
     "Rumble Rookies",
 ];
 
-const UNIT_ANIM_SPEED: i32 = 8;
+const UNIT_ANIM_SPEED: u8 = 8;
 //This is global unit speed (how many frames it takes to go one pixel/unit speed). Lower is faster
 const MOVEMENT_DIVISOR: f32 = 16.0;
 
@@ -1811,9 +1811,9 @@ impl AnimatedSprite {
     fn set_anim(
         &mut self,
         name: String,
-        s_w: i32,
-        num_frames: i32,
-        loops_per_frame: i32,
+        s_w: u8,
+        num_frames: u8,
+        loops_per_frame: u8,
         is_looping: bool,
     ) {
         self.animator.set_cur_anim(Animation {
@@ -2721,7 +2721,7 @@ enum GameEvent {
 struct Animator {
     //current animation
     cur_anim: Animation,
-    anim_timer: i32,
+    anim_timer: u16,
     next_anim: Option<Animation>,
     tint_color: usize,
 }
@@ -2764,10 +2764,12 @@ impl Animator {
 
     fn draw(&self, pos: (f32, f32), flip_x: bool) {
         let name = self.cur_anim.name.as_str();
-        let mut frame_index = self.anim_timer / self.cur_anim.loops_per_frame; // Calculate the frame index
-        frame_index = frame_index.clamp(0, self.cur_anim.num_frames - 1);
-        let sx = (frame_index * self.cur_anim.s_w)
-            .clamp(0, self.cur_anim.s_w * (self.cur_anim.num_frames - 1)); // Calculate the sprite X coordinate
+        let mut frame_index = self.anim_timer / self.cur_anim.loops_per_frame as u16; // Calculate the frame index
+        frame_index = frame_index.clamp(0, self.cur_anim.num_frames as u16 - 1);
+        let sx = (frame_index * self.cur_anim.s_w as u16).clamp(
+            0,
+            self.cur_anim.s_w as u16 * (self.cur_anim.num_frames as u16 - 1),
+        ); // Calculate the sprite X coordinate
 
         sprite!(
             name,
@@ -2795,15 +2797,15 @@ impl Animator {
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 struct Animation {
     name: String,
-    s_w: i32,
-    num_frames: i32,
-    loops_per_frame: i32,
+    s_w: u8,
+    num_frames: u8,
+    loops_per_frame: u8,
     is_looping: bool,
 }
 
 impl Animation {
-    fn total_animation_time(&self) -> i32 {
-        return self.num_frames * self.loops_per_frame;
+    fn total_animation_time(&self) -> u16 {
+        return self.num_frames as u16 * self.loops_per_frame as u16;
     }
 }
 
@@ -3236,7 +3238,7 @@ impl UnitDataStore {
         self.data.keys().cloned().collect()
     }
 
-    pub fn get_sprite_width(&self, unit_type: &str) -> Option<i32> {
+    pub fn get_sprite_width(&self, unit_type: &str) -> Option<u8> {
         self.data
             .get(unit_type)
             .map(|unit_data| unit_data.sprite_width)
@@ -3255,16 +3257,13 @@ impl UnitDataStore {
             let max_health = record.get(2).ok_or("Missing max health")?.parse::<f32>()?;
             let speed = record.get(3).ok_or("Missing speed")?.parse::<f32>()?;
             let range = record.get(4).ok_or("Missing range")?.parse::<f32>()?;
-            let attack_time = record.get(5).ok_or("Missing attack time")?.parse::<i32>()?;
+            let attack_time = record.get(5).ok_or("Missing attack time")?.parse::<u16>()?;
             let splash_area = record.get(6).ok_or("Missing splash area")?.parse::<f32>()?;
-            let sprite_width = record
-                .get(7)
-                .ok_or("Missing sprite width")?
-                .parse::<i32>()?;
-            let box_x = record.get(8).ok_or("Missing box_x")?.parse::<i32>()?;
-            let box_y = record.get(9).ok_or("Missing box_y")?.parse::<i32>()?;
-            let box_w = record.get(10).ok_or("Missing box_w")?.parse::<i32>()?;
-            let box_h = record.get(11).ok_or("Missing box_h")?.parse::<i32>()?;
+            let sprite_width = record.get(7).ok_or("Missing sprite width")?.parse::<u8>()?;
+            let box_x = record.get(8).ok_or("Missing box_x")?.parse::<u8>()?;
+            let box_y = record.get(9).ok_or("Missing box_y")?.parse::<u8>()?;
+            let box_w = record.get(10).ok_or("Missing box_w")?.parse::<u8>()?;
+            let box_h = record.get(11).ok_or("Missing box_h")?.parse::<u8>()?;
             let bounding_box = (box_x, box_y, box_w, box_h);
             let attributes = record
                 .get(12)
