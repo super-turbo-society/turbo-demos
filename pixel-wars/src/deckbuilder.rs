@@ -295,7 +295,7 @@ pub fn dbgo(state: &mut GameState) {
                 );
             }
             if m.left.just_pressed() {
-                if state.round == TOTAL_ROUNDS as u32 + 1 {
+                if state.round == TOTAL_ROUNDS as u8 + 1 {
                     *state = GameState::default();
                 } else {
                     state.dbphase = DBPhase::Shop;
@@ -891,9 +891,7 @@ pub fn dbgo(state: &mut GameState) {
                 if let Some(kind) = ARTIFACT_KINDS.iter().find(|&&k| {
                     std::mem::discriminant(&k) == std::mem::discriminant(&artifact_kind)
                 }) {
-                    state
-                        .artifacts
-                        .push(Artifact::new(*kind, team_index as i32));
+                    state.artifacts.push(Artifact::new(*kind, team_index as u8));
                     turbo::println!("ADDING ARTIFACT: {:?}", kind);
                 }
             }
@@ -901,7 +899,7 @@ pub fn dbgo(state: &mut GameState) {
                 state.artifacts.retain(|a| {
                     !(std::mem::discriminant(&a.artifact_kind)
                         == std::mem::discriminant(&artifact_kind)
-                        && a.team == team_index as i32)
+                        && a.team == team_index as u8)
                 });
             }
             GameEvent::ChooseTeam(team_num) => {
@@ -976,7 +974,7 @@ pub fn generate_team_db(
     match_team: Option<&Team>,
     team_name: String,
     power_level: f32,
-    round: u32, // Added round parameter
+    round: u8, // Added round parameter
 ) -> Team {
     // Get available unit types based on round
     let mut available_types = get_available_units(round, data_store, Vec::new());
@@ -1321,7 +1319,7 @@ pub fn create_unit_packs(
     num_types: usize,
     data_store: &UnitDataStore,
     rng: &mut RNG,
-    round: u32,
+    round: u8,
     fallen_units: Option<Vec<String>>,
     current_team_unit_types: Vec<String>,
 ) -> Vec<UnitPack> {
@@ -1360,7 +1358,7 @@ pub fn create_unit_packs(
 }
 
 pub fn get_available_units(
-    round: u32,
+    round: u8,
     data_store: &UnitDataStore,
     current_team_unit_types: Vec<String>,
 ) -> Vec<&String> {
@@ -1408,7 +1406,7 @@ pub fn get_available_units(
     }
 }
 
-fn get_unit_count(round: u32, unit_type: &str) -> u32 {
+fn get_unit_count(round: u8, unit_type: &str) -> u32 {
     let rating = get_unit_strength_rating(unit_type);
     //TODO: add a little randomness here
     match round {
@@ -1451,7 +1449,7 @@ fn get_unit_strength_rating(unit_type: &str) -> u8 {
     }
 }
 
-pub fn get_power_level_for_round(round: u32) -> f32 {
+pub fn get_power_level_for_round(round: u8) -> f32 {
     match round {
         1 => 3.,
         2 => 5.,

@@ -62,7 +62,7 @@ unsafe extern "C" fn commit_points() -> usize {
     let file_path = format!("users/{}/choice/{}", userid, seed);
     let choice = os::server::read_file(&file_path)
         .ok()
-        .and_then(|file| <i32>::try_from_slice(&file).ok());
+        .and_then(|file| <u8>::try_from_slice(&file).ok());
 
     let mut is_win = false;
     if choice.is_some() {

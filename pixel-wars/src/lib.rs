@@ -73,8 +73,8 @@ turbo::init! {
         dbphase: DBPhase,
         title_screen_units: Vec<WalkingUnitPreview>,
         shop: Vec<UnitPack>,
-        round: u32,
-        num_picks: u32,
+        round: u8,
+        num_picks: u8,
         artifacts: Vec<Artifact>,
         artifact_shop: Vec<Artifact>,
         enemy_team_placeholder: Option<Team>,
@@ -482,7 +482,7 @@ fn old_go(mut state: &mut GameState) {
                 let file_path = format!("users/{}/choice/{}", userid.unwrap(), seed);
                 let choice = os::client::watch_file("pixel-wars", &file_path)
                     .data
-                    .and_then(|file| i32::try_from_slice(&file.contents).ok());
+                    .and_then(|file| u8::try_from_slice(&file.contents).ok());
                 let mut is_win: Option<bool> = None;
                 if choice.is_some() {
                     if choice == winning_team_index {
@@ -612,7 +612,7 @@ fn old_go(mut state: &mut GameState) {
 }
 
 fn draw_end_stats(units: &Vec<Unit>, data_store: &UnitDataStore) {
-    let mut team_units: BTreeMap<(String, i32), Vec<&Unit>> = BTreeMap::new();
+    let mut team_units: BTreeMap<(String, u8), Vec<&Unit>> = BTreeMap::new();
     for unit in units {
         team_units
             .entry((unit.unit_type.clone(), unit.team))
@@ -1287,18 +1287,18 @@ fn step_through_battle(
                     //if you have the blood sucker artifact, add 10% of damage to unit health
                     let team = attacker.team;
                     // Check for bloodsucker artifact
-                    if let Some(bloodsucker) = artifacts.iter().find(|a| {
+                    if let Some(bloodsucker) = artifacts.iter_mut().find(|a| {
                         matches!(a.artifact_kind, ArtifactKind::BloodSucker { .. })
                             && a.team == team
                     }) {
                         if let ArtifactKind::BloodSucker { steal_factor } =
                             bloodsucker.artifact_kind
                         {
-                            if attacker.health > 0.0 {
+                            if attacker.health > 0.0 && attacker.health < attacker.data.max_health {
                                 let heal_amount = total_damage as f32 * steal_factor;
                                 attacker.health =
                                     (attacker.health + heal_amount).min(attacker.data.max_health);
-                                turbo::println!("BLOOD SUCKED: {}", heal_amount);
+                                bloodsucker.play_effect();
                             }
                         }
                     }
@@ -1333,7 +1333,7 @@ fn apply_start_of_battle_artifacts(
     rng: &mut RNG,
     artifacts: &Vec<Artifact>,
 ) {
-    let team_artifacts: Vec<(ArtifactKind, i32)> = artifacts
+    let team_artifacts: Vec<(ArtifactKind, u8)> = artifacts
         .iter()
         .map(|a| (a.artifact_kind, a.team))
         .collect();
@@ -1454,7 +1454,7 @@ fn apply_end_of_battle_artifacts(
 ) {
     for artifact in artifacts {
         if let ArtifactKind::Necromancer { revival_chance } = artifact.artifact_kind {
-            if artifact.team == winner_idx as i32 {
+            if artifact.team == winner_idx as u8 {
                 for unit in units.iter_mut() {
                     if unit.state == UnitState::Dead && unit.team == artifact.team {
                         if rng.next() % 100 < revival_chance as u32 {
@@ -1497,7 +1497,7 @@ fn find_mutable_unit_by_id(units: &mut Vec<Unit>, id: Option<u32>) -> Option<&mu
     }
 }
 
-fn lowest_health_enemy_unit(units: &Vec<Unit>, team: i32) -> Option<&Unit> {
+fn lowest_health_enemy_unit(units: &Vec<Unit>, team: u8) -> Option<&Unit> {
     if units.is_empty() {
         return None;
     }
@@ -1651,14 +1651,14 @@ fn calculate_team_healths(units: &[Unit]) -> ((f32, f32), (f32, f32)) {
     })
 }
 
-fn draw_round_indicator(round: u32) {
+fn draw_round_indicator(round: u8) {
     let txt = format!("{}/{}", round, TOTAL_ROUNDS);
     let center_x = canvas_size!()[0] / 2;
     let x = center_x - ((txt.len() as u32 * 8) / 2);
     text!(&txt, x = x, y = 10, font = Font::L, color = OFF_BLACK);
 }
 
-fn draw_team_artifacts(state: &mut GameState, team: i32, pos: (f32, f32), right_aligned: bool) {
+fn draw_team_artifacts(state: &mut GameState, team: u8, pos: (f32, f32), right_aligned: bool) {
     for (i, a) in state
         .artifacts
         .iter_mut()
@@ -1681,7 +1681,7 @@ fn draw_team_artifacts(state: &mut GameState, team: i32, pos: (f32, f32), right_
     }
 }
 
-fn can_defend(units: &Vec<Unit>, team: i32, pos: (f32, f32), rng: &mut RNG) -> Option<u32> {
+fn can_defend(units: &Vec<Unit>, team: u8, pos: (f32, f32), rng: &mut RNG) -> Option<u32> {
     // First check if there's at least one enemy non-ranged unit
     let has_enemy_melee = units.iter().any(|unit| {
         unit.team != team && unit.health > 0.0 && !unit.data.has_attribute(&Attribute::Ranged)
@@ -1711,7 +1711,7 @@ fn can_defend(units: &Vec<Unit>, team: i32, pos: (f32, f32), rng: &mut RNG) -> O
     Some(friendly_ranged_ids[random_index as usize])
 }
 
-fn lowest_health_ranged_enemy_unit(units: &Vec<Unit>, team: i32, pos: (f32, f32)) -> Option<&Unit> {
+fn lowest_health_ranged_enemy_unit(units: &Vec<Unit>, team: u8, pos: (f32, f32)) -> Option<&Unit> {
     if units.is_empty() {
         return None;
     }
@@ -1980,7 +1980,7 @@ enum TargetPriority {
 // Main targeting function
 fn find_target(
     units: &Vec<Unit>,
-    team: i32,
+    team: u8,
     pos: (f32, f32),
     priority: TargetPriority,
 ) -> Option<&Unit> {
@@ -2082,7 +2082,7 @@ fn find_target(
     }
 }
 
-fn is_valid_target(unit: &Unit, team: i32) -> bool {
+fn is_valid_target(unit: &Unit, team: u8) -> bool {
     unit.team != team
         && unit.health > 0.0
         && !unit
@@ -2196,7 +2196,7 @@ fn distance_between(pos1: (f32, f32), pos2: (f32, f32)) -> f32 {
     (dx * dx + dy * dy).sqrt()
 }
 
-fn has_some_team_won(units: &Vec<Unit>) -> Option<i32> {
+fn has_some_team_won(units: &Vec<Unit>) -> Option<u8> {
     let all_team_0_dead = units
         .iter()
         .filter(|unit| unit.team == 0)
@@ -2450,7 +2450,7 @@ fn draw_artifact_info_and_buttons(state: &mut GameState, y_start_pos: i32) {
             let has_artifact = state.artifacts.iter().any(|a| {
                 // Compare only the variant type, ignore the fields
                 std::mem::discriminant(&a.artifact_kind) == std::mem::discriminant(&artifact_kind)
-                    && a.team == *team_index as i32
+                    && a.team == *team_index as u8
             });
             let debug_str = format!("{:?}", artifact_kind);
             let name = debug_str.split('{').next().unwrap_or("");
@@ -2968,13 +2968,7 @@ fn create_clump(
         let x = base_pos.0 + (col as f32 * row_width) + offset_x;
         let y = base_pos.1 + (row as f32 * row_height) + offset_y;
 
-        let mut unit = Unit::new(
-            unit_type.clone(),
-            (x, y),
-            team_index as i32,
-            data_store,
-            *id,
-        );
+        let mut unit = Unit::new(unit_type.clone(), (x, y), team_index as u8, data_store, *id);
         unit.set_starting_strategy(rng);
         units.push(unit);
         *id += 1;
@@ -3302,7 +3296,7 @@ impl UnitDataStore {
 struct SimulationResult {
     seed: u32,
     living_units: Vec<String>,
-    winning_team: Option<i32>,
+    winning_team: Option<u8>,
     num_frames: u32,
 }
 

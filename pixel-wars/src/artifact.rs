@@ -36,12 +36,12 @@ pub enum ArtifactKind {
 pub struct Artifact {
     pub artifact_kind: ArtifactKind,
     pub text: String,
-    pub team: i32,
+    pub team: u8,
     pub animator: Animator,
 }
 
 impl Artifact {
-    pub fn new(kind: ArtifactKind, team: i32) -> Self {
+    pub fn new(kind: ArtifactKind, team: u8) -> Self {
         let text = match kind {
             ArtifactKind::StrengthOfTheFallen { .. } => {
                 "Increase damage for each dead unit on your team"

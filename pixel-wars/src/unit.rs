@@ -19,7 +19,7 @@ pub struct Unit {
     pub unit_type: String,
     pub stats: UnitStats,
     pub data: UnitData,
-    pub team: i32,
+    pub team: u8,
     pub id: u32,
     pub target_id: u32,
     pub health: f32,
@@ -37,7 +37,7 @@ impl Unit {
     pub fn new(
         unit_type: String,
         pos: (f32, f32),
-        team: i32,
+        team: u8,
         store: &UnitDataStore,
         id: u32,
     ) -> Self {
