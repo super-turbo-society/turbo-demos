@@ -204,6 +204,40 @@ pub fn dbgo(state: &mut GameState) {
     }
 
     match state.dbphase {
+        DBPhase::ParticleTest => {
+            // let config = BurstConfig {
+            //     center: (160., 120.), // Center of screen
+            //     radius: 5.0,
+            //     direction: 0.0,               // Right
+            //     spread: std::f32::consts::PI, // 180 degrees
+            //     speed: 2.0,
+            //     speed_var: 1.0,
+            //     color: 0xFF0000FF, // Red
+            //     lifetime: 1.0,
+            //     count: 20,
+            // };
+            // let config = BurstConfig {
+            //     center: (160., 120.),
+            //     radius: 2.0,
+            //     direction: 0.0,
+            //     spread: std::f32::consts::TAU, // 180 degree spread
+            //     speed: 0.8,                    // Slower speed
+            //     speed_var: 0.2,                // Less variation
+            //     color: ACID_GREEN as u32,
+            //     lifetime: 0.3, // Longer lifetime to see slow particles
+            //     count: 10,
+            // };
+            // let mut config = BurstConfig::circular_burst((160., 120.), ACID_GREEN as u32);
+            // config.lifetime = 0.3;
+            // config.speed = 0.5;
+            // config.count = 10;
+            // let config = BurstConfig::confetti((140., 0.), DAMAGE_TINT_RED as u32);
+            // if gamepad(0).a.just_pressed() {
+            //     state.particle_manager.create_burst(&config);
+            // }
+            // state.particle_manager.update();
+            // state.particle_manager.draw();
+        }
         DBPhase::Title => {
             if state.round != 1 && state.round != 7 {
                 state.dbphase = DBPhase::Shop;
@@ -601,6 +635,7 @@ pub fn dbgo(state: &mut GameState) {
                         &mut state.craters,
                         &mut state.rng,
                         &mut state.artifacts,
+                        &mut state.particle_manager,
                         false,
                     );
                     state.elapsed_frames += 1;
@@ -625,7 +660,7 @@ pub fn dbgo(state: &mut GameState) {
             //check if you are near the end but not finished.
             //if so zoom into one of the surviving units
             let max_zoom = 2.0;
-            let zoom_duration = 10;
+            let zoom_duration: usize = 10;
             let easing = Easing::EaseInQuad;
 
             if let Some(s_r) = &state.simulation_result {
@@ -774,7 +809,9 @@ pub fn dbgo(state: &mut GameState) {
             for explosion in &mut state.explosions {
                 explosion.draw();
             }
-
+            //draw particles
+            state.particle_manager.update();
+            state.particle_manager.draw();
             //draw health bar on hover
             //get mouse posisiton
             let m = mouse(0);
@@ -857,6 +894,9 @@ pub fn dbgo(state: &mut GameState) {
 
                     // Draw appropriate end animation and text
                     if winner_idx == 0 {
+                        if state.particle_manager.bursts.len() == 0 {
+                            start_end_game_particles(&mut state.particle_manager);
+                        }
                         draw_end_animation(Some(true));
                         text = "Click to Continue";
                     } else {
@@ -1028,6 +1068,7 @@ pub enum DBPhase {
     Battle,
     WrapUp,
     Sandbox,
+    ParticleTest,
 }
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone, Copy)]

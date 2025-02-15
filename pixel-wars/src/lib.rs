@@ -3,6 +3,7 @@ mod attribute;
 mod backend;
 mod colors;
 mod deckbuilder;
+mod particles;
 mod rng;
 mod trap;
 mod unit;
@@ -14,6 +15,7 @@ use colors::*;
 use csv::{Reader, ReaderBuilder};
 use deckbuilder::*;
 use os::server;
+use particles::*;
 use rng::*;
 use std::cmp::{max, Ordering};
 use std::collections::BTreeMap;
@@ -108,6 +110,7 @@ turbo::init! {
         battle_simulation_requested: bool,
         is_playing_sandbox_game: bool,
         is_battle_complete: bool,
+        particle_manager: ParticleManager,
     } = {
         Self {
             transition: None,
@@ -151,6 +154,7 @@ turbo::init! {
             battle_simulation_requested: false,
             is_playing_sandbox_game: false,
             is_battle_complete: false,
+            particle_manager: ParticleManager::new(),
         }
     }
 }
@@ -387,6 +391,7 @@ fn old_go(mut state: &mut GameState) {
                         &mut state.craters,
                         &mut state.rng,
                         &mut state.artifacts,
+                        &mut state.particle_manager,
                         false,
                     );
                 }
@@ -741,6 +746,27 @@ fn draw_end_animation(is_win: Option<bool>) {
     }
 }
 
+fn start_end_game_particles(pm: &mut ParticleManager) {
+    let colors = [0x87CEFAFF, 0xFF0000FF, 0x00FF00FF];
+
+    for &color in &colors {
+        let config = BurstConfig {
+            source: BurstSource::Box {
+                min: (0., 0.),
+                max: (340., 0.),
+            },
+            direction: std::f32::consts::PI / 2.0,
+            spread: std::f32::consts::PI / 4.0,
+            speed: 0.4,
+            speed_var: 0.3,
+            color,
+            lifetime: 12.0 + (rand() as f32 / u32::MAX as f32) * 4.0,
+            count: 80,
+        };
+        pm.create_burst(&config);
+    }
+}
+
 //local sim
 fn simulate_battle_locally(state: &mut GameState) {
     // Store initial state
@@ -758,6 +784,7 @@ fn simulate_battle_locally(state: &mut GameState) {
             &mut state.craters,    //look into a callback to replace this
             &mut state.rng,
             &mut state.artifacts,
+            &mut state.particle_manager,
             true,
         );
         i += 1;
@@ -801,6 +828,7 @@ fn step_through_battle(
     craters: &mut Vec<AnimatedSprite>,
     rng: &mut RNG,
     artifacts: &mut Vec<Artifact>,
+    particle_manager: &mut ParticleManager,
     sim: bool,
 ) {
     let units_clone = units.clone();
@@ -1160,7 +1188,7 @@ fn step_through_battle(
                         1,
                         vec![Attribute::PoisonAttack],
                     );
-                    unit.take_attack(&attack, rng);
+                    unit.take_attack(&attack, rng, particle_manager);
                     if let Some(display) = unit.display.as_mut() {
                         display.footprint_status = FootprintStatus::Acid;
                     }
@@ -1213,7 +1241,7 @@ fn step_through_battle(
                     {
                         let unit = &mut units[unit_index];
                         //TODO: If any artifacts effect damage on this end, add them in here
-                        let damage = unit.take_attack(&attack, rng);
+                        let damage = unit.take_attack(&attack, rng, particle_manager);
                         total_damage += damage;
                         if unit.health <= 0. {
                             kills += 1;
@@ -1243,7 +1271,7 @@ fn step_through_battle(
                             && unit.state != UnitState::Dead
                         // && unit.team == team
                         {
-                            let damage = unit.take_attack(&attack, rng);
+                            let damage = unit.take_attack(&attack, rng, particle_manager);
                             total_damage += damage;
 
                             if unit.health <= 0.0 {

@@ -138,33 +138,33 @@ unsafe extern "C" fn simulate_battle_os() -> usize {
     let team_1 = battle.team_1;
     let mut teams = vec![team_0, team_1];
     let mut units = create_units_for_all_teams(&mut teams, &mut simulation_rng, &data_store);
-    let mut attacks = Vec::new();
-    let mut traps = Vec::new();
-    let mut craters = Vec::new();
-    let mut explosions = Vec::new();
+    // let mut attacks = Vec::new();
+    // let mut traps = Vec::new();
+    // let mut craters = Vec::new();
+    // let mut explosions = Vec::new();
     let mut i: u32 = 0;
-    let winning_team_index = loop {
-        step_through_battle(
-            &mut units,
-            &mut attacks,
-            &mut traps,
-            &mut explosions,
-            &mut craters,
-            &mut simulation_rng,
-            &mut Vec::new(),
-            true,
-        );
-        i += 1;
-        if let Some(winner_idx) = has_some_team_won(&units) {
-            break winner_idx;
-        }
-    };
+    // let winning_team_index = loop {
+    //     step_through_battle(
+    //         &mut units,
+    //         &mut attacks,
+    //         &mut traps,
+    //         &mut explosions,
+    //         &mut craters,
+    //         &mut simulation_rng,
+    //         &mut Vec::new(),
+    //         true,
+    //     );
+    //     i += 1;
+    //     if let Some(winner_idx) = has_some_team_won(&units) {
+    //         break winner_idx;
+    //     }
+    // };
     //write a simulation result to a file
     let living_units = all_living_units(&units);
     let sim_result = SimulationResult {
         seed: battle.team_seed,
         living_units,
-        winning_team: Some(winning_team_index),
+        winning_team: Some(0),
         num_frames: i,
     };
     let bytes = sim_result.try_to_vec().unwrap();
@@ -174,7 +174,7 @@ unsafe extern "C" fn simulate_battle_os() -> usize {
     os::server::log!("Battle Seed: {}", seed);
     os::server::log!("Frames: {}", i);
     os::server::alert!("Result: {:?}", sim_result);
-    os::server::alert!("Winning Team: {:?}", winning_team_index);
+    os::server::alert!("Winning Team: {:?}", 0);
 
     os::server::COMMIT
 }

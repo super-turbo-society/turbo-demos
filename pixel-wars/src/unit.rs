@@ -752,7 +752,7 @@ impl Unit {
     }
 
     //return the actual damage dealt, limiting to your max health in case the attack is larger
-    pub fn take_attack(&mut self, attack: &Attack, rng: &mut RNG) -> f32 {
+    pub fn take_attack(&mut self, attack: &Attack, rng: &mut RNG, pm: &mut ParticleManager) -> f32 {
         let mut damage = attack.damage;
         if self.state != UnitState::Dead {
             if self.data.has_attribute(&Attribute::Shielded) {
@@ -816,7 +816,7 @@ impl Unit {
                 if attack.attributes.contains(&Attribute::FreezeAttack)
                     && self.state != UnitState::Frozen
                 {
-                    let freeze_chance = 1;
+                    let freeze_chance = 2;
                     let freeze_time = 180;
                     if rng.next() % freeze_chance == 0 {
                         self.state = UnitState::Frozen;
@@ -824,12 +824,40 @@ impl Unit {
                             timer: (freeze_time),
                         };
                         self.status_effects.push(new_status);
+                        //do a particle effect
+                        let pos = self.head_position();
+                        // let config = BurstConfig {
+                        //     center: pos,
+                        //     radius: 2.0,
+                        //     direction: 0.0,
+                        //     spread: std::f32::consts::TAU,
+                        //     speed: 0.8,
+                        //     speed_var: 0.2,
+                        //     color: 0x87CEFAFF,
+                        //     lifetime: 0.3,
+                        //     count: 10,
+                        // };
+                        // pm.create_burst(&config);
                     }
                 }
                 if attack.attributes.contains(&Attribute::PoisonAttack)
                     && !self.status_effects.contains(&Status::Poison)
                 {
                     self.status_effects.push(Status::Poison);
+                    //do a particle effect here around your head
+                    let pos = self.head_position();
+                    // let config = BurstConfig {
+                    //     center: pos,
+                    //     radius: 2.0,
+                    //     direction: 0.0,
+                    //     spread: std::f32::consts::TAU,
+                    //     speed: 0.8,
+                    //     speed_var: 0.2,
+                    //     color: ACID_GREEN as u32,
+                    //     lifetime: 0.3,
+                    //     count: 10,
+                    // };
+                    // pm.create_burst(&config);
                 }
             }
 
