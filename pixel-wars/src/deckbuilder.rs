@@ -232,11 +232,11 @@ pub fn dbgo(state: &mut GameState) {
             // config.speed = 0.5;
             // config.count = 10;
             // let config = BurstConfig::confetti((140., 0.), DAMAGE_TINT_RED as u32);
-            // if gamepad(0).a.just_pressed() {
-            //     state.particle_manager.create_burst(&config);
-            // }
-            // state.particle_manager.update();
-            // state.particle_manager.draw();
+            if gamepad(0).a.just_pressed() {
+                start_end_game_particles(&mut state.particle_manager);
+            }
+            state.particle_manager.update();
+            state.particle_manager.draw();
         }
         DBPhase::Title => {
             if state.round != 1 && state.round != 7 {

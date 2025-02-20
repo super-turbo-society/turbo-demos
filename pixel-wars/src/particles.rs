@@ -2,14 +2,16 @@ use crate::*;
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 pub enum BurstSource {
+    Point(f32, f32),
     Circle { center: (f32, f32), radius: f32 },
-    Box { min: (f32, f32), max: (f32, f32) },
+    Rectangle { min: (f32, f32), max: (f32, f32) },
 }
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 pub struct Particle {
     pub pos: (f32, f32),
     pub vel: (f32, f32),
+    pub size: u32,
     pub color: u32,
     pub lifetime: f32,
     pub remaining_life: f32,
@@ -18,12 +20,11 @@ pub struct Particle {
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 pub struct BurstConfig {
     pub source: BurstSource,
-    pub direction: f32,
-    pub spread: f32,
-    pub speed: f32,
-    pub speed_var: f32,
+    pub x_velocity: (f32, f32), // (min, max)
+    pub y_velocity: (f32, f32),
+    pub lifetime: (f32, f32),
     pub color: u32,
-    pub lifetime: f32,
+    pub size: (u32, u32),
     pub count: u32,
 }
 
@@ -48,32 +49,53 @@ impl ParticleManager {
     }
 
     fn create_particle(&self, config: &BurstConfig) -> Particle {
+        // Get position based on source type
         let pos = match &config.source {
+            BurstSource::Point(x, y) => (*x, *y),
             BurstSource::Circle { center, radius } => {
-                let offset_angle = (rand() as f32 / u32::MAX as f32) * std::f32::consts::TAU;
-                let offset_dist = (rand() as f32 / u32::MAX as f32) * radius;
-                (
-                    center.0 + offset_dist * offset_angle.cos(),
-                    center.1 + offset_dist * offset_angle.sin(),
-                )
+                let angle = (rand() as f32 / u32::MAX as f32) * std::f32::consts::TAU;
+                let dist = (rand() as f32 / u32::MAX as f32) * radius;
+                (center.0 + dist * angle.cos(), center.1 + dist * angle.sin())
             }
-            BurstSource::Box { min, max } => {
-                let rand_val = (rand() as f32 / u32::MAX as f32) * 2.0;
-                turbo::println!("rand_val: {}", rand_val);
-                let x = min.0 + rand_val * (max.0 - min.0);
-                (x, min.1)
+            BurstSource::Rectangle { min, max } => {
+                let x_range = (max.0 - min.0) as u32;
+                let y_range = (max.1 - min.1) as u32;
+
+                let x = if x_range == 0 {
+                    min.0
+                } else {
+                    min.0 + (rand() % x_range) as f32
+                };
+
+                let y = if y_range == 0 {
+                    min.1
+                } else {
+                    min.1 + (rand() % y_range) as f32
+                };
+
+                (x, y)
             }
         };
 
-        let angle = config.direction + (rand() as f32 / u32::MAX as f32 - 0.5) * config.spread;
-        let speed = config.speed + (rand() as f32 / u32::MAX as f32 - 0.5) * config.speed_var;
+        // Get random velocities between min and max
+        let vx = config.x_velocity.0
+            + (rand() as f32 / u32::MAX as f32) * (config.x_velocity.1 - config.x_velocity.0);
+        let vy = config.y_velocity.0
+            + (rand() as f32 / u32::MAX as f32) * (config.y_velocity.1 - config.y_velocity.0);
+
+        // Get random lifetime between min and max
+        let lifetime = config.lifetime.0
+            + (rand() as f32 / u32::MAX as f32) * (config.lifetime.1 - config.lifetime.0);
+
+        let size = config.size.0 + (rand() / u32::MAX) * (config.size.1 - config.size.0);
 
         Particle {
             pos,
-            vel: (angle.cos() * speed, angle.sin() * speed),
+            vel: (vx, vy),
             color: config.color,
-            lifetime: config.lifetime,
-            remaining_life: config.lifetime,
+            lifetime,
+            remaining_life: lifetime,
+            size,
         }
     }
 
@@ -95,7 +117,7 @@ impl ParticleManager {
                 circ!(
                     x = particle.pos.0,
                     y = particle.pos.1,
-                    d = 1,
+                    d = particle.size,
                     color = particle.color
                 );
             }

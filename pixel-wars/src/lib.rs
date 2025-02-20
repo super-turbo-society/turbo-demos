@@ -114,7 +114,7 @@ turbo::init! {
     } = {
         Self {
             transition: None,
-            dbphase: DBPhase::Title,
+            dbphase: DBPhase::ParticleTest,
             title_screen_units: Vec::new(),
             phase: Phase::TeamSetUp,
             round: 1,
@@ -751,20 +751,20 @@ fn start_end_game_particles(pm: &mut ParticleManager) {
 
     for &color in &colors {
         let config = BurstConfig {
-            source: BurstSource::Box {
+            source: BurstSource::Rectangle {
                 min: (0., 0.),
                 max: (340., 0.),
             },
-            direction: std::f32::consts::PI / 2.0,
-            spread: std::f32::consts::PI / 4.0,
-            speed: 0.4,
-            speed_var: 0.3,
+            x_velocity: (-0.15, 0.15),
+            y_velocity: (2.0, 3.0),
             color,
-            lifetime: 12.0 + (rand() as f32 / u32::MAX as f32) * 4.0,
+            size: (2, 2),
+            lifetime: (12.0, 16.0),
             count: 80,
         };
         pm.create_burst(&config);
     }
+    turbo::println!("END GAME PARTICLES");
 }
 
 //local sim
