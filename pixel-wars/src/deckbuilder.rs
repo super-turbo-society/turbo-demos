@@ -1,31 +1,29 @@
-use core::num;
-
 use crate::*;
 
 pub const TOTAL_ROUNDS: usize = 6;
-const UNIT_RATINGS: [(&str, u8); 20] = [
+const UNIT_RATINGS: [(UnitType, u8); 20] = [
     // Basic units
-    ("axeman", 4),
-    ("blade", 2),
-    ("hunter", 2),
-    ("pyro", 1),
-    ("bigpound", 2),
-    ("deathray", 3),
-    ("cosmo", 3),
-    ("zombie", 1),
-    ("shield", 3),
-    ("serpent", 1),
+    (UnitType::Axeman, 4),
+    (UnitType::Blade, 2),
+    (UnitType::Hunter, 2),
+    (UnitType::Pyro, 1),
+    (UnitType::Bigpound, 2),
+    (UnitType::Deathray, 3),
+    (UnitType::Cosmo, 3),
+    (UnitType::Zombie, 1),
+    (UnitType::Shield, 3),
+    (UnitType::Serpent, 1),
     // Advanced units
-    ("sabre", 4),
-    ("flameboi", 5),
-    ("bazooka", 5),
-    ("draco", 6),
-    ("saucer", 5),
-    ("tanker", 7),
-    ("catapult", 7),
-    ("darkknight", 6),
-    ("yeti", 5),
-    ("igor", 4),
+    (UnitType::Sabre, 4),
+    (UnitType::Flameboi, 5),
+    (UnitType::Bazooka, 5),
+    (UnitType::Draco, 6),
+    (UnitType::Saucer, 5),
+    (UnitType::Tanker, 7),
+    (UnitType::Catapult, 7),
+    (UnitType::Darkknight, 6),
+    (UnitType::Yeti, 5),
+    (UnitType::Igor, 4),
 ];
 
 pub fn title_screen_unit(rng: &mut RNG, data_store: &UnitDataStore) -> WalkingUnitPreview {
@@ -33,14 +31,14 @@ pub fn title_screen_unit(rng: &mut RNG, data_store: &UnitDataStore) -> WalkingUn
     let x_pos = -64.0;
     let y_pos = rng.next_in_range(0, 160) as f32;
     let pos = (x_pos, y_pos);
-    let available_types: Vec<&String> = data_store.data.keys().collect();
+    let available_types: Vec<&UnitType> = data_store.data.keys().collect();
     let index = rng.next_in_range(0, available_types.len() as u32 - 1) as usize;
     let unit_type = available_types[index].clone();
     let data = data_store.get_unit_data(&unit_type).unwrap();
     let s_w = data.sprite_width;
     let speed = data.speed;
     let mut a = AnimatedSprite::new(pos, true);
-    let anim_name = unit_type.to_string() + "_walk";
+    let anim_name = unit_type.as_string() + "_walk";
     a.set_anim(anim_name, s_w, 4, UNIT_ANIM_SPEED, true);
     let w = WalkingUnitPreview::new(unit_type, a, pos, speed as f32, false);
     w
@@ -383,6 +381,7 @@ pub fn dbgo(state: &mut GameState) {
                 //let player revive units if they lost 1/3 of units in battle after round 2
                 let mut fallen_units = None;
                 let num_units = state.last_round_dead_units.len();
+                turbo::println!("NUM DEAD UNITS: {}", num_units);
                 if num_units > 0 && num_units * 2 > state.teams[0].units.len() && state.round > 2 {
                     let percent_to_include = 80;
                     let num_to_include = (num_units * percent_to_include / 100).max(1); // Ensure at least 1 unit
@@ -408,15 +407,23 @@ pub fn dbgo(state: &mut GameState) {
                     unit_types.sort();
                     unit_types.dedup();
                 }
-                turbo::println!("TYPES: {:?}", unit_types);
+                let num_artifacts = if state.round == 1 { 0 } else { 1 };
 
+                let player_artifacts: Vec<Artifact> = state
+                    .artifacts
+                    .iter()
+                    .filter(|artifact| artifact.team == 0)
+                    .cloned()
+                    .collect();
                 state.shop = create_unit_packs(
                     4,
+                    num_artifacts,
                     &ds,
                     &mut state.rng,
                     state.round,
                     fallen_units,
                     unit_types,
+                    &player_artifacts,
                 );
                 if state.round == 1 {
                     state.num_picks = 3;
@@ -444,18 +451,18 @@ pub fn dbgo(state: &mut GameState) {
                             &mut state.rng,
                             &state.data_store.as_ref().unwrap(),
                         );
-                        if state.round == 2 || state.round == 4 {
-                            state.dbphase = DBPhase::ArtifactShop;
-                        } else {
-                            if state.transition.is_none() {
-                                state.transition = Some(Transition::new(&mut state.rng));
-                            }
+                        // if state.round == 2 || state.round == 4 {
+                        //     state.dbphase = DBPhase::ArtifactShop;
+                        // } else {
+                        if state.transition.is_none() {
+                            state.transition = Some(Transition::new(&mut state.rng));
+                            //}
                         }
                     }
                     break;
                 }
             }
-            let txt = format!("Choose {} Unit Sets", state.num_picks);
+            let txt = format!("Choose {}", state.num_picks);
             power_text!(
                 &txt,
                 x = 0,
@@ -474,7 +481,7 @@ pub fn dbgo(state: &mut GameState) {
             }
             if state.num_picks == 0 {
                 if ready_to_transition {
-                    state.dbphase = DBPhase::ArtifactShop;
+                    state.dbphase = DBPhase::Battle;
                 }
             }
             //enter sandbox mode
@@ -492,68 +499,69 @@ pub fn dbgo(state: &mut GameState) {
             }
         }
         DBPhase::ArtifactShop => {
-            let mut should_end = false;
-            if gp.a.just_pressed() || (state.round != 2 && state.round != 4) {
-                should_end = true;
-                ready_to_transition = true;
-            }
+            state.dbphase = DBPhase::Battle;
+            // let mut should_end = false;
+            // if gp.a.just_pressed() || (state.round != 2 && state.round != 4) {
+            //     should_end = true;
+            //     ready_to_transition = true;
+            // }
 
-            let m = mouse(0);
-            let m_pos = (m.position[0], m.position[1]);
-            //generate 2 choices
-            if state.artifact_shop.len() == 0 {
-                let player_artifacts: Vec<Artifact> = state
-                    .artifacts
-                    .iter()
-                    .filter(|artifact| artifact.team == 0)
-                    .cloned()
-                    .collect();
+            // let m = mouse(0);
+            // let m_pos = (m.position[0], m.position[1]);
+            // //generate 2 choices
+            // if state.artifact_shop.len() == 0 {
+            //     let player_artifacts: Vec<Artifact> = state
+            //         .artifacts
+            //         .iter()
+            //         .filter(|artifact| artifact.team == 0)
+            //         .cloned()
+            //         .collect();
 
-                state.artifact_shop = create_artifact_shop(2, &mut state.rng, &player_artifacts);
-            }
-            for (i, a) in state.artifact_shop.iter_mut().enumerate() {
-                let pos = (100 + (i as i32 * 100), 50);
-                if m.left.just_pressed() && a.is_hovered(pos, m_pos) {
-                    state.artifacts.push(a.clone());
-                    if state.transition.is_none() {
-                        state.transition = Some(Transition::new(&mut state.rng));
-                    }
-                } else {
-                    if !should_end {
-                        a.draw_card(pos, m_pos);
-                    }
-                }
-            }
-            if !should_end {
-                let txt = format!("Choose An Artifact");
-                power_text!(
-                    &txt,
-                    x = 0,
-                    y = 20,
-                    font = Font::L,
-                    drop_shadow = SHADOW_COLOR,
-                    center_width = 384,
-                    underline = true,
-                );
-                if state.teams.len() != 0 {
-                    draw_current_team(&state.teams[0], &state.data_store.as_ref().unwrap(), false);
-                }
-                if let Some(enemy_team) = &state.enemy_team_placeholder {
-                    draw_current_team(enemy_team, &state.data_store.as_ref().unwrap(), true);
-                }
-            }
-            if ready_to_transition {
-                state.dbphase = DBPhase::Battle;
-                //TODO: maybe turn this into a clearer transition step
-                //also make this into more of a game loop (like they get more in later levels)
-                //TODO: Figure out what to do with enemy team artifacts better than this
-                // let enemy_artifact_kinds = choose_artifacts_for_enemy_team(2, &mut state.rng);
-                // let enemy_artifacts: Vec<Artifact> = enemy_artifact_kinds
-                //     .into_iter()
-                //     .map(|kind| Artifact::new(kind, 1))
-                //     .collect();
-                // state.artifacts.extend(enemy_artifacts);
-            }
+            //     state.artifact_shop = create_artifact_shop(2, &mut state.rng, &player_artifacts);
+            // }
+            // for (i, a) in state.artifact_shop.iter_mut().enumerate() {
+            //     let pos = (100 + (i as i32 * 100), 50);
+            //     if m.left.just_pressed() && a.is_hovered(pos, m_pos) {
+            //         state.artifacts.push(a.clone());
+            //         if state.transition.is_none() {
+            //             state.transition = Some(Transition::new(&mut state.rng));
+            //         }
+            //     } else {
+            //         if !should_end {
+            //             //a.draw_card(pos, m_pos);
+            //         }
+            //     }
+            // }
+            // if !should_end {
+            //     let txt = format!("Choose An Artifact");
+            //     power_text!(
+            //         &txt,
+            //         x = 0,
+            //         y = 20,
+            //         font = Font::L,
+            //         drop_shadow = SHADOW_COLOR,
+            //         center_width = 384,
+            //         underline = true,
+            //     );
+            //     if state.teams.len() != 0 {
+            //         draw_current_team(&state.teams[0], &state.data_store.as_ref().unwrap(), false);
+            //     }
+            //     if let Some(enemy_team) = &state.enemy_team_placeholder {
+            //         draw_current_team(enemy_team, &state.data_store.as_ref().unwrap(), true);
+            //     }
+            // }
+            // if ready_to_transition {
+            //     state.dbphase = DBPhase::Battle;
+            //     //TODO: maybe turn this into a clearer transition step
+            //     //also make this into more of a game loop (like they get more in later levels)
+            //     //TODO: Figure out what to do with enemy team artifacts better than this
+            //     // let enemy_artifact_kinds = choose_artifacts_for_enemy_team(2, &mut state.rng);
+            //     // let enemy_artifacts: Vec<Artifact> = enemy_artifact_kinds
+            //     //     .into_iter()
+            //     //     .map(|kind| Artifact::new(kind, 1))
+            //     //     .collect();
+            //     // state.artifacts.extend(enemy_artifacts);
+            // }
         }
         DBPhase::Sandbox => {
             draw_team_info_and_buttons(state);
@@ -855,7 +863,7 @@ pub fn dbgo(state: &mut GameState) {
                             if winner_idx == 0 {
                                 // Win: proceed to next round
                                 let mut your_team = state.teams[0].clone();
-                                let living_unit_types: Vec<String> = state
+                                let living_unit_types: Vec<UnitType> = state
                                     .units
                                     .iter()
                                     .filter(|unit| unit.team == 0 && unit.health > 0.0)
@@ -863,7 +871,7 @@ pub fn dbgo(state: &mut GameState) {
                                     .collect();
 
                                 your_team.units = living_unit_types;
-                                let dead_unit_types: Vec<String> = state
+                                let dead_unit_types: Vec<UnitType> = state
                                     .units
                                     .iter()
                                     .filter(|unit| unit.team == 0 && unit.health <= 0.0)
@@ -895,7 +903,7 @@ pub fn dbgo(state: &mut GameState) {
                     // Draw appropriate end animation and text
                     if winner_idx == 0 {
                         if state.particle_manager.bursts.len() == 0 {
-                            start_end_game_particles(&mut state.particle_manager);
+                            //start_end_game_particles(&mut state.particle_manager);
                         }
                         draw_end_animation(Some(true));
                         text = "Click to Continue";
@@ -1033,20 +1041,13 @@ pub fn generate_team_db(
     let selected_types = select_random_unit_types(&available_types, num_types, rng);
 
     // Calculate all unit powers
-    let unit_powers: HashMap<String, f32> = data_store
+    let unit_powers: HashMap<UnitType, f32> = data_store
         .data
         .iter()
         .map(|(unit_type, unit_data)| (unit_type.clone(), calculate_single_unit_power(unit_data)))
         .collect();
 
     //UNIT POWER LEVELS
-
-    // let mut sorted_powers: Vec<_> = unit_powers.iter().collect();
-    // sorted_powers.sort_by(|a, b| b.1.partial_cmp(a.1).unwrap());
-
-    // for (unit_type, power) in sorted_powers {
-    //     log!("{}: {:.2}", unit_type, power);
-    // }
 
     // Calculate target power
     let target_power = match match_team {
@@ -1071,355 +1072,138 @@ pub enum DBPhase {
     ParticleTest,
 }
 
-#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone, Copy)]
-pub enum AttributeType {
-    Damage,
-    Speed,
-    Health,
-}
-
-//TODO: Refactor these enums to have the values related to their type
-//then update functions so this can work more easily
-#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
-pub enum UnitPackType {
-    Normal {
-        unit_preview: UnitPreview,
-        unit_count: u32,
-    },
-    FallenUnits {
-        fallen_unit_types: Vec<String>,
-    },
-}
-
-#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
-pub struct UnitPack {
-    pub unit_type: String,
-    pub is_picked: bool,
-    pub pos: (f32, f32),
-    pub width: u32,
-    pub height: u32,
-    pub pack_type: UnitPackType, // New field to distinguish pack types
-}
-
-impl UnitPack {
-    pub fn new_normal(
-        unit_type: String,
-        unit_preview: UnitPreview,
-        unit_count: u32,
-        pos: (f32, f32),
-    ) -> Self {
-        UnitPack {
-            unit_type,
-            pack_type: UnitPackType::Normal {
-                unit_preview,
-                unit_count,
-            },
-            is_picked: false,
-            pos,
-            width: 80,
-            height: 80,
-        }
-    }
-
-    pub fn new_fallen_units(fallen_unit_types: Vec<String>, pos: (f32, f32)) -> Self {
-        let unit_type = if fallen_unit_types.len() > 1 {
-            "Fallen Units".to_string()
-        } else if !fallen_unit_types.is_empty() {
-            fallen_unit_types[0].clone()
-        } else {
-            "Empty Pack".to_string()
-        };
-
-        UnitPack {
-            unit_type,
-            pack_type: UnitPackType::FallenUnits { fallen_unit_types },
-            is_picked: false,
-            pos,
-            width: 80,
-            height: 80,
-        }
-    }
-
-    pub fn unit_count(&self) -> u32 {
-        match &self.pack_type {
-            UnitPackType::Normal { unit_count, .. } => *unit_count,
-            UnitPackType::FallenUnits { fallen_unit_types } => fallen_unit_types.len() as u32,
-        }
-    }
-
-    pub fn unit_preview(&self) -> Option<&UnitPreview> {
-        match &self.pack_type {
-            UnitPackType::Normal { unit_preview, .. } => Some(unit_preview),
-            UnitPackType::FallenUnits { .. } => None,
-        }
-    }
-
-    pub fn capitalize(s: &str) -> String {
-        let mut c = s.chars();
-        match c.next() {
-            None => String::new(),
-            Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
-        }
-    }
-
-    pub fn is_hovered(&self, mouse_pos: (i32, i32)) -> bool {
-        let (mouse_x, mouse_y) = mouse_pos;
-        let (pack_x, pack_y) = self.pos;
-
-        mouse_x >= pack_x as i32
-            && mouse_x <= pack_x as i32 + self.width as i32
-            && mouse_y >= pack_y as i32
-            && mouse_y <= pack_y as i32 + self.height as i32
-    }
-
-    pub fn on_picked(&mut self) {
-        //do something
-    }
-
-    pub fn draw_pack_card(&self, mouse_pos: (i32, i32)) {
-        //create a panel
-        let pw = 80; // Made panel wider to accommodate text
-        let ph = 80;
-        let border_color = OFF_BLACK;
-        let (panel_color, hover_color) = match self.pack_type {
-            UnitPackType::Normal { .. } => (DARK_GRAY, LIGHT_GRAY),
-            UnitPackType::FallenUnits { .. } => (COLOR_BRONZE, COLOR_LIGHT_BRONZE),
-        };
-
-        let mut current_panel_color = panel_color;
-        if self.is_hovered(mouse_pos) {
-            current_panel_color = hover_color;
-        }
-        let px = self.pos.0;
-        let py = self.pos.1;
-        rect!(
-            x = px,
-            y = py,
-            h = ph,
-            w = pw,
-            color = current_panel_color,
-            border_color = border_color,
-            border_radius = 6,
-            border_width = 2
-        );
-
-        if let UnitPackType::Normal {
-            unit_preview,
-            unit_count,
-        } = &self.pack_type
-        {
-            // Header
-            let c = Self::capitalize(&self.unit_type);
-            let txt = format!("{} {}s", unit_count, c);
-            text!(&txt, x = px + 5., y = py + 5.);
-
-            // Stats rows - each line is 15 pixels apart
-            let damage_text = format!("DAMAGE: {}", unit_preview.data.damage);
-            let damage_text_length = damage_text.len() as i32 * 5;
-            let speed_text = format!("SPEED: {}", unit_preview.data.speed);
-            let speed_text_length = speed_text.len() as i32 * 5;
-            let health_text = format!("HEALTH: {}", unit_preview.data.max_health);
-            let health_text_length = health_text.len() as i32 * 5;
-
-            text!(&damage_text, x = px + 5., y = py + 25.);
-            self.draw_attributes(
-                (px - 2. + damage_text_length as f32, py + 25.0),
-                AttributeType::Damage,
-            );
-            text!(&speed_text, x = px + 5., y = py + 35.);
-            self.draw_attributes(
-                (px - 2. + speed_text_length as f32, py + 35.0),
-                AttributeType::Speed,
-            );
-            text!(&health_text, x = px + 5., y = py + 45.);
-            self.draw_attributes(
-                (px - 2. + health_text_length as f32, py + 45.0),
-                AttributeType::Health,
-            );
-        } else if let UnitPackType::FallenUnits { fallen_unit_types } = &self.pack_type {
-            power_text!("Revive", x = px, y = py + 5., center_width = self.width);
-
-            // Count occurrences of each unit type
-            let mut unit_counts: HashMap<String, usize> = HashMap::new();
-            for unit_type in fallen_unit_types {
-                *unit_counts.entry(unit_type.clone()).or_insert(0) += 1;
-            }
-
-            // Sort the unit types to ensure consistent display
-            let mut sorted_units: Vec<_> = unit_counts.into_iter().collect();
-            sorted_units.sort_by_key(|&(ref k, _)| k.clone());
-
-            // Display unit counts
-            let mut y_offset = 25.0;
-            for (unit_type, count) in sorted_units {
-                let capitalized_type = Self::capitalize(&unit_type);
-                let unit_text = format!("{}x {}", count, capitalized_type);
-                text!(&unit_text, x = px + 5., y = py + y_offset);
-                y_offset += 15.0;
-            }
-        }
-    }
-
-    pub fn draw_attributes(&self, pos: (f32, f32), attribute_type: AttributeType) {
-        // Only proceed if it's a Normal pack
-        if let UnitPackType::Normal { unit_preview, .. } = &self.pack_type {
-            let mut offset_x = 0.0;
-            let (x, y) = pos;
-
-            // Collect matching attributes first
-            let matching_attrs: Vec<_> = unit_preview
-                .data
-                .attributes
-                .iter()
-                .filter_map(|&attr| match (attribute_type, attr) {
-                    // Damage attributes
-                    (AttributeType::Damage, Attribute::FireEffect) => Some("status_burning"),
-                    (AttributeType::Damage, Attribute::FreezeAttack) => Some("status_frozen"),
-                    (AttributeType::Damage, Attribute::PoisonAttack) => Some("status_poisoned"),
-                    (AttributeType::Damage, Attribute::Berserk) => Some("status_berserk"),
-
-                    // Speed attributes
-                    (AttributeType::Speed, Attribute::Stealth) => Some("status_invisible"),
-
-                    // Health attributes
-                    (AttributeType::Health, Attribute::Shielded) => Some("status_shield"),
-
-                    // If no match, return None
-                    _ => None,
-                })
-                .collect();
-
-            // If there are matching attributes, draw the "+" sign
-            if !matching_attrs.is_empty() {
-                text!("+", x = x + 7.0, y = y, color = WHITE);
-
-                // Draw sprites after the "+" sign
-                for sprite_name in matching_attrs {
-                    offset_x += 5.0; // Add 5 pixels after the "+"
-                    sprite!(sprite_name, x = x + offset_x, y = y, sw = 16);
-                    offset_x += 16.0;
-                }
-            }
-        }
-    }
-
-    pub fn draw(&mut self, mouse_pos: (i32, i32)) {
-        if !self.is_picked {
-            if let UnitPackType::Normal { unit_preview, .. } = &mut self.pack_type {
-                unit_preview.pos.0 = self.pos.0 + 30.;
-                unit_preview.pos.1 = self.pos.1 + self.height as f32 - 10.;
-                unit_preview.update();
-            }
-
-            self.draw_pack_card(mouse_pos);
-
-            if let UnitPackType::Normal { unit_preview, .. } = &self.pack_type {
-                unit_preview.draw();
-            }
-        }
-    }
-    //draw unit preview
-}
-
-pub fn select_unit_pack(pack_index: usize, state: &mut GameState) {
-    let pack = &mut state.shop[pack_index];
-    if state.teams.len() == 0 {
-        let team = initialize_first_team(state.data_store.as_ref().unwrap().clone());
-        state.teams.push(team);
-    }
-
-    match &pack.pack_type {
-        UnitPackType::Normal { unit_count, .. } => {
-            let mut i = 0;
-            while i < *unit_count {
-                state.teams[0].add_unit(pack.unit_type.clone());
-                i += 1;
-            }
-        }
-        UnitPackType::FallenUnits { fallen_unit_types } => {
-            // Directly add fallen unit types to the team
-            for unit_type in fallen_unit_types {
-                state.teams[0].add_unit(unit_type.clone());
-            }
-        }
-    }
-
-    pack.is_picked = true;
-}
-
 pub fn initialize_first_team(data_store: UnitDataStore) -> Team {
     Team {
         name: ("YOU".to_string()),
         units: (Vec::new()),
         data: (data_store),
-        win_streak: (0),
     }
 }
 
 pub fn create_unit_packs(
-    num_types: usize,
+    total_packs: u8,
+    num_artifact_packs: u8,
     data_store: &UnitDataStore,
     rng: &mut RNG,
     round: u8,
-    fallen_units: Option<Vec<String>>,
-    current_team_unit_types: Vec<String>,
+    fallen_units: Option<Vec<UnitType>>,
+    current_team_unit_types: Vec<UnitType>,
+    existing_artifacts: &Vec<Artifact>,
 ) -> Vec<UnitPack> {
     let mut unitpacks = Vec::new();
+    let pack_height = 50.0;
+    let pack_width = 80.0;
+    let pack_margin = 13.0;
+    let start_x = pack_margin;
+    let start_y = 50.0;
 
-    // If fallen units exist, create a fallen units pack first
+    // Track our current position
+    let mut next_x = start_x;
+
+    // 1. Add fallen units pack if needed
     if let Some(ref fallen_unit_types) = fallen_units {
-        let pos = (20.0, 50.0);
+        let pos = (next_x, start_y);
         let fallen_pack = UnitPack::new_fallen_units(fallen_unit_types.clone(), pos);
         unitpacks.push(fallen_pack);
+
+        // Move to next position
+        next_x += pack_width + pack_margin;
     }
 
-    // Adjust the number of types based on whether a fallen units pack was created
-    let num_additional_types = if fallen_units.is_some() {
-        num_types - 1
+    // 2. Filter artifact kinds to only include those not already owned
+    let available_kinds: Vec<ArtifactKind> = ARTIFACT_KINDS
+        .iter()
+        .filter(|kind| {
+            !existing_artifacts
+                .iter()
+                .any(|artifact| artifact.artifact_kind == **kind)
+        })
+        .copied()
+        .collect();
+
+    // Only add artifact packs if we have available kinds
+    let actual_artifact_packs = if available_kinds.is_empty() {
+        0
     } else {
-        num_types
+        num_artifact_packs.min(available_kinds.len() as u8)
     };
 
-    let available_types = get_available_units(round, data_store, current_team_unit_types);
-    let types = select_random_unit_types(&available_types, num_additional_types, rng);
+    // Add artifact packs
+    for _ in 0..actual_artifact_packs {
+        let index = rng.next_in_range(0, available_kinds.len() as u32 - 1);
+        let artifact_kind = available_kinds[index as usize].clone();
 
-    for (i, unit_type) in types.iter().enumerate() {
-        let pos = (
-            ((i + (fallen_units.is_some() as usize)) * 90 + 20) as f32,
-            50.,
-        );
+        let pack = UnitPack {
+            pack_type: UnitPackType::Artifact {
+                kind: artifact_kind,
+            },
+            is_picked: false,
+            pos: (next_x, start_y),
+            width: pack_width as u32,
+            height: pack_height as u32,
+        };
+
+        unitpacks.push(pack);
+
+        // Move to next position
+        next_x += pack_width + pack_margin;
+    }
+
+    // 3. Calculate remaining unit packs
+    let fallen_packs = if fallen_units.is_some() { 1 } else { 0 };
+    let num_normal_packs = total_packs - fallen_packs - actual_artifact_packs;
+
+    // 4. Add normal unit packs
+    let available_types = get_available_units(round, data_store, current_team_unit_types);
+    let types = select_random_unit_types(&available_types, num_normal_packs as usize, rng);
+
+    for unit_type in types.iter() {
+        let pos = (next_x, start_y);
+
         let data: &UnitData = data_store.get_unit_data(unit_type).unwrap();
-        let unit_count = get_unit_count(round, unit_type);
+        let unit_count = get_unit_count(round, *unit_type);
         let unit_preview = UnitPreview::new(unit_type.clone(), data.clone(), pos, false);
         let unitpack = UnitPack::new_normal(unit_type.clone(), unit_preview, unit_count, pos);
+
         unitpacks.push(unitpack);
+
+        // Move to next position
+        next_x += pack_width + pack_margin;
     }
 
     unitpacks
 }
-
 pub fn get_available_units(
     round: u8,
     data_store: &UnitDataStore,
-    current_team_unit_types: Vec<String>,
-) -> Vec<&String> {
-    let all_types: Vec<&String> = data_store.data.keys().collect();
+    current_team_unit_types: Vec<UnitType>,
+) -> Vec<&UnitType> {
+    let all_types: Vec<&UnitType> = data_store.data.keys().collect();
 
     let basic_units = vec![
-        "axeman", "serpent", "blade", "hunter", "pyro", "bigpound", "deathray", "cosmo", "zombie",
-        "shield",
+        UnitType::Axeman,
+        UnitType::Serpent,
+        UnitType::Blade,
+        UnitType::Hunter,
+        UnitType::Pyro,
+        UnitType::Bigpound,
+        UnitType::Deathray,
+        UnitType::Cosmo,
+        UnitType::Zombie,
+        UnitType::Shield,
     ];
+
     let advanced_units = vec![
-        "sabre",
-        "flameboi",
-        "bazooka",
-        "draco",
-        "saucer",
-        "tanker",
-        "catapult",
-        "darkknight",
-        "yeti",
-        "igor",
+        UnitType::Sabre,
+        UnitType::Flameboi,
+        UnitType::Bazooka,
+        UnitType::Draco,
+        UnitType::Saucer,
+        UnitType::Tanker,
+        UnitType::Catapult,
+        UnitType::Darkknight,
+        UnitType::Yeti,
+        UnitType::Igor,
     ];
 
     // If the team already has 6 or more unique unit types,
@@ -1435,19 +1219,19 @@ pub fn get_available_units(
     match round {
         1..=2 => all_types
             .iter()
-            .filter(|&&unit| basic_units.contains(&unit.as_str()))
+            .filter(|&&unit| basic_units.contains(unit))
             .copied()
             .collect(),
         3..=6 => all_types.iter().copied().collect(),
         _ => all_types
             .iter()
-            .filter(|&&unit| basic_units.contains(&unit.as_str()))
+            .filter(|&&unit| basic_units.contains(unit))
             .copied()
             .collect(),
     }
 }
 
-fn get_unit_count(round: u8, unit_type: &str) -> u32 {
+fn get_unit_count(round: u8, unit_type: UnitType) -> u32 {
     let rating = get_unit_strength_rating(unit_type);
     //TODO: add a little randomness here
     match round {
@@ -1483,7 +1267,7 @@ fn get_unit_count(round: u8, unit_type: &str) -> u32 {
     }
 }
 
-fn get_unit_strength_rating(unit_type: &str) -> u8 {
+fn get_unit_strength_rating(unit_type: UnitType) -> u8 {
     match UNIT_RATINGS.iter().find(|(unit, _)| *unit == unit_type) {
         Some((_, rating)) => *rating,
         None => 5, // default rating
@@ -1608,7 +1392,7 @@ pub fn draw_current_team(team: &Team, data_store: &UnitDataStore, facing_left: b
     }
 
     // Create a vec to store (unit_type, count)
-    let mut type_counts: Vec<(&String, u32)> = Vec::new();
+    let mut type_counts: Vec<(&UnitType, u32)> = Vec::new();
 
     // Count occurrences of each unit type while maintaining order
     for unit_type in &team.units {
@@ -1648,8 +1432,9 @@ pub fn draw_current_team(team: &Team, data_store: &UnitDataStore, facing_left: b
         text!(txt.as_str(), x = x, y = y);
 
         // Draw sprite
-        let txt = format!("{}_idle", unit_type);
-        let data = data_store.data.get(&**unit_type);
+        let unit_name = unit_type.as_string();
+        let txt = format!("{}_idle", unit_name);
+        let data = data_store.data.get(unit_type);
         let x_adj = data.unwrap().bounding_box.0;
         let y_adj = data.unwrap().bounding_box.1;
         let sw = data.unwrap().sprite_width;

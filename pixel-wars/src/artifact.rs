@@ -35,13 +35,32 @@ pub enum ArtifactKind {
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 pub struct Artifact {
     pub artifact_kind: ArtifactKind,
-    pub text: String,
     pub team: u8,
     pub animator: Animator,
 }
 
 impl Artifact {
     pub fn new(kind: ArtifactKind, team: u8) -> Self {
+        let display_name = format!("{:?}", kind)
+            .split('{')
+            .next()
+            .unwrap_or("")
+            .trim()
+            .to_string();
+        Self {
+            artifact_kind: kind,
+            team,
+            animator: Animator::new(Animation {
+                name: display_name,
+                s_w: 16,
+                num_frames: 1,
+                loops_per_frame: 8,
+                is_looping: false,
+            }),
+        }
+    }
+
+    pub fn artifact_text(kind: ArtifactKind) -> String {
         let text = match kind {
             ArtifactKind::StrengthOfTheFallen { .. } => {
                 "Increase damage for each dead unit on your team"
@@ -54,26 +73,8 @@ impl Artifact {
             ArtifactKind::SpeedRunner { .. } => "All your units start with Haste",
             ArtifactKind::DoctorsIn { .. } => "Deploy Medkits on your team's side",
             ArtifactKind::Necromancer { .. } => "Revive some of your units after the battle",
-        }
-        .to_string();
-        let display_name = format!("{:?}", kind)
-            .split('{')
-            .next()
-            .unwrap_or("")
-            .trim()
-            .to_string();
-        Self {
-            artifact_kind: kind,
-            text,
-            team,
-            animator: Animator::new(Animation {
-                name: display_name,
-                s_w: 16,
-                num_frames: 1,
-                loops_per_frame: 8,
-                is_looping: false,
-            }),
-        }
+        };
+        return text.to_string();
     }
 
     pub fn is_hovered(&self, pos: (i32, i32), mouse_pos: (i32, i32)) -> bool {
@@ -87,32 +88,32 @@ impl Artifact {
             && mouse_y <= pack_y as i32 + height as i32
     }
 
-    pub fn draw_card(&mut self, pos: (i32, i32), mouse_pos: (i32, i32)) {
-        //do some card stuff, with a position
-        let pw = 80; // Made panel wider to accommodate text
-        let ph = 80;
-        let border_color = OFF_BLACK;
-        let mut panel_color = DARK_GRAY;
-        if self.is_hovered(pos, mouse_pos) {
-            panel_color = LIGHT_GRAY;
-        }
-        let px = pos.0;
-        let py = pos.1;
-        rect!(
-            x = px,
-            y = py,
-            h = ph,
-            w = pw,
-            color = panel_color,
-            border_color = border_color,
-            border_radius = 6,
-            border_width = 2
-        );
-        let sprite_pos = (pos.0 + 32, pos.1 + 10);
-        let text_pos = (pos.0 + 3, pos.1 + 36);
-        self.draw_sprite_scaled(sprite_pos, 2.0);
-        self.draw_effect_text(text_pos);
-    }
+    // pub fn draw_card(&mut self, pos: (i32, i32), mouse_pos: (i32, i32)) {
+    //     //do some card stuff, with a position
+    //     let pw = 80; // Made panel wider to accommodate text
+    //     let ph = 80;
+    //     let border_color = OFF_BLACK;
+    //     let mut panel_color = DARK_GRAY;
+    //     if self.is_hovered(pos, mouse_pos) {
+    //         panel_color = LIGHT_GRAY;
+    //     }
+    //     let px = pos.0;
+    //     let py = pos.1;
+    //     rect!(
+    //         x = px,
+    //         y = py,
+    //         h = ph,
+    //         w = pw,
+    //         color = panel_color,
+    //         border_color = border_color,
+    //         border_radius = 6,
+    //         border_width = 2
+    //     );
+    //     let sprite_pos = (pos.0 + 32, pos.1 + 10);
+    //     let text_pos = (pos.0 + 3, pos.1 + 36);
+    //     self.draw_sprite_scaled(sprite_pos, 2.0);
+    //     self.draw_effect_text(text_pos);
+    // }
 
     pub fn draw_sprite(&mut self, pos: (i32, i32)) {
         self.draw_sprite_scaled(pos, 1.0);
@@ -227,12 +228,12 @@ impl Artifact {
         self.animator.set_next_anim(Some(next_anim));
     }
 
-    pub fn draw_effect_text(&self, pos: (i32, i32)) {
-        let texts = split_text_at_spaces(&self.text);
+    // pub fn draw_effect_text(&self, pos: (i32, i32)) {
+    //     let texts = split_text_at_spaces(&self.text);
 
-        for (i, line) in texts.iter().enumerate() {
-            let y_offset = pos.1 + (i as i32 * 8);
-            text!(line, x = pos.0, y = y_offset);
-        }
-    }
+    //     for (i, line) in texts.iter().enumerate() {
+    //         let y_offset = pos.1 + (i as i32 * 8);
+    //         text!(line, x = pos.0, y = y_offset);
+    //     }
+    // }
 }

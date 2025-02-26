@@ -10,3 +10,5 @@ pub const SHADOW_COLOR: usize = 0x696682ff;
 pub const _HOVER_GRAY: u32 = 0xCCCCCCFF;
 pub const COLOR_BRONZE: u32 = 0xCD7F32ff;
 pub const COLOR_LIGHT_BRONZE: u32 = 0xE5AB5Eff;
+pub const COLOR_ARTIFACT_PANEL: u32 = 0xD2B48CFF;
+pub const COLOR_ARTIFACT_PANEL_HOVER: u32 = 0xE6C9A8FF;

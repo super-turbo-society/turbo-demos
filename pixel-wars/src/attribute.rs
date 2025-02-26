@@ -5,7 +5,7 @@ pub enum Attribute {
     ExplosiveAttack,
     Terrifying,
     Stalwart,
-    FireEffect,
+    FireAttack,
     FireResistance,
     Ranged,
     Flanker,
@@ -27,7 +27,7 @@ impl FromStr for Attribute {
         match s.trim() {
             "Terrifying" => Ok(Attribute::Terrifying),
             "Stalwart" => Ok(Attribute::Stalwart),
-            "FireEffect" => Ok(Attribute::FireEffect),
+            "FireAttack" => Ok(Attribute::FireAttack),
             "FireResistance" => Ok(Attribute::FireResistance),
             "ExplodeOnDeath" => Ok(Attribute::ExplodeOnDeath),
             "ExplosiveAttack" => Ok(Attribute::ExplosiveAttack),

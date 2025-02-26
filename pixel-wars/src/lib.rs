@@ -7,6 +7,7 @@ mod particles;
 mod rng;
 mod trap;
 mod unit;
+mod unitpack;
 
 use artifact::*;
 use attribute::*;
@@ -28,6 +29,7 @@ use strum_macros::Display;
 use strum_macros::EnumIter;
 use trap::*;
 use unit::*;
+use unitpack::*;
 
 const UNIT_DATA_CSV: &[u8] = include_bytes!("../resources/unit-data.csv");
 const DAMAGE_EFFECT_TIME: u32 = 12;
@@ -102,7 +104,7 @@ turbo::init! {
         auto_assign_teams: bool,
         user: UserStats,
         last_winning_team: Option<Team>,
-        last_round_dead_units: Vec<String>,
+        last_round_dead_units: Vec<UnitType>,
         team_selection_timer: u32,
         team_generation_requested: bool,
         previous_battle: Option<Battle>,
@@ -114,7 +116,7 @@ turbo::init! {
     } = {
         Self {
             transition: None,
-            dbphase: DBPhase::ParticleTest,
+            dbphase: DBPhase::Title,
             title_screen_units: Vec::new(),
             phase: Phase::TeamSetUp,
             round: 1,
@@ -620,7 +622,7 @@ fn draw_end_stats(units: &Vec<Unit>, data_store: &UnitDataStore) {
     let mut team_units: BTreeMap<(String, u8), Vec<&Unit>> = BTreeMap::new();
     for unit in units {
         team_units
-            .entry((unit.unit_type.clone(), unit.team))
+            .entry((unit.unit_type.clone().as_string(), unit.team))
             .or_default()
             .push(unit);
     }
@@ -650,7 +652,7 @@ fn draw_end_stats(units: &Vec<Unit>, data_store: &UnitDataStore) {
                 continue;
             }
 
-            let data = data_store.data.get(&**unit_type);
+            let data = data_store.data.get(&UnitType::from_string(unit_type));
             let x_adj = data.unwrap().bounding_box.0;
             let y_adj = data.unwrap().bounding_box.1;
             let sw = data.unwrap().sprite_width;
@@ -752,8 +754,8 @@ fn start_end_game_particles(pm: &mut ParticleManager) {
     for &color in &colors {
         let config = BurstConfig {
             source: BurstSource::Rectangle {
-                min: (0., 0.),
-                max: (340., 0.),
+                min: (0., -10.0),
+                max: (384., -10.0),
             },
             x_velocity: (-0.15, 0.15),
             y_velocity: (2.0, 3.0),
@@ -2270,11 +2272,11 @@ fn get_bounds(unit: &Unit) -> (f32, f32, f32, f32) {
     (left, right, top, bottom)
 }
 
-fn all_living_units(units: &Vec<Unit>) -> Vec<String> {
-    let mut living_units: Vec<String> = Vec::new();
+fn all_living_units(units: &Vec<Unit>) -> Vec<UnitType> {
+    let mut living_units: Vec<UnitType> = Vec::new();
     for u in units {
         if u.state != UnitState::Dead {
-            living_units.push(u.unit_type.to_string());
+            living_units.push(u.unit_type);
         }
     }
     living_units
@@ -2328,16 +2330,6 @@ fn draw_assigned_team_info(state: &mut GameState) {
             font = Font::L,
             color = 0xADD8E6ff
         );
-        if team.win_streak > 0 {
-            let streak_text = format!("{} Win Streak", team.win_streak);
-            text!(
-                streak_text.as_str(),
-                x = *pos,
-                y = y_pos + 10,
-                font = Font::L,
-                color = ACID_GREEN,
-            );
-        }
         let team_summary = team.get_unit_summary();
         for (unit_type, count) in team_summary {
             let text = format!("{} {}s", count, unit_type);
@@ -2419,13 +2411,14 @@ fn draw_team_info_and_buttons(state: &mut GameState) {
         // Draw unit info and buttons
         for unit_type in &unit_types {
             let num_units = team.num_unit(unit_type.clone());
-            let unit_type_capitalized = unit_type
+            let unit_name = unit_type.as_string();
+            let unit_type_capitalized = unit_name
                 .chars()
                 .next()
                 .unwrap()
                 .to_uppercase()
                 .collect::<String>()
-                + &unit_type[1..];
+                + &unit_name[1..];
             let unit_text = format!("[{}] {}", num_units, unit_type_capitalized);
             text!(unit_text.as_str(), x = *pos, y = y_pos, font = Font::L);
 
@@ -2665,9 +2658,9 @@ fn draw_team_health_bar(
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 struct Team {
     name: String,
-    units: Vec<String>,
+    units: Vec<UnitType>,
     data: UnitDataStore,
-    win_streak: u32,
+    //upgraded_units: Vec<String>,
 }
 
 impl Team {
@@ -2676,20 +2669,20 @@ impl Team {
             name,
             units: Vec::new(),
             data,
-            win_streak: 0,
+            //upgraded_units: Vec::new(),
         }
     }
 
-    fn add_unit(&mut self, unit: String) {
+    fn add_unit(&mut self, unit: UnitType) {
         self.units.push(unit);
     }
 
-    fn num_unit(&self, unit_type: String) -> i32 {
+    fn num_unit(&self, unit_type: UnitType) -> i32 {
         // Return the number of units of a specific UnitType in self.units
         self.units.iter().filter(|&unit| *unit == unit_type).count() as i32
     }
 
-    fn remove_unit(&mut self, unit_type: String) -> bool {
+    fn remove_unit(&mut self, unit_type: UnitType) -> bool {
         // Remove the last unit of the specified UnitType, only if there is at least one
         if let Some(pos) = self.units.iter().rposition(|unit| *unit == unit_type) {
             self.units.remove(pos);
@@ -2712,24 +2705,30 @@ impl Team {
         sorted_units.sort();
 
         let mut summary = Vec::new();
-        let mut current_unit = String::new();
+
+        if sorted_units.is_empty() {
+            return summary;
+        }
+
+        let mut current_unit = sorted_units[0];
         let mut count = 0;
 
         for unit in sorted_units {
             if unit != current_unit {
-                if !current_unit.is_empty() {
-                    summary.push((Self::capitalize(&current_unit), count));
-                }
+                // Add the current group to the summary
+                summary.push((Self::capitalize(&current_unit.as_string()), count));
+
+                // Start a new group
                 current_unit = unit;
                 count = 1;
             } else {
+                // Increment the current group
                 count += 1;
             }
         }
 
-        if !current_unit.is_empty() {
-            summary.push((Self::capitalize(&current_unit), count));
-        }
+        // Add the last group
+        summary.push((Self::capitalize(&current_unit.as_string()), count));
 
         summary
     }
@@ -2737,8 +2736,8 @@ impl Team {
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 enum GameEvent {
-    AddUnitToTeam(usize, String),
-    RemoveUnitFromTeam(usize, String),
+    AddUnitToTeam(usize, UnitType),
+    RemoveUnitFromTeam(usize, UnitType),
     AddArtifactToTeam(usize, ArtifactKind),
     RemoveArtifactFromTeam(usize, ArtifactKind),
     ChooseTeam(i32),
@@ -2926,7 +2925,7 @@ fn create_units_for_all_teams(
     // Process each team
     for (team_index, team) in teams.iter().enumerate() {
         // Group units by type
-        let mut unit_groups: HashMap<String, Vec<String>> = HashMap::new();
+        let mut unit_groups: HashMap<UnitType, Vec<UnitType>> = HashMap::new();
         for unit_type in &team.units {
             unit_groups
                 .entry(unit_type.clone())
@@ -2975,7 +2974,7 @@ fn create_units_for_all_teams(
 }
 
 fn create_clump(
-    unit_types: &[String],
+    unit_types: &[UnitType],
     base_pos: (f32, f32),
     team_index: usize,
     id: &mut u32,
@@ -3012,7 +3011,7 @@ fn generate_team(
     team_name: String,
 ) -> Team {
     // Get available unit types as Vec<&String>
-    let mut available_types: Vec<&String> = data_store.data.keys().collect();
+    let mut available_types: Vec<&UnitType> = data_store.data.keys().collect();
 
     // If matching a team, remove its unit types from available options
     if let Some(team) = match_team {
@@ -3023,7 +3022,7 @@ fn generate_team(
     let selected_types = select_random_unit_types(&available_types, 2, rng);
 
     // Calculate all unit powers
-    let unit_powers: HashMap<String, f32> = data_store
+    let unit_powers: HashMap<UnitType, f32> = data_store
         .data
         .iter()
         .map(|(unit_type, unit_data)| (unit_type.clone(), calculate_single_unit_power(unit_data)))
@@ -3074,14 +3073,14 @@ fn calculate_single_unit_power(unit_data: &UnitData) -> f32 {
 }
 
 pub fn calculate_team_power_target(
-    power_levels: &HashMap<String, f32>,
+    power_levels: &HashMap<UnitType, f32>,
     team_size_multiplier: f32,
 ) -> f32 {
     let average_power = calculate_average_unit_power(power_levels);
     average_power * team_size_multiplier
 }
 
-pub fn calculate_average_unit_power(power_levels: &HashMap<String, f32>) -> f32 {
+pub fn calculate_average_unit_power(power_levels: &HashMap<UnitType, f32>) -> f32 {
     if power_levels.is_empty() {
         return 0.0;
     }
@@ -3102,10 +3101,10 @@ pub fn get_team_total_power(team: &Team) -> f32 {
 }
 
 fn select_random_unit_types(
-    available_types: &[&String], // Taking references as input
+    available_types: &[&UnitType], // Taking references as input
     num_types: usize,
     rng: &mut RNG,
-) -> Vec<String> {
+) -> Vec<UnitType> {
     // Returning owned Strings
     let mut selected_types = Vec::new();
     let mut remaining_attempts = 100;
@@ -3126,8 +3125,8 @@ fn select_random_unit_types(
 
 fn create_team(
     team: &mut Team,
-    unit_types: &[String],
-    power_levels: &HashMap<String, f32>,
+    unit_types: &[UnitType],
+    power_levels: &HashMap<UnitType, f32>,
     target_power: f32,
     rng: &mut RNG,
 ) {
@@ -3203,8 +3202,9 @@ fn create_unit_previews(
         x += 60.;
     }
     for (unit_type, _count) in team_summary {
-        let unit_type = unit_type.to_lowercase();
-        //let s_w = data_store.get_sprite_width(&unit_type).unwrap();
+        let unit_name = unit_type; // Rename the original string variable
+        let unit_type = UnitType::from_string(&unit_name); // Convert to UnitType
+                                                           //let s_w = data_store.get_sprite_width(&unit_type).unwrap();
         let data = data_store.get_unit_data(&unit_type).unwrap();
         let u_p = UnitPreview::new(unit_type, data.clone(), (x, y_start), is_facing_left);
         unit_previews.push(u_p);
@@ -3244,7 +3244,7 @@ fn create_trap(rng: &mut RNG, trap_type: Option<TrapType>, trap_side: TrapSide) 
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 struct UnitDataStore {
-    data: HashMap<String, UnitData>,
+    data: HashMap<UnitType, UnitData>,
 }
 
 impl UnitDataStore {
@@ -3258,15 +3258,15 @@ impl UnitDataStore {
         self.data.insert(data.unit_type.clone(), data);
     }
 
-    fn get_unit_data(&self, unit_type: &String) -> Option<&UnitData> {
+    fn get_unit_data(&self, unit_type: &UnitType) -> Option<&UnitData> {
         self.data.get(unit_type)
     }
 
-    pub fn get_all_unit_types(&self) -> Vec<String> {
+    pub fn get_all_unit_types(&self) -> Vec<UnitType> {
         self.data.keys().cloned().collect()
     }
 
-    pub fn get_sprite_width(&self, unit_type: &str) -> Option<u8> {
+    pub fn get_sprite_width(&self, unit_type: &UnitType) -> Option<u8> {
         self.data
             .get(unit_type)
             .map(|unit_data| unit_data.sprite_width)
@@ -3280,7 +3280,9 @@ impl UnitDataStore {
             .from_reader(file_path);
         for record in reader.records().skip(1) {
             let record = record?;
-            let unit_type = record.get(0).ok_or("Missing damage")?.parse::<String>()?;
+            let unit_name = record.get(0).ok_or("Missing unit type")?;
+
+            let unit_type = UnitType::from_string(unit_name);
             let damage = record.get(1).ok_or("Missing damage")?.parse::<f32>()?;
             let max_health = record.get(2).ok_or("Missing max health")?.parse::<f32>()?;
             let speed = record.get(3).ok_or("Missing speed")?.parse::<f32>()?;
@@ -3322,7 +3324,7 @@ impl UnitDataStore {
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 struct SimulationResult {
     seed: u32,
-    living_units: Vec<String>,
+    living_units: Vec<UnitType>,
     winning_team: Option<u8>,
     num_frames: u32,
 }

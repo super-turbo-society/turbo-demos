@@ -14,9 +14,98 @@ pub struct UnitDisplay {
     pub footprint_timer: i32,
 }
 
+#[derive(
+    BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone, Eq, Hash, PartialOrd, Ord, Copy,
+)]
+pub enum UnitType {
+    Axeman,
+    Blade,
+    Hunter,
+    Pyro,
+    Bigpound,
+    Sabre,
+    Flameboi,
+    Deathray,
+    Bazooka,
+    Cosmo,
+    Draco,
+    Saucer,
+    Tanker,
+    GoldenTank,
+    Catapult,
+    Zombie,
+    Shield,
+    Darkknight,
+    Yeti,
+    BloodYeti,
+    Serpent,
+    Igor,
+}
+
+impl UnitType {
+    pub fn from_string(s: &str) -> Self {
+        // Get a lowercase version as an owned String
+        let lowercase = s.to_lowercase();
+
+        // Now match on a reference to that String
+        match lowercase.as_str() {
+            "axeman" => UnitType::Axeman,
+            "blade" => UnitType::Blade,
+            "hunter" => UnitType::Hunter,
+            "pyro" => UnitType::Pyro,
+            "bigpound" => UnitType::Bigpound,
+            "sabre" => UnitType::Sabre,
+            "flameboi" => UnitType::Flameboi,
+            "deathray" => UnitType::Deathray,
+            "bazooka" => UnitType::Bazooka,
+            "cosmo" => UnitType::Cosmo,
+            "draco" => UnitType::Draco,
+            "saucer" => UnitType::Saucer,
+            "tanker" => UnitType::Tanker,
+            "golden_tank" => UnitType::GoldenTank,
+            "catapult" => UnitType::Catapult,
+            "zombie" => UnitType::Zombie,
+            "shield" => UnitType::Shield,
+            "darkknight" => UnitType::Darkknight,
+            "yeti" => UnitType::Yeti,
+            "blood_yeti" => UnitType::BloodYeti,
+            "serpent" => UnitType::Serpent,
+            "igor" => UnitType::Igor,
+            _ => UnitType::Axeman,
+        }
+    }
+
+    pub fn as_string(&self) -> String {
+        match self {
+            UnitType::Axeman => "axeman".to_string(),
+            UnitType::Blade => "blade".to_string(),
+            UnitType::Hunter => "hunter".to_string(),
+            UnitType::Pyro => "pyro".to_string(),
+            UnitType::Bigpound => "bigpound".to_string(),
+            UnitType::Sabre => "sabre".to_string(),
+            UnitType::Flameboi => "flameboi".to_string(),
+            UnitType::Deathray => "deathray".to_string(),
+            UnitType::Bazooka => "bazooka".to_string(),
+            UnitType::Cosmo => "cosmo".to_string(),
+            UnitType::Draco => "draco".to_string(),
+            UnitType::Saucer => "saucer".to_string(),
+            UnitType::Tanker => "tanker".to_string(),
+            UnitType::GoldenTank => "golden_tank".to_string(),
+            UnitType::Catapult => "catapult".to_string(),
+            UnitType::Zombie => "zombie".to_string(),
+            UnitType::Shield => "shield".to_string(),
+            UnitType::Darkknight => "darkknight".to_string(),
+            UnitType::Yeti => "yeti".to_string(),
+            UnitType::BloodYeti => "blood_yeti".to_string(),
+            UnitType::Serpent => "serpent".to_string(),
+            UnitType::Igor => "igor".to_string(),
+        }
+    }
+}
+
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 pub struct Unit {
-    pub unit_type: String,
+    pub unit_type: UnitType,
     pub stats: UnitStats,
     pub data: UnitData,
     pub team: u8,
@@ -35,7 +124,7 @@ pub struct Unit {
 
 impl Unit {
     pub fn new(
-        unit_type: String,
+        unit_type: UnitType,
         pos: (f32, f32),
         team: u8,
         store: &UnitDataStore,
@@ -160,7 +249,7 @@ impl Unit {
         };
 
         let mut new_anim = Animation {
-            name: self.unit_type.to_lowercase(),
+            name: self.unit_type.as_string(),
             s_w: self.data.sprite_width,
             num_frames: 4,
             loops_per_frame: anim_speed,
@@ -188,7 +277,7 @@ impl Unit {
                 new_anim.is_looping = false;
                 display.animator.set_cur_anim(new_anim);
                 let next_anim = Animation {
-                    name: self.unit_type.to_lowercase() + "_idle",
+                    name: self.unit_type.as_string() + "_idle",
                     s_w: self.data.sprite_width,
                     num_frames: 4,
                     loops_per_frame: anim_speed,
@@ -199,7 +288,7 @@ impl Unit {
         } else if self.state == UnitState::Idle {
             display.animator.cur_anim.is_looping = false;
             let next_anim = Animation {
-                name: self.unit_type.to_lowercase() + "_idle",
+                name: self.unit_type.as_string() + "_idle",
                 s_w: self.data.sprite_width,
                 num_frames: 4,
                 loops_per_frame: anim_speed,
@@ -210,7 +299,7 @@ impl Unit {
             //self.animator.set_cur_anim(new_anim);
         } else if self.state == UnitState::Defending {
             let next_anim = Animation {
-                name: self.unit_type.to_lowercase() + "_cheer",
+                name: self.unit_type.as_string() + "_cheer",
                 s_w: self.data.sprite_width,
                 num_frames: 4,
                 loops_per_frame: anim_speed,
@@ -220,7 +309,7 @@ impl Unit {
         } else if self.state == UnitState::Cheer {
             display.animator.cur_anim.is_looping = false;
             let next_anim = Animation {
-                name: self.unit_type.to_lowercase() + "_cheer",
+                name: self.unit_type.as_string() + "_cheer",
                 s_w: self.data.sprite_width,
                 num_frames: 4,
                 loops_per_frame: anim_speed,
@@ -801,12 +890,12 @@ impl Unit {
 
                 //if it is a fire effect, then add a burn status to this unit
                 if !self.data.has_attribute(&Attribute::FireResistance)
-                    && attack.attributes.contains(&Attribute::FireEffect)
+                    && attack.attributes.contains(&Attribute::FireAttack)
                 {
                     let new_status = Status::Burn { timer: (300) };
                     self.status_effects.push(new_status);
                 } else if self.data.has_attribute(&Attribute::FireResistance)
-                    && attack.attributes.contains(&Attribute::FireEffect)
+                    && attack.attributes.contains(&Attribute::FireAttack)
                 {
                     //TODO: Figure out how to link this to the artifact...
                     turbo::println!("FIRE BLOCKED");
@@ -1090,7 +1179,7 @@ make status effect a string for now. If you have X status, add whatever text, th
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 pub struct UnitData {
-    pub unit_type: String,
+    pub unit_type: UnitType,
     pub damage: f32,
     pub max_health: f32,
     pub speed: f32,
@@ -1138,7 +1227,7 @@ pub enum UnitState {
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 pub struct UnitPreview {
     //unit type as a string
-    pub unit_type: String,
+    pub unit_type: UnitType,
     //animator
     pub animator: Animator,
     pub data: UnitData,
@@ -1149,7 +1238,7 @@ pub struct UnitPreview {
 }
 
 impl UnitPreview {
-    pub fn new(unit_type: String, data: UnitData, pos: (f32, f32), flip_x: bool) -> Self {
+    pub fn new(unit_type: UnitType, data: UnitData, pos: (f32, f32), flip_x: bool) -> Self {
         Self {
             unit_type, //placeholder, gets overwritten when they are drawn, but I can't figure out how to do it more logically than this
             animator: Animator::new(Animation {
@@ -1169,7 +1258,7 @@ impl UnitPreview {
     pub fn update(&mut self) {
         self.animator.update();
         let mut new_anim = Animation {
-            name: self.unit_type.to_lowercase(),
+            name: self.unit_type.as_string(),
             s_w: self.data.sprite_width,
             num_frames: 4,
             loops_per_frame: UNIT_ANIM_SPEED,
@@ -1294,7 +1383,7 @@ pub enum FootprintStatus {
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 pub struct WalkingUnitPreview {
     //unit type as a string
-    pub unit_type: String,
+    pub unit_type: UnitType,
     //animator
     pub sprite: AnimatedSprite,
     pub speed: f32,
@@ -1304,7 +1393,7 @@ pub struct WalkingUnitPreview {
 
 impl WalkingUnitPreview {
     pub fn new(
-        unit_type: String,
+        unit_type: UnitType,
         sprite: AnimatedSprite,
         pos: (f32, f32),
         speed: f32,
