@@ -411,9 +411,9 @@ pub fn dbgo(state: &mut GameState) {
                 //if unit_types contains an upgradeable type, then send that into the create unit packs function
                 let mut upgradeable_unit = None;
                 if unit_types.contains(&UnitType::Tanker) {
-                    upgradeable_unit = Some(UnitType::Tanker);
+                    upgradeable_unit = Some((UnitType::Tanker, UnitType::GoldenTank));
                 } else if unit_types.contains(&UnitType::Yeti) {
-                    upgradeable_unit = Some(UnitType::Yeti);
+                    upgradeable_unit = Some((UnitType::Yeti, UnitType::BloodYeti));
                 }
                 let num_artifacts = if state.round == 1 { 0 } else { 1 };
 
@@ -423,6 +423,11 @@ pub fn dbgo(state: &mut GameState) {
                     .filter(|artifact| artifact.team == 0)
                     .cloned()
                     .collect();
+
+                let mut team_upgrades = Vec::new();
+                if state.teams.len() > 0 {
+                    team_upgrades = state.teams[0].upgraded_units.clone();
+                }
                 state.shop = create_unit_packs(
                     4,
                     num_artifacts,
@@ -431,6 +436,7 @@ pub fn dbgo(state: &mut GameState) {
                     state.round,
                     fallen_units,
                     unit_types,
+                    team_upgrades,
                     &player_artifacts,
                     upgradeable_unit,
                 );
@@ -1093,8 +1099,9 @@ pub fn create_unit_packs(
     round: u8,
     fallen_units: Option<Vec<UnitType>>,
     current_team_unit_types: Vec<UnitType>,
+    team_upgrades: Vec<UnitType>,
     existing_artifacts: &Vec<Artifact>,
-    upgraded_unit_pack: Option<UnitType>,
+    upgraded_unit_pack: Option<(UnitType, UnitType)>,
 ) -> Vec<UnitPack> {
     let mut unitpacks = Vec::new();
     let pack_height = 50.0;
@@ -1119,8 +1126,22 @@ pub fn create_unit_packs(
     // 2. Add unit upgrade pack if available
     if let Some(unit_type) = upgraded_unit_pack {
         let pos = (next_x, start_y);
+        let original_unit_data: &UnitData = data_store.get_unit_data(&unit_type.0).unwrap();
+        let original_unit_preview =
+            UnitPreview::new(unit_type.0.clone(), original_unit_data.clone(), pos, false);
+        let new_unit_data: &UnitData = data_store.get_unit_data(&unit_type.1).unwrap();
+        let new_unit_preview =
+            UnitPreview::new(unit_type.1.clone(), new_unit_data.clone(), pos, false);
+        //let unitpack = UnitPack::new_normal(unit_type.clone(), unit_preview, unit_count, pos);
         let upgrade_pack = UnitPack {
-            pack_type: UnitPackType::UnitUpgrade { unit_type },
+            //create the unit previews
+            pack_type: UnitPackType::Transform {
+                original_unit_type: unit_type.0,
+                original_unit_preview: original_unit_preview,
+                new_unit_type: unit_type.1,
+                new_unit_preview: new_unit_preview,
+                is_upgrade: true,
+            },
             is_picked: false,
             pos,
             width: pack_width as u32,
@@ -1179,7 +1200,21 @@ pub fn create_unit_packs(
     // 5. Add normal unit packs
     let available_types = get_available_units(round, data_store, current_team_unit_types);
     let mut types = select_random_unit_types(&available_types, num_normal_packs as usize, rng);
-    types[0] = UnitType::Yeti;
+    //types[0] = UnitType::Yeti;
+    // Check if any types can be upgraded
+    // Check if any types can be upgraded
+    for unit_type in types.iter_mut() {
+        // Check if team has the upgrade for this unit type
+        if team_upgrades.contains(unit_type) {
+            // Replace with upgraded version
+            match *unit_type {
+                UnitType::Yeti => *unit_type = UnitType::BloodYeti,
+                UnitType::Tanker => *unit_type = UnitType::GoldenTank,
+                // Add more upgrade mappings here as needed
+                _ => {} // No upgrade for this unit type
+            }
+        }
+    }
     for unit_type in types.iter() {
         let pos = (next_x, start_y);
 
@@ -1202,8 +1237,17 @@ pub fn get_available_units(
     data_store: &UnitDataStore,
     current_team_unit_types: Vec<UnitType>,
 ) -> Vec<&UnitType> {
-    let all_types: Vec<&UnitType> = data_store.data.keys().collect();
+    let all_types: Vec<&UnitType> = data_store
+        .data
+        .keys()
+        .filter(|unit_type| {
+            // Get the unit data for this type
+            let unit_data = data_store.data.get(*unit_type).unwrap();
 
+            // Check if it does NOT have the Evolved attribute
+            !unit_data.attributes.contains(&Attribute::Evolved)
+        })
+        .collect();
     let basic_units = vec![
         UnitType::Axeman,
         UnitType::Serpent,

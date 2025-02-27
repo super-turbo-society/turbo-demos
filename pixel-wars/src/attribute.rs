@@ -18,6 +18,8 @@ pub enum Attribute {
     Trample,
     Large,
     ParabolicAttack,
+    Evolved,
+    CanEvolve,
 }
 
 impl FromStr for Attribute {
@@ -42,6 +44,8 @@ impl FromStr for Attribute {
             "Trample" => Ok(Attribute::Trample),
             "Large" => Ok(Attribute::Large),
             "ParabolicAttack" => Ok(Attribute::ParabolicAttack),
+            "Evolved" => Ok(Attribute::Evolved),
+            "CanEvolve" => Ok(Attribute::CanEvolve),
             _ => Err(format!("Unknown attribute: {}", s)),
         }
     }
