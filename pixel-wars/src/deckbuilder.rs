@@ -398,7 +398,7 @@ pub fn dbgo(state: &mut GameState) {
                     // Take the first num_to_include units
                     fallen_units = Some(shuffled_units[0..num_to_include].to_vec());
                 }
-                //if we do add a variable to create_unit_packs
+
                 //get the unit types on the current team
                 let mut unit_types = Vec::new();
                 if state.teams.len() != 0 {
@@ -406,6 +406,14 @@ pub fn dbgo(state: &mut GameState) {
                     unit_types.extend(state.last_round_dead_units.clone());
                     unit_types.sort();
                     unit_types.dedup();
+                }
+
+                //if unit_types contains an upgradeable type, then send that into the create unit packs function
+                let mut upgradeable_unit = None;
+                if unit_types.contains(&UnitType::Tanker) {
+                    upgradeable_unit = Some(UnitType::Tanker);
+                } else if unit_types.contains(&UnitType::Yeti) {
+                    upgradeable_unit = Some(UnitType::Yeti);
                 }
                 let num_artifacts = if state.round == 1 { 0 } else { 1 };
 
@@ -424,6 +432,7 @@ pub fn dbgo(state: &mut GameState) {
                     fallen_units,
                     unit_types,
                     &player_artifacts,
+                    upgradeable_unit,
                 );
                 if state.round == 1 {
                     state.num_picks = 3;
@@ -1073,11 +1082,7 @@ pub enum DBPhase {
 }
 
 pub fn initialize_first_team(data_store: UnitDataStore) -> Team {
-    Team {
-        name: ("YOU".to_string()),
-        units: (Vec::new()),
-        data: (data_store),
-    }
+    Team::new("You".to_string(), data_store)
 }
 
 pub fn create_unit_packs(
@@ -1089,6 +1094,7 @@ pub fn create_unit_packs(
     fallen_units: Option<Vec<UnitType>>,
     current_team_unit_types: Vec<UnitType>,
     existing_artifacts: &Vec<Artifact>,
+    upgraded_unit_pack: Option<UnitType>,
 ) -> Vec<UnitPack> {
     let mut unitpacks = Vec::new();
     let pack_height = 50.0;
@@ -1110,7 +1116,23 @@ pub fn create_unit_packs(
         next_x += pack_width + pack_margin;
     }
 
-    // 2. Filter artifact kinds to only include those not already owned
+    // 2. Add unit upgrade pack if available
+    if let Some(unit_type) = upgraded_unit_pack {
+        let pos = (next_x, start_y);
+        let upgrade_pack = UnitPack {
+            pack_type: UnitPackType::UnitUpgrade { unit_type },
+            is_picked: false,
+            pos,
+            width: pack_width as u32,
+            height: pack_height as u32,
+        };
+        unitpacks.push(upgrade_pack);
+
+        // Move to next position
+        next_x += pack_width + pack_margin;
+    }
+
+    // 3. Filter artifact kinds to only include those not already owned
     let available_kinds: Vec<ArtifactKind> = ARTIFACT_KINDS
         .iter()
         .filter(|kind| {
@@ -1149,14 +1171,15 @@ pub fn create_unit_packs(
         next_x += pack_width + pack_margin;
     }
 
-    // 3. Calculate remaining unit packs
+    // 4. Calculate remaining unit packs
     let fallen_packs = if fallen_units.is_some() { 1 } else { 0 };
-    let num_normal_packs = total_packs - fallen_packs - actual_artifact_packs;
+    let upgrade_packs = if upgraded_unit_pack.is_some() { 1 } else { 0 };
+    let num_normal_packs = total_packs - fallen_packs - actual_artifact_packs - upgrade_packs;
 
-    // 4. Add normal unit packs
+    // 5. Add normal unit packs
     let available_types = get_available_units(round, data_store, current_team_unit_types);
-    let types = select_random_unit_types(&available_types, num_normal_packs as usize, rng);
-
+    let mut types = select_random_unit_types(&available_types, num_normal_packs as usize, rng);
+    types[0] = UnitType::Yeti;
     for unit_type in types.iter() {
         let pos = (next_x, start_y);
 
@@ -1173,6 +1196,7 @@ pub fn create_unit_packs(
 
     unitpacks
 }
+
 pub fn get_available_units(
     round: u8,
     data_store: &UnitDataStore,

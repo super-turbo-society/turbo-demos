@@ -111,86 +111,98 @@ impl UnitPack {
             border_width = 2
         );
 
-        if let UnitPackType::Normal {
-            unit_preview,
-            unit_count,
-            unit_type,
-        } = &self.pack_type
-        {
-            // Header
-            let c = Self::capitalize(&unit_type.as_string());
-            let txt = format!("{} {}s", unit_count, c);
-            text!(&txt, x = px + 5., y = py + 5.);
+        match &self.pack_type {
+            UnitPackType::Normal {
+                unit_preview,
+                unit_count,
+                unit_type,
+            } => {
+                // Header
+                let c = Self::capitalize(&unit_type.as_string());
+                let txt = format!("{} {}s", unit_count, c);
+                text!(&txt, x = px + 5., y = py + 5.);
 
-            // Stats rows - each line is 15 pixels apart
-            let damage_text = format!("DAMAGE: {}", unit_preview.data.damage);
-            let damage_text_length = damage_text.len() as i32 * 5;
-            let speed_text = format!("SPEED: {}", unit_preview.data.speed);
-            let speed_text_length = speed_text.len() as i32 * 5;
-            let health_text = format!("HEALTH: {}", unit_preview.data.max_health);
-            let health_text_length = health_text.len() as i32 * 5;
+                // Stats rows - each line is 15 pixels apart
+                let damage_text = format!("DAMAGE: {}", unit_preview.data.damage);
+                let damage_text_length = damage_text.len() as i32 * 5;
+                let speed_text = format!("SPEED: {}", unit_preview.data.speed);
+                let speed_text_length = speed_text.len() as i32 * 5;
+                let health_text = format!("HEALTH: {}", unit_preview.data.max_health);
+                let health_text_length = health_text.len() as i32 * 5;
 
-            text!(&damage_text, x = px + 5., y = py + 25.);
-            self.draw_attributes(
-                (px - 2. + damage_text_length as f32, py + 25.0),
-                AttributeType::Damage,
-            );
-            text!(&speed_text, x = px + 5., y = py + 35.);
-            self.draw_attributes(
-                (px - 2. + speed_text_length as f32, py + 35.0),
-                AttributeType::Speed,
-            );
-            text!(&health_text, x = px + 5., y = py + 45.);
-            self.draw_attributes(
-                (px - 2. + health_text_length as f32, py + 45.0),
-                AttributeType::Health,
-            );
-        } else if let UnitPackType::FallenUnits { fallen_unit_types } = &self.pack_type {
-            power_text!("Revive", x = px, y = py + 5., center_width = self.width);
-
-            // Count occurrences of each unit type
-            let mut unit_counts: HashMap<UnitType, usize> = HashMap::new();
-            for unit_type in fallen_unit_types {
-                *unit_counts.entry(unit_type.clone()).or_insert(0) += 1;
+                text!(&damage_text, x = px + 5., y = py + 25.);
+                self.draw_attributes(
+                    (px - 2. + damage_text_length as f32, py + 25.0),
+                    AttributeType::Damage,
+                );
+                text!(&speed_text, x = px + 5., y = py + 35.);
+                self.draw_attributes(
+                    (px - 2. + speed_text_length as f32, py + 35.0),
+                    AttributeType::Speed,
+                );
+                text!(&health_text, x = px + 5., y = py + 45.);
+                self.draw_attributes(
+                    (px - 2. + health_text_length as f32, py + 45.0),
+                    AttributeType::Health,
+                );
             }
+            UnitPackType::FallenUnits { fallen_unit_types } => {
+                power_text!("Revive", x = px, y = py + 5., center_width = self.width);
 
-            // Sort the unit types to ensure consistent display
-            let mut sorted_units: Vec<_> = unit_counts.into_iter().collect();
-            sorted_units.sort_by_key(|&(ref k, _)| k.clone());
+                // Count occurrences of each unit type
+                let mut unit_counts: HashMap<UnitType, usize> = HashMap::new();
+                for unit_type in fallen_unit_types {
+                    *unit_counts.entry(*unit_type).or_insert(0) += 1;
+                }
 
-            // Display unit counts
-            let mut y_offset = 25.0;
-            for (unit_type, count) in sorted_units {
-                let capitalized_type = Self::capitalize(&unit_type.as_string());
-                let unit_text = format!("{}x {}", count, capitalized_type);
-                text!(&unit_text, x = px + 5., y = py + y_offset);
-                y_offset += 15.0;
+                // Sort the unit types to ensure consistent display
+                let mut sorted_units: Vec<_> = unit_counts.into_iter().collect();
+                sorted_units.sort_by_key(|&(k, _)| k);
+
+                // Display unit counts
+                let mut y_offset = 25.0;
+                for (unit_type, count) in sorted_units {
+                    let capitalized_type = Self::capitalize(&unit_type.as_string());
+                    let unit_text = format!("{}x {}", count, capitalized_type);
+                    text!(&unit_text, x = px + 5., y = py + y_offset);
+                    y_offset += 15.0;
+                }
             }
-        } else if let UnitPackType::Artifact { kind } = &self.pack_type {
-            //artifact header
-            // let display_name = format!("{:?}", kind)
-            //     .split('{')
-            //     .next()
-            //     .unwrap_or("")
-            //     .trim()
-            //     .to_string();
-
-            power_text!("Artifact", x = px, y = py + 5., center_width = self.width);
-            //artifact image
-            let sprite_name = kind.to_string();
-            sprite!(
-                &sprite_name,
-                x = px - 16.0 + 40.0,
-                y = py - 16.0 + 26.0,
-                sw = 16,
-                scale = 2.0
-            );
-            //artifact text
-            let text = Artifact::artifact_text(*kind);
-            let texts = split_text_at_spaces(&text);
-            for (i, line) in texts.iter().enumerate() {
-                let y_offset = py + (i as f32 * 8.0) + 40.0;
-                text!(line, x = px + 4.0, y = y_offset);
+            UnitPackType::Artifact { kind } => {
+                //artifact header
+                power_text!("Artifact", x = px, y = py + 5., center_width = self.width);
+                //artifact image
+                let sprite_name = kind.to_string();
+                sprite!(
+                    &sprite_name,
+                    x = px - 16.0 + 40.0,
+                    y = py - 16.0 + 26.0,
+                    sw = 16,
+                    scale = 2.0
+                );
+                //artifact text
+                let text = Artifact::artifact_text(*kind);
+                let texts = split_text_at_spaces(&text);
+                for (i, line) in texts.iter().enumerate() {
+                    let y_offset = py + (i as f32 * 8.0) + 40.0;
+                    text!(line, x = px + 4.0, y = y_offset);
+                }
+            }
+            UnitPackType::UnitUpgrade { unit_type } => {
+                //upgrade header
+                power_text!("Evolve", x = px, y = py + 5., center_width = self.width);
+                //then draw the two sprites with an arrow inbetween, that's good enough for now
+                let mut evolved_unit_type = UnitType::BloodYeti;
+                if *unit_type == UnitType::Tanker {
+                    evolved_unit_type = UnitType::GoldenTank;
+                }
+                let sprite_name = unit_type.as_string();
+                let sprite_name = sprite_name + "_idle";
+                let evolved_name = evolved_unit_type.as_string();
+                let evolved_name = evolved_name + "_idle";
+                sprite!(&sprite_name, x = px, y = py + 46.0, sw = 32,);
+                sprite!(&evolved_name, x = px + 50.0, y = py + 46.0, sw = 32,);
+                text!("->", x = px + 36.0, y = py + 46.0 + 20.0);
             }
         }
     }
@@ -286,9 +298,25 @@ pub fn select_unit_pack(pack_index: usize, state: &mut GameState) {
             state.artifacts.push(a);
         }
         UnitPackType::UnitUpgrade { unit_type } => {
-            //add this to the team
+            // Add this to the team
+            state.teams[0].upgraded_units.push(*unit_type);
 
-            //then transform the units on the team currently
+            // Transform the units on the team currently
+            if *unit_type == UnitType::Tanker {
+                // Go through all the units in teams[0] and if they are Tanker change them to GoldenTank
+                for team_unit in state.teams[0].units.iter_mut() {
+                    if *team_unit == UnitType::Tanker {
+                        *team_unit = UnitType::GoldenTank;
+                    }
+                }
+            } else if *unit_type == UnitType::Yeti {
+                // Go through all the units in teams[0] and if they are Yeti change them to BloodYeti
+                for team_unit in state.teams[0].units.iter_mut() {
+                    if *team_unit == UnitType::Yeti {
+                        *team_unit = UnitType::BloodYeti;
+                    }
+                }
+            }
         }
     }
 

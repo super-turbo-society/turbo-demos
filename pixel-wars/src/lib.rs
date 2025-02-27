@@ -2660,7 +2660,7 @@ struct Team {
     name: String,
     units: Vec<UnitType>,
     data: UnitDataStore,
-    //upgraded_units: Vec<String>,
+    upgraded_units: Vec<UnitType>,
 }
 
 impl Team {
@@ -2669,7 +2669,7 @@ impl Team {
             name,
             units: Vec::new(),
             data,
-            //upgraded_units: Vec::new(),
+            upgraded_units: Vec::new(),
         }
     }
 
