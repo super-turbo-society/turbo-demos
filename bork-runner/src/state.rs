@@ -35,14 +35,7 @@ impl Bork {
 
     // Method to draw the bork
     pub fn draw(&self) {
-        sprite!("bork", x = self.x, y = self.y);
-        // rect!(
-        //     x = self.x as i32,
-        //     y = self.y as i32,
-        //     w = BORK_WIDTH as u32,
-        //     h = BORK_HEIGHT as u32,
-        //     color = 0xff0000ff
-        // );
+        canvas::sprite!("bork", x = self.x, y = self.y);
     }
 }
 
@@ -77,14 +70,7 @@ impl Enemy {
 
     // Method to draw the enemy
     pub fn draw(&self) {
-        sprite!("enemy", x = self.x, y = self.y, fps = fps::FAST);
-        // rect!(
-        //     w = ENEMY_WIDTH as u32,
-        //     h = ENEMY_HEIGHT as u32,
-        //     color = if self.hit { 0xff00ffff } else { 0x000000ff },
-        //     x = self.x as i32,
-        //     y = self.y as i32
-        // );
+        canvas::sprite!("enemy", x = self.x, y = self.y);
     }
 }
 
@@ -111,8 +97,8 @@ impl Powerup {
     pub fn draw(&self) {
         match self.powerup_type {
             PowerupType::DoubleJump => {
-                sprite!("double_jump", x = self.x, y = self.y);
-                rect!(
+                canvas::sprite!("double_jump", x = self.x, y = self.y);
+                canvas::rect!(
                     w = POWERUP_WIDTH,
                     h = POWERUP_HEIGHT,
                     color = 0xff000fff,
@@ -121,8 +107,8 @@ impl Powerup {
                 );
             }
             PowerupType::SpeedBoost => {
-                sprite!("speed_boost", x = self.x, y = self.y);
-                rect!(
+                canvas::sprite!("speed_boost", x = self.x, y = self.y);
+                canvas::rect!(
                     w = POWERUP_WIDTH,
                     h = POWERUP_HEIGHT,
                     color = 0xffff00ff,
@@ -131,8 +117,8 @@ impl Powerup {
                 );
             }
             PowerupType::MultiBork => {
-                sprite!("multi_bork", x = self.x, y = self.y);
-                rect!(
+                canvas::sprite!("multi_bork", x = self.x, y = self.y);
+                canvas::rect!(
                     w = POWERUP_WIDTH,
                     h = POWERUP_HEIGHT,
                     color = 0xff00ffff,
@@ -141,8 +127,8 @@ impl Powerup {
                 );
             }
             PowerupType::Bat => {
-                sprite!("coin", x = self.x, y = self.y);
-                // rect!(
+                canvas::sprite!("coin", x = self.x, y = self.y);
+                // canvas::rect!(
                 //     w = POWERUP_WIDTH as u32,
                 //     h = POWERUP_HEIGHT as u32,
                 //     color = 0x0000ffff,

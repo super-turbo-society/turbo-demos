@@ -1,0 +1,8 @@
+name = "Bork Runner"
+version = "1.0.0"
+author = "Turbo"
+description = "Infinite runner as a dog with borks and a bat."
+
+[canvas]
+width = 256
+height = 144
