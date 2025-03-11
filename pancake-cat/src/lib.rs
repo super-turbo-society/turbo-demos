@@ -1,26 +1,26 @@
 turbo::init! {
-struct GameState {
-    frame: u32,
-    last_munch_at: u32,
-    cat_x: f32,
-    cat_y: f32,
-    cat_r: f32,
-    pancakes: Vec<struct Pancake {
-        x: f32,
-        y: f32,
-        vel: f32,
-        radius: f32,
-    }>,
-    score: u32,
-} = Self {
-    frame: 0,
-    last_munch_at: 0,
-    cat_x: 128.0,
-    cat_y: 112.0,
-    cat_r: 8.0,
-    pancakes: vec![],
-    score: 0,
-}
+    struct GameState {
+        frame: u32,
+        last_munch_at: u32,
+        cat_x: f32,
+        cat_y: f32,
+        cat_r: f32,
+        pancakes: Vec<struct Pancake {
+            x: f32,
+            y: f32,
+            vel: f32,
+            radius: f32,
+        }>,
+        score: u32,
+    } = Self {
+        frame: 0,
+        last_munch_at: 0,
+        cat_x: 128.0,
+        cat_y: 112.0,
+        cat_r: 8.0,
+        pancakes: vec![],
+        score: 0,
+    }
 }
 
 // Implement the game loop using the turbo::go! macro
