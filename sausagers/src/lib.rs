@@ -1,12 +1,3 @@
-turbo::cfg! {r#"
-    name = "Sausagers: The Game"
-    version = "1.0.0"
-    author = "Sausagers"
-    description = "The greatest game in the world"
-    [settings]
-    resolution = [256, 387]
-"#}
-
 turbo::init! {
     struct GameState {
         screen: enum Screen {
@@ -108,7 +99,7 @@ turbo::go!({
 
     // Draw moving parallax stars in the background
     clear(0x000333ff);
-    let [screen_w, screen_h] = canvas_size!();
+    let [screen_w, screen_h] = [canvas::size().0, canvas::size().1];
     draw_stars(&state, screen_w, screen_h);
 
     match state.screen.clone() {
@@ -127,7 +118,7 @@ turbo::go!({
 });
 
 fn draw_title_screen(state: &GameState) {
-    let [screen_w, screen_h] = canvas_size!();
+    let [screen_w, screen_h] = [canvas::size().0, canvas::size().1];
     let screen_w = screen_w as i32;
     let screen_h = screen_h as i32;
     let center = screen_w / 2;
@@ -168,7 +159,7 @@ fn draw_title_screen(state: &GameState) {
         );
         text!(
            "P{} joined", player.id + 1;
-            font = Font::M,
+            font = "medium",
             x = left + 4 + (i as i32 * (52)),
             y = screen_h - 12
         );
@@ -188,7 +179,7 @@ fn draw_title_screen(state: &GameState) {
         let y = screen_h / 2;
         rect!(w = screen_w, h = 32, x = 0, y = y - 12, color = 0x000333ff);
         if state.tick % 60 < 30 {
-            text!("PRESS START", font = Font::L, x = x, y = y);
+            text!("PRESS START", font = "large", x = x, y = y);
         }
         // Show players who joined
         let num_players = state.players.len();
@@ -356,7 +347,7 @@ fn update_game_screen(state: &mut GameState) {
             initial_spawn_rate.saturating_sub(state.tick / speed_up_rate),
         );
         // if state.player.health > 0 {
-        //     text!(&format!("spawn rate: {spawn_rate}"), x = 4, y = 22, font = Font::S);
+        //     text!(&format!("spawn rate: {spawn_rate}"), x = 4, y = 22, font = "small");
         // }
         if state.tick % spawn_rate == 0 && state.enemies.len() < 24 {
             state.enemies.push(match rand() % 8 {
@@ -814,6 +805,9 @@ fn update_game_screen(state: &mut GameState) {
                                 BossType::FirstBoss => {
                                     state.unlockables.special_ability = Some(SpecialAbility::Slow);
                                 }
+                                BossType::SecondBoss => {
+                                    //do nothing
+                                }
                             }
                             state
                                 .notifications
@@ -881,9 +875,9 @@ fn draw_game_screen(state: &GameState) {
     let [screen_w, screen_h] = resolution();
 
     if state.hit_timer > 0 {
-        set_camera(rand() as i32 % 3, rand() as i32 % 3);
+        canvas::camera::set_xy(rand() as i32 % 3, rand() as i32 % 3)
     } else {
-        set_camera(0, 0);
+        canvas::camera::set_xy(128, 193);
     }
 
     // Drawing the character with customization
@@ -911,7 +905,7 @@ fn draw_game_screen(state: &GameState) {
     }
 
     // Reset camera
-    set_camera(0, 0);
+    canvas::camera::set_xy(128, 193);
 
     // Render notifications
     draw_notifications(state, screen_w, screen_h);
@@ -969,7 +963,7 @@ fn draw_player(player: &Player, show_number: bool) {
             "{}", player.id + 1;
             x = player.x as i32 + 8,
             y = player.y as i32 + 24,
-            font = Font::S,
+            font = "small",
         );
     }
     if let Some(accessory) = &player.accessory {
@@ -1053,7 +1047,7 @@ fn draw_powerup(powerup: &Powerup, tick: u32) {
             PowerupEffect::DamageBoost => 0xff006699,
             PowerupEffect::SpeedBoost => 0x6600ff99,
         },
-        border_width = 1,
+        border_size = 1,
     );
     let key = match powerup.effect {
         PowerupEffect::Heal => "powerup_heal",
@@ -1088,7 +1082,7 @@ fn draw_hud(state: &GameState, screen_w: u32) {
         &skill_points_text,
         x = center + 68,
         y = 6,
-        font = Font::L,
+        font = "large",
         color = text_color
     );
 }
@@ -1106,10 +1100,10 @@ fn draw_notifications(state: &GameState, screen_w: u32, _screen_h: u32) {
             y = 24 - 2,
             color = 0x68386cff,
             border_radius = 4,
-            border_width = 1,
+            border_size = 1,
             border_color = 0xb55088ff,
         );
-        text!(notif, x = x, y = 26, font = Font::L, color = 0xf6757aff);
+        text!(notif, x = x, y = 26, font = "large", color = 0xf6757aff);
         break;
     }
 }
@@ -1119,7 +1113,7 @@ fn draw_game_over(state: &GameState, screen_w: u32, screen_h: u32) {
         "GAME OVER",
         x = (screen_w / 2) - 32,
         y = (screen_h / 2) - 4,
-        font = Font::L
+        font = "large"
     );
     if state.hit_timer == 0 {
         if state.tick / 4 % 8 < 4 {
@@ -1127,7 +1121,7 @@ fn draw_game_over(state: &GameState, screen_w: u32, screen_h: u32) {
                 "PRESS START",
                 x = (screen_w / 2) - 24,
                 y = (screen_h / 2) - 4 + 16,
-                font = Font::M
+                font = "medium"
             );
         }
     }
@@ -1241,6 +1235,7 @@ struct Boss {
 #[derive(Debug, Copy, Clone, BorshDeserialize, BorshSerialize, PartialEq)]
 enum BossType {
     FirstBoss,
+    SecondBoss,
 }
 
 #[derive(Debug, Clone, BorshDeserialize, BorshSerialize, PartialEq)]
