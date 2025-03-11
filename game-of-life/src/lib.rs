@@ -1,12 +1,3 @@
-turbo::cfg! {r#"
-    name = "Game of Life"
-    version = "1.0.0"
-    author = "Turbo"
-    description = "Conway's Game of Life Simulation"
-    [settings]
-    resolution = [256, 256]
-"#}
-
 turbo::init! {
     struct GameState {
         grid: Vec<Vec<bool>>,
@@ -59,14 +50,14 @@ turbo::go!({
     state.next_grid = temp;
 
     // Drawing
-    clear(0x000000ff); // Clear screen with black
+    canvas::clear(0x000000ff); // Clear screen with black
 
     for y in 0..state.grid.len() {
         for x in 0..state.grid[y].len() {
             if state.grid[y][x] {
                 let x_pos = x as i32 * state.cell_size as i32;
                 let y_pos = y as i32 * state.cell_size as i32;
-                rect!(
+                canvas::rect!(
                     x = x_pos,
                     y = y_pos,
                     w = state.cell_size,
