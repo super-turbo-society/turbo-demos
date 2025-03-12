@@ -1,16 +1,5 @@
 use os::client::watch_file;
 
-turbo::cfg! {r#"
-    name = "Card Search"
-    version = "1.0.0"
-    author = "Turbo"
-    description = "Set Up a Counter in Turbo OS"
-    [settings]
-    resolution = [132, 224]
-    [turbo-os]
-    api-url = "https://os.turbo.computer"
-"#}
-
 const BOARD_SIZE: u8 = 16;
 const CARD_SIZE: (u8, u8) = (16, 24);
 const ROW_SPACING: u8 = 12;
@@ -285,7 +274,7 @@ fn draw_checkerboard() {
 //centers text of any length
 fn centered_text(text: &str, y: i32, color: u32) {
     let x = centered_pos(text, 5, 132);
-    text!(text, x = x, y = y, color = color);
+    text!(text, x = x, y = y, color = color,);
 }
 
 fn centered_pos(text: &str, char_width: i32, full_width: i32) -> i32 {
