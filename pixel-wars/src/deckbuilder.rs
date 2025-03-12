@@ -428,6 +428,8 @@ pub fn dbgo(state: &mut GameState) {
                 if state.teams.len() > 0 {
                     team_upgrades = state.teams[0].upgraded_units.clone();
                 }
+
+                //TODO: maybe ask ai to make this make more sense
                 state.shop = create_unit_packs(
                     4,
                     num_artifacts,
