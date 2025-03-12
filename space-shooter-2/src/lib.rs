@@ -8,13 +8,10 @@ turbo::init! {
         score: u32,
         tutorial_active: bool,
         help_messages: Vec<String>,
-        current_quest: Option<Quest>,
         notifications: Vec<String>,
-        unlockables: Unlockables,
 
         // Entities
         player: Player,
-        boss: Option<Boss>,
         projectiles: Vec<Projectile>,
         enemies: Vec<Enemy>,
         powerups: Vec<Powerup>,
@@ -37,17 +34,13 @@ impl GameState {
                 String::from("Use arrow keys to move"),
                 String::from("Press A to shoot projectiles"),
             ],
-            current_quest: Some(Quest::defeat_boss(
-                "Defeat the First Boss",
-                "A quest to defeat the infamous first boss!",
-            )),
+
             notifications: vec![
                 "Use arrow keys to move.".to_string(),
                 "Press SPACE or A to shoot.".to_string(),
                 "Defeat enemies and collect powerups.".to_string(),
                 "Try to not die. Good luck!".to_string(),
             ],
-            unlockables: Unlockables::new(),
             player: Player {
                 x: ((screen_w / 2) - 8) as f32,
                 y: (screen_h - 64) as f32,
@@ -67,7 +60,6 @@ impl GameState {
                 },
                 metrics: PlayerMetrics::new(),
             },
-            boss: None,
             projectiles: vec![],
             enemies: vec![],
             powerups: vec![],
@@ -296,62 +288,6 @@ turbo::go!({
         projectile_active
     });
 
-    // Check if a boss is present and handle collision with projectiles
-    state.projectiles.retain(|projectile| {
-        let mut projectile_active = true;
-        if projectile.projectile_owner != ProjectileOwner::Player {
-            return projectile_active;
-        }
-        if let Some(boss) = &mut state.boss {
-            let did_collide = check_collision(
-                projectile.x, projectile.y, projectile.width, projectile.height,
-                boss.enemy.x, boss.enemy.y, boss.enemy.width, boss.enemy.height
-            );
-            if did_collide {
-                boss.enemy.health -= projectile.damage;
-                projectile_active = false; // Remove projectile on collision
-                if boss.enemy.health == 0 {
-                    state.score += 10; // Award more points for defeating a boss
-                    state.boss = None; // Remove boss on defeat
-                }
-                // Additional behavior based on projectile type
-                match projectile.projectile_type {
-                    ProjectileType::Basic => {
-                        // ...
-                    }
-                    ProjectileType::Splatter => {
-                        // Splatter creates fragments on impact, affecting a wider area
-                        let splash_angles = [45.0, 135.0, 225.0, 315.0];  // Diagonal angles
-                        for &angle in splash_angles.iter() {
-                            splashes.push(Projectile {
-                                x: projectile.x,
-                                y: projectile.y,
-                                width: projectile.width,
-                                height: projectile.height,
-                                velocity: projectile.velocity / 2.0,  // Reduced velocity for splash projectiles
-                                angle,
-                                damage: projectile.damage / 2,  // Reduced damage for splash projectiles
-                                projectile_type: ProjectileType::Fragment,
-                                projectile_owner: ProjectileOwner::Player,
-                                ttl: Some(10)
-                            });
-                        }
-                    },
-                    ProjectileType::Fragment => {
-                        // ...
-                    },
-                    ProjectileType::Laser => {
-                        // ...
-                    },
-                    ProjectileType::Bomb => {
-                        // ...
-                    },
-                }
-            }
-        }
-        return projectile_active;
-    });
-
     // Handle collisions between enemy projectiles and the player
     state.projectiles.retain(|projectile| {
         let mut projectile_active = true;
@@ -478,29 +414,6 @@ turbo::go!({
         }
     }
 
-    if let Some(boss) = &mut state.boss {
-        // Logic for attacking with specified intensity
-        let intensity = 4.0;
-        if rand() % (100 / intensity as u32) == 0 {
-            // Calculate angle from enemy to player
-            let angle = ((state.player.y - boss.enemy.y).atan2(state.player.x - boss.enemy.x) * 180.0) / std::f32::consts::PI;
-
-            // Create and shoot projectiles from enemy towards the player
-            state.projectiles.push(Projectile {
-                x: boss.enemy.x,
-                y: boss.enemy.y,
-                width: 4,
-                height: 4,
-                velocity: intensity * 2.0, // Velocity based on attack intensity
-                angle: angle,
-                damage: intensity as u32, // Damage based on attack intensity
-                projectile_type: ProjectileType::Laser, // Assuming enemy uses Laser
-                projectile_owner: ProjectileOwner::Enemy,
-                ttl: None,
-            });
-        }
-    }
-
     // Update power-up positions based on their movement patterns
      for powerup in &mut state.powerups {
         match powerup.movement {
@@ -523,52 +436,7 @@ turbo::go!({
             },
         }
     }
-   // Check for quest completion
-    if let Some(quest) = &mut state.current_quest {
-        if !quest.completed {
-            match quest.objective {
-                QuestObjective::DefeatBoss => {
-                    if state.boss.as_ref().map_or(false, |b| b.enemy.health == 0) {
-                        quest.completed = true;
-                        let boss = state.boss.as_ref().unwrap();
-                        state.player.metrics.bosses_defeated.push(boss.boss_type.clone());
-                        state.player.metrics.completed_quests.push(quest.clone());
-                        // Check and update boss-gated unlockables
-                        // match boss.boss_type {
-                        //     BossType::FirstBoss => {
-                        //         state.unlockables.special_ability = Some(SpecialAbility::Slow);
-                        //     }
-                        //     BossType::SecondBoss => {
-                        //         //do nothing
-                        //     }
-                        // }
-                        state.notifications.push(format!("Quest completed: {}", quest.title));
-                    }
-                }
-                QuestObjective::CollectProjectiles(num_projectiles) => {
-                    if state.player.metrics.num_projectiles_collected >= num_projectiles {
-                        quest.completed = true;
-                        state.player.metrics.completed_quests.push(quest.clone());
-                        state.notifications.push(format!("Quest completed: {}", quest.title));
-                    }
-                }
-                QuestObjective::DefeatEnemies(num_enemies) => {
-                    if state.player.metrics.num_enemies_defeated >= num_enemies {
-                        quest.completed = true;
-                        state.player.metrics.completed_quests.push(quest.clone());
-                        state.notifications.push(format!("Quest completed: {}", quest.title));
-                    }
-                }
-                QuestObjective::SkillPoints(num_skill_points) => {
-                    if state.player.skill_points >= num_skill_points {
-                        quest.completed = true;
-                        state.player.metrics.completed_quests.push(quest.clone());
-                        state.notifications.push(format!("Quest completed: {}", quest.title));
-                    }
-                }
-            }
-        }
-    }
+
 
     // Enable skills
     if state.score > 100 && !state.player.skills.speed_boost {
@@ -870,8 +738,6 @@ struct PlayerMetrics {
     longest_run_seconds: f32,
     num_projectiles_collected: u32,
     num_enemies_defeated: u32,
-    completed_quests: Vec<Quest>,
-    bosses_defeated: Vec<BossType>,
 }
 impl PlayerMetrics {
     pub fn new() -> Self {
@@ -879,8 +745,6 @@ impl PlayerMetrics {
             longest_run_seconds: 0.0,
             num_projectiles_collected: 0,
             num_enemies_defeated: 0,
-            completed_quests: vec![],
-            bosses_defeated: vec![],
         }
     }
 }
@@ -919,19 +783,6 @@ enum ProjectileType {
 enum ProjectileOwner {
     Enemy,
     Player,
-}
-
-#[derive(Debug, Clone, BorshDeserialize, BorshSerialize, PartialEq)]
-// // Struct for Boss that is basically an enemy with a type
-struct Boss {
-    boss_type: BossType,
-    enemy: Enemy,
-}
-
-#[derive(Debug, Copy, Clone, BorshDeserialize, BorshSerialize, PartialEq)]
-enum BossType {
-    FirstBoss,
-    //SecondBoss,
 }
 
 #[derive(Debug, Clone, BorshDeserialize, BorshSerialize, PartialEq)]
@@ -1027,63 +878,6 @@ enum EnemyStrategy {
     ShootDown(f32, f32, u32),    // Moves down. Attacks with given intensity, speed, and size
     MoveDown,                    // Moves down. Nothing fancy
     RandomZigZag(f32),           // Moves in a random zig zag pattern with a given angle
-}
-
-#[derive(Debug, Clone, BorshDeserialize, BorshSerialize, PartialEq)]
-// Struct for Quests in the game
-struct Quest {
-    title: String,
-    description: String,
-    completed: bool,
-    objective: QuestObjective,
-}
-impl Quest {
-    fn defeat_boss(title: &str, description: &str) -> Self {
-        Self {
-            title: title.to_string(),
-            description: description.to_string(),
-            completed: false,
-            objective: QuestObjective::DefeatBoss,
-        }
-    }
-}
-
-#[derive(Debug, Copy, Clone, BorshDeserialize, BorshSerialize, PartialEq)]
-enum QuestObjective {
-    DefeatBoss,              // Defeat the boss
-    DefeatEnemies(u32),      // Number of enemies to defeat
-    CollectProjectiles(u32), // Number of items to collect
-    SkillPoints(u32),        // Number of skill points to obtain
-}
-
-#[derive(Debug, Clone, BorshDeserialize, BorshSerialize, PartialEq)]
-// Struct for Unlockable content
-struct Unlockables {
-    special_ability: Option<SpecialAbility>,
-    extra_levels: Vec<Level>,
-    cosmetic_items: Vec<String>,
-}
-impl Unlockables {
-    fn new() -> Self {
-        Self {
-            special_ability: None,
-            extra_levels: vec![],
-            cosmetic_items: vec![],
-        }
-    }
-}
-
-#[derive(Debug, Copy, Clone, BorshDeserialize, BorshSerialize, PartialEq)]
-enum SpecialAbility {
-    ChainDamage,
-    AutomaticWeapons,
-    Armor(u32),
-    Regen,
-    Vampire,
-    Lucky,
-    Slow,
-    Freeze,
-    Poison,
 }
 
 #[derive(Debug, Clone, BorshDeserialize, BorshSerialize, PartialEq)]
