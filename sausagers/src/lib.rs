@@ -26,7 +26,7 @@ turbo::init! {
 
 impl GameState {
     pub fn new() -> Self {
-        let [screen_w, screen_h] = resolution();
+        let (screen_w, screen_h) = resolution();
         Self {
             // Initialize all fields with default values
             screen: Screen::Title,
@@ -75,7 +75,7 @@ impl GameState {
 
 const MAX_POWERUPS: usize = 3;
 const INVULNERABLE_FRAMES: u32 = 30;
-const DEAD_FRAMES: u32 = 120;
+const DEAD_FRAMES: u32 = 30;
 const POWERUP_FRAMES: u32 = 60 * 30;
 const MAX_PLAYERS: usize = 4;
 const PLAYER_COLORS: [u32; MAX_PLAYERS] = [
@@ -90,7 +90,7 @@ turbo::go!({
 
     // Draw moving parallax stars in the background
     clear(0x000333ff);
-    let [screen_w, screen_h] = [canvas::size().0, canvas::size().1];
+    let (screen_w, screen_h) = resolution();
     draw_stars(&state, screen_w, screen_h);
 
     match state.screen.clone() {
@@ -109,7 +109,7 @@ turbo::go!({
 });
 
 fn draw_title_screen(state: &GameState) {
-    let [screen_w, screen_h] = [canvas::size().0, canvas::size().1];
+    let (screen_w, screen_h) = resolution();
     let screen_w = screen_w as i32;
     let screen_h = screen_h as i32;
     let center = screen_w / 2;
@@ -200,7 +200,7 @@ fn update_title_screen(state: &mut GameState) {
 }
 
 fn update_game_screen(state: &mut GameState) {
-    let [screen_w, screen_h] = resolution();
+    let (screen_w, screen_h) = resolution();
 
     let is_game_over = state.players.iter().all(|p| p.health == 0);
     if is_game_over {
@@ -716,12 +716,12 @@ fn update_game_screen(state: &mut GameState) {
 
 // Define a function for rendering game elements
 fn draw_game_screen(state: &GameState) {
-    let [screen_w, screen_h] = resolution();
+    let (screen_w, screen_h) = resolution();
 
     if state.hit_timer > 0 {
-        canvas::camera::set_xy(rand() as i32 % 3, rand() as i32 % 3)
+        camera::move_xy(rand() as i32 % 3 - 1, rand() as i32 % 3 - 1)
     } else {
-        canvas::camera::set_xy(128, 193);
+        camera::set_xy(128, 193);
     }
 
     // Drawing the character with customization
@@ -749,7 +749,7 @@ fn draw_game_screen(state: &GameState) {
     }
 
     // Reset camera
-    canvas::camera::set_xy(128, 193);
+    //canvas::camera::set_xy(128, 193);
 
     // Render notifications
     draw_notifications(state, screen_w, screen_h);
@@ -1083,7 +1083,7 @@ struct Enemy {
 }
 impl Enemy {
     pub fn tank() -> Self {
-        let [screen_w, _] = resolution();
+        let (screen_w, _) = resolution();
         Self {
             sprite: "enemy_tank".to_string(),
             x: (rand() % screen_w - 32) as f32,
@@ -1100,7 +1100,7 @@ impl Enemy {
         }
     }
     pub fn shooter() -> Self {
-        let [screen_w, _] = resolution();
+        let (screen_w, _) = resolution();
         Self {
             sprite: "enemy_shooter".to_string(),
             x: (rand() % screen_w - 16) as f32,
@@ -1117,7 +1117,7 @@ impl Enemy {
         }
     }
     pub fn turret() -> Self {
-        let [screen_w, _] = resolution();
+        let (screen_w, _) = resolution();
         Self {
             sprite: "enemy_turret".to_string(),
             x: (rand() % screen_w - 16) as f32,
@@ -1134,7 +1134,7 @@ impl Enemy {
         }
     }
     pub fn zipper() -> Self {
-        let [screen_w, _] = resolution();
+        let (screen_w, _) = resolution();
         Self {
             sprite: "enemy_zipper".to_string(),
             x: (rand() % screen_w - 16) as f32,
@@ -1151,7 +1151,7 @@ impl Enemy {
         }
     }
     pub fn meteor() -> Self {
-        let [screen_w, _] = resolution();
+        let (screen_w, _) = resolution();
         Self {
             sprite: "enemy_meteor".to_string(),
             x: (rand() % screen_w - 8) as f32,
