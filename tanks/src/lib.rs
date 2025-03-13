@@ -1,9 +1,3 @@
-turbo::cfg! {r#"
-name = "Tanks"
-version = "1.0.0"
-author = "Turbo"
-"#}
-
 turbo::init! {
     struct GameState {
         winner: Option<enum Winner {
@@ -31,7 +25,7 @@ turbo::init! {
             height: u32,
         }>
     } = {
-        let [w, h] = resolution();
+        let (w, h) = canvas::size();
         let w = w as f32;
         let h = h as f32;
         Self {
@@ -65,7 +59,7 @@ turbo::init! {
     }
 }
 
-turbo::go!({
+turbo::go! {
     // Load game state
     let mut state = GameState::load();
     let mut tanks = state.tanks.iter_mut();
@@ -73,7 +67,7 @@ turbo::go!({
     let mut tank2 = tanks.next().unwrap();
 
     // Draw stuff
-    rect!(w = 256, h = 144, color = 0x222222ff);
+    canvas::rect!(w = 256,h = 144, color = 0x222222ff);
     draw_blocks(&state.blocks);
     draw_tank(&tank1);
     draw_tank(&tank2);
@@ -84,7 +78,7 @@ turbo::go!({
 
     if let Some(winner) = &state.winner {
         // Show winner message
-        text!(&format!("WINNER {:#?}", winner), font = Font::L);
+        canvas::text!("WINNER {:#?}", winner; font = "large");
     } else {
         // Update tanks and check for missile collisions
         update_tank(&gp1, &mut tank1, &state.blocks);
@@ -101,7 +95,7 @@ turbo::go!({
 
     // Save the game state
     state.save();
-});
+}
 
 fn did_hit_missile(tank: &Tank, missiles: &[Missile]) -> bool {
     let tank_hitbox = tank.hitbox();
@@ -181,9 +175,9 @@ fn update_tank(gp: &Gamepad<Button>, tank: &mut Tank, blocks: &[Block]) {
 fn draw_tank(tank: &Tank) {
     // Draw tank's missiles
     for missile in &tank.missiles {
-        rect!(
-            x = missile.x - 3.,
-            y = missile.y - 3.,
+        canvas::rect!(
+            x = (missile.x - 3.) as i32,
+            y = (missile.y - 3.) as i32,
             w = 6,
             h = 6,
             color = tank.color
@@ -195,16 +189,16 @@ fn draw_tank(tank: &Tank) {
     let tank_y = tank.y as i32;
 
     // Draw tank body
-    circ!(x = tank_x - 8, y = tank_y - 8, d = 16, color = tank.color);
+    canvas::circ!(x = tank_x - 8, y = tank_y - 8, d = 16, color = tank.color);
 
     // Draw tank turret
     for i in 8..16 {
         let turret_length = i as f32;
         let turret_end_x = tank_x as f32 + turret_length * tank.rot.cos();
         let turret_end_y = tank_y as f32 + turret_length * tank.rot.sin();
-        rect!(
-            x = turret_end_x - 2.,
-            y = turret_end_y - 2.,
+        canvas::rect!(
+            x = (turret_end_x - 2.) as i32,
+            y = (turret_end_y - 2.) as i32,
             w = 4,
             h = 4,
             color = tank.color
@@ -214,9 +208,9 @@ fn draw_tank(tank: &Tank) {
 
 fn draw_blocks(blocks: &[Block]) {
     for block in blocks {
-        rect!(
-            x = block.x,
-            y = block.y,
+        canvas::rect!(
+            x = block.x as i32,
+            y = block.y as i32,
             w = block.width,
             h = block.height,
             color = 0x777777ff

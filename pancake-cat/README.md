@@ -22,21 +22,21 @@ turbo run -w .
 
 ### Game Configuration  
 
-The `turbo::cfg!` macro is used to define metadata and settings for your game.
+The `turbo.toml` is used to define metadata and settings for your game.
 
 - `name, version, author`: Basic information about your game.
 - `description`: A short description of your game.
-- `resolution`: The resolution of the game window.
+- `canvas`: The resolution of the game window, defined by width and height.
 
 ```rs
-turbo::cfg! {r#"
-    name = "Pancake Cat"
-    version = "1.0.0"
-    author = "Turbo"
-    description = "Catch falling pancakes!"
-    [settings]
-    resolution = [256, 144]
-"#} 
+name = "Pancake Cat"
+version = "0.1.0"
+author = "Turbo"
+description = "Catch falling pancakes!"
+
+[canvas]
+width = 256
+height = 144
 ```
 
 ### Game State Initialization
@@ -67,16 +67,14 @@ turbo::init! {
             radius: f32,
         }>,
         score: u32,
-    } = {
-        Self {
-            frame: 0,
-            last_munch_at: 0,
-            cat_x: 128.0,
-            cat_y: 112.0,
-            cat_r: 8.0,
-            pancakes: vec![],
-            score: 0,
-        }
+    } = Self {
+        frame: 0,
+        last_munch_at: 0,
+        cat_x: 128.0,
+        cat_y: 112.0,
+        cat_r: 8.0,
+        pancakes: vec![],
+        score: 0,
     }
 }
 ```
@@ -193,20 +191,26 @@ Draw a speech bubble when the cat eats a pancake:
 
 ```rs
 if state.frame >= 64 && state.frame.saturating_sub(state.last_munch_at) <= 60 {
-    rect!(w = 30, h = 10, x = state.cat_x as i32 + 32, y = state.cat_y as i32);
-    circ!(d = 10, x = state.cat_x as i32 + 28, y = state.cat_y as i32);
-    rect!(w = 10, h = 5, x = state.cat_x as i32 + 28, y = state.cat_y as i32 + 5);
-    circ!(d = 10, x = state.cat_x as i32 + 56, y = state.cat_y as i32);
-    text!("MUNCH!", x = state.cat_x as i32 + 33, y = state.cat_y as i32 + 3, font = Font::S, color = 0x000000ff);
+    rect!(w = 30, h = 10, x = state.cat_x + 32.0, y = state.cat_y);
+    circ!(d = 10, x = state.cat_x + 28.0, y = state.cat_y);
+    rect!(w = 10, h = 5, x = state.cat_x + 28.0, y = state.cat_y + 5.0);
+    circ!(d = 10, x = state.cat_x + 56.0, y = state.cat_y);
+    text!(
+        "MUNCH!",
+        x = state.cat_x + 33.0,
+        y = state.cat_y + 3.0,
+        font = "small",
+        color = 0x000000ff
+    );
 }
 ```
 
 #### Drawing the Cat
 
-Here's how to draw the cat. Since its sprite is a horizontal strip, it is automatically animated:
+Here's how to draw the cat, since the cat is a .webp file with multiple frames, turbo will automatically animate it based on the .webp settings.
 
 ```rs
-sprite!("munch_cat", x = (state.cat_x - state.cat_r) as i32, y = (state.cat_y - 4.) as i32, fps = fps::FAST);
+sprite!("munch_cat", x = state.cat_x - state.cat_r, y = state.cat_y - 16.0);
 ```
 
 #### Drawing the Pancakes
@@ -215,9 +219,24 @@ Draw the falling pancakes
 
 ```rs
 for pancake in &state.pancakes {
-    circ!(x = pancake.x as i32, y = pancake.y as i32 + 1, d = (pancake.radius + 2.) as u32, color = 0x000000aa); // Render the pancakes
-    circ!(x = pancake.x as i32, y = pancake.y as i32, d = (pancake.radius + 1.) as u32, color = 0xf4d29cff); // Render the pancakes
-    circ!(x = pancake.x as i32, y = pancake.y as i32, d = pancake.radius as u32, color = 0xdba463ff); // Render the pancakes
+    circ!(
+        x = pancake.x,
+        y = pancake.y + 1.0,
+        d = pancake.radius + 2.,
+        color = 0x000000aa
+    ); // Render the pancakes
+    circ!(
+        x = pancake.x,
+        y = pancake.y,
+        d = pancake.radius + 1.,
+        color = 0xf4d29cff
+    ); // Render the pancakes
+    circ!(
+        x = pancake.x,
+        y = pancake.y,
+        d = pancake.radius,
+        color = 0xdba463ff
+    ); // Render the pancakes
 }
 ```
 
@@ -226,5 +245,5 @@ for pancake in &state.pancakes {
 Draw the score (aka number of pancakes eaten):
 
 ```rs
-text!(&format!("Score: {}", state.score), x = 10, y = 10, font = Font::L, color = 0xffffffff); // Render the score
+text!("Score: {}", state.score; x = 10, y = 10, font = "large", color = 0xffffffff); // Render the score
 ```

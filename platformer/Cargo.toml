@@ -4,7 +4,10 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-turbo = { version = "*", package = "turbo-genesis-sdk" }
+turbo = { version = "2.0.0-alpha.7", package = "turbo-genesis-sdk" }
 
 [lib]
 crate-type = ["cdylib"]
+
+[lints.rust]
+unexpected_cfgs = { level = "allow", check-cfg = ['cfg(no_run)'] }

@@ -1,0 +1,8 @@
+name = "Game of Life"
+version = "0.1.0"
+author = "Turbo"
+description = "Conway's Game of Life Simulation"
+
+[canvas]
+width = 256
+height = 256

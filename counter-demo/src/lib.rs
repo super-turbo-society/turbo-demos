@@ -1,16 +1,4 @@
-use os::server;
 use turbo::borsh::*;
-
-turbo::cfg! {r#"
-    name = "Counter"
-    version = "1.0.0"
-    author = "Turbo"
-    description = "Set Up a Counter in Turbo OS"
-    [settings]
-    resolution = [132, 224]
-    [turbo-os]
-    api-url = "https://os.turbo.computer"
-"#}
 
 //colors
 const BACKGROUND_COLOR: u32 = 0x2B2B2Bff;
@@ -21,7 +9,7 @@ const BUTTON_COLOR: u32 = 0x4169E1ff;
 const BUTTON_TEXT_COLOR: u32 = 0xF0F8FFff;
 
 turbo::go!({
-    clear!(BACKGROUND_COLOR);
+    clear(BACKGROUND_COLOR);
     //draw the minus button
     let (w, h) = (30, 20);
     let (x, y) = (20, 180);
@@ -30,7 +18,7 @@ turbo::go!({
         "-",
         x = 32,
         y = 187,
-        font = Font::L,
+        font = "large",
         color = BUTTON_TEXT_COLOR
     );
     let m = mouse(0);
@@ -49,7 +37,7 @@ turbo::go!({
         "+",
         x = 94,
         y = 187,
-        font = Font::L,
+        font = "large",
         color = BUTTON_TEXT_COLOR
     );
 
@@ -70,7 +58,7 @@ turbo::go!({
         };
         let txt = format!("User: {}", truncated);
         //draw the user ID, truncated for only 8 digits
-        text!(&txt, x = 10, y = 10, font = Font::M, color = WHITE_COLOR);
+        text!(&txt, x = 10, y = 10, font = "medium", color = WHITE_COLOR);
 
         //draw the user's saved counter
         let filepath = format!("users/{}", id);
@@ -80,7 +68,7 @@ turbo::go!({
             .and_then(|file| i32::try_from_slice(&file.contents).ok())
             .unwrap_or(0); //set to 0 if the file doesn't exist
         let txt = format!("Your Count: {}", num);
-        text!(&txt, x = 10, y = 25, font = Font::M, color = WHITE_COLOR);
+        text!(&txt, x = 10, y = 25, font = "medium", color = WHITE_COLOR);
 
         //draw the global count
         let filepath = "global_count";
@@ -92,7 +80,7 @@ turbo::go!({
         let txt = format!("Global Count: {}", num);
 
         let color = if num < 0 { RED_COLOR } else { GREEN_COLOR };
-        text!(&txt, x = 10, y = 40, font = Font::M, color = color);
+        text!(&txt, x = 10, y = 40, font = "medium", color = color);
     }
 });
 
