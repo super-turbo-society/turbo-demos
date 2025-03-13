@@ -1,0 +1,8 @@
+name = "Tanks"
+version = "0.1.0"
+author = "Turbo"
+description = "A 2-Player Tank Battle"
+
+[canvas]
+width = 256
+height = 144

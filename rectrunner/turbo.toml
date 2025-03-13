@@ -1,0 +1,8 @@
+name = "RectaRunner"
+version = "1.0.0"
+author = "Turbo"
+description = "RectaRunner!"
+
+[canvas]
+width = 256
+height = 144

@@ -1,0 +1,8 @@
+name = "space-invaders"
+version = "0.1.0"
+author = "Turbo"
+description = "Defend Earth from waves of space invaders!"
+
+[canvas]
+width = 224
+height = 256

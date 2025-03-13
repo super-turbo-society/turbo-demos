@@ -19,10 +19,10 @@ turbo init platformer
 We're going to use these sprites for the player and tiles:
 
 IDLE:
-![kiwi-idle](sprites/kiwi_idle.png)
+![kiwi-idle](sprites/kiwi_idle.webp)
 
 WALKING:
-![kiwi-walking](sprites/kiwi_walking.png)
+![kiwi-walking](sprites/kiwi_walking.webp)
 
 TILE:
 ![tile](sprites/tile.png)
@@ -97,7 +97,6 @@ impl Player {
                 x = self.x as i32,
                 y = self.y as i32,
                 flip_x = self.is_facing_left,
-                fps = fps::FAST
             );
         }
     }
@@ -125,6 +124,7 @@ impl Tile {
 
 }
 ```
+
 One thing you may have noticed is this line of code above each of the struct declarations:
 
 ```rs
@@ -175,7 +175,7 @@ turbo::go! ({
 });
 ```
 
-Run your game and you should see the kiwi and tile rendered on screen!
+Run your game and you should see the kiwi and tile rendered on screen! Since the kiwi is a .webp file with multiple frames, turbo will automatically animate it based on the .webp settings. The tile is a single frame png, so that isn't animated.
 
 Remember, there are no collisions yet, so don't worry if your kiwi is standing inside of the tiles. We will fix that later.
 
@@ -421,7 +421,6 @@ impl Player {
             x = self.x as i32,
             y = self.y as i32,
             flip_x = self.is_facing_left,
-            fps = fps::MEDIUM
         );
     }
 }
@@ -466,7 +465,6 @@ fn draw(&self) {
                 x = self.x as i32,
                 y = self.y as i32,
                 flip_x = self.is_facing_left,
-                fps = fps::FAST
             );
         } else {
             sprite!(
@@ -474,7 +472,6 @@ fn draw(&self) {
                 x = self.x as i32,
                 y = self.y as i32,
                 flip_x = self.is_facing_left,
-                fps = fps::MEDIUM
             );
         }
     }
@@ -489,13 +486,8 @@ Lets start by making a function to center the camera at a certain point. This fu
 
 ```rs
 fn center_camera(x: f32, y: f32) {
-    let canvas_width = canvas_size!()[0] as f32;
-    let canvas_height = canvas_size!()[1] as f32;
     //Subtract half the width of the canvas, then add half the size of the player to center the camera
-    set_cam!(
-        x = x - canvas_width / 2. + 8.,
-        y = y - canvas_height / 2. + 8.
-    );
+    canvas::camera::set_xy(x + 8., y + 8.);
 }
 ```
 
@@ -690,7 +682,6 @@ impl Player {
                 y = self.y as i32,
                 sw = 16,
                 flip_x = self.is_facing_left,
-                fps = fps::FAST
             );
         } else {
             sprite!(
@@ -699,7 +690,6 @@ impl Player {
                 y = self.y as i32,
                 sw = 16,
                 flip_x = self.is_facing_left,
-                fps = fps::MEDIUM
             );
         }
     }
