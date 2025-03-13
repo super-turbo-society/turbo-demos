@@ -1,8 +1,0 @@
-name = "DinnoRunner"
-version = "0.1.0"
-author = "Turbo"
-description = "DinoRunner!"
-
-[canvas]
-width = 256
-height = 144

@@ -1,6 +1,16 @@
 mod state;
 use state::*;
 
+// Define the game configuration
+turbo::cfg! {r#"
+    name = "Bork Runner"
+    version = "1.0.0"
+    author = "Turbo"
+    description = "Infinite runner as a dog with borks and a bat."
+    [settings]
+    resolution = [256, 144]
+"#}
+
 // Define the game state initialization
 turbo::init! {
     struct GameState {
@@ -76,7 +86,7 @@ turbo::go!({
 
     if state.last_game_over == 0 && state.is_ready {
         // Bork!!!
-        if gp.start.just_released() || mouse(0).left.just_pressed() {
+        if gp.start.just_released() {
             if state.tick - state.last_bork >= state.bork_rate && state.energy > 0 {
                 state.borks.push(Bork::new(state.dog_x, state.dog_y));
                 state.last_bork = state.tick;
@@ -286,7 +296,7 @@ turbo::go!({
         let height = 1;
         let y_position = ((i * 28) % 144) as i32; // Vertical position of each line
         let x_position = (state.tick * speed) as i32 % (512) as i32 - 20; // Moving from right to left
-        canvas::rect!(
+        rect!(
             w = line_width,
             h = height,
             x = 256 + -x_position,
@@ -297,27 +307,28 @@ turbo::go!({
     if state.last_game_over == 0 {
         let (balloons, doge) = match state.health {
             0 | 1 => ("one_balloon", "doge_worried"),
-            2 => ("two_balloons", "doge_worried"),
-            _ => ("three_balloons", "doge_worried"),
+            2 => ("two_balloons", "doge"),
+            _ => ("three_balloons", "doge"),
         };
-        let speed = if state.vel_y > 0. { 1.0 } else { 0.5 };
-        canvas::sprite!(
+        let fps = if state.vel_y > 0. { 14 } else { 8 };
+        sprite!(
             balloons,
             x = state.dog_x - DOGE_WIDTH,
             y = state.dog_y - 16.,
+            fps = fps::SLOW
         );
-        canvas::sprite!(
+        sprite!(
             doge,
             x = state.dog_x - DOGE_WIDTH,
             y = state.dog_y,
-            animation_speed = speed,
+            fps = fps
         );
     } else {
-        canvas::sprite!(
+        sprite!(
             "sad_doge",
             x = state.dog_x - DOGE_WIDTH,
             y = state.dog_y,
-            animation_speed = 2.0,
+            fps = fps::FAST
         );
     }
     for bork in state.borks.iter() {
@@ -331,7 +342,7 @@ turbo::go!({
     }
 
     // Display health and score
-    canvas::rect!(w = 256, h = 24, color = 0xffffffaa);
+    rect!(w = 256, h = 24, color = 0xffffffaa);
     let seconds = if state.last_game_over > 0 {
         state.last_game_over
     } else {
@@ -340,82 +351,82 @@ turbo::go!({
     let minutes = seconds / 60;
     let seconds = seconds % 60;
     let mmss = &format!("{:02}:{:02}", minutes, seconds);
-    canvas::text!("time", x = 118, y = 3, color = 0x000000ff, font = "small");
-    canvas::text!(mmss, x = 108, y = 9, font = "large", color = 0x000000aa);
-    canvas::text!(mmss, x = 108, y = 8, font = "large", color = 0x000000ff);
+    text!("time", x = 118, y = 3, color = 0x000000ff, font = Font::S);
+    text!(mmss, x = 108, y = 9, font = Font::L, color = 0x000000aa);
+    text!(mmss, x = 108, y = 8, font = Font::L, color = 0x000000ff);
 
-    canvas::text!(
+    text!(
         "BORK points",
         x = 190,
         y = 3,
         color = 0x000000ff,
-        font = "small"
+        font = Font::S
     );
-    canvas::text!("${:06}", state.score; x = 190, y = 9, font = "large", color = 0x000000aa);
-    canvas::text!("${:06}", state.score; x = 190, y = 8, font = "large", color = 0x000000ff);
-    // canvas::text!(&format!("Health: {}", state.health), x = 10, y = 20, font = "medium", color = 0xffffffff);
-    // canvas::text!(&format!("Energy: {}", state.energy), x = 10, y = 30, font = "medium", color = 0xffffffff);
+    text!("${:06}", state.score; x = 190, y = 9, font = Font::L, color = 0x000000aa);
+    text!("${:06}", state.score; x = 190, y = 8, font = Font::L, color = 0x000000ff);
+    // text!(&format!("Health: {}", state.health), x = 10, y = 20, font = Font::M, color = 0xffffffff);
+    // text!(&format!("Energy: {}", state.energy), x = 10, y = 30, font = Font::M, color = 0xffffffff);
 
-    canvas::sprite!("energy", x = 4, y = 5);
+    sprite!("energy", x = 4, y = 4);
     let energy_color = match state.energy as f32 / state.max_energy as f32 {
         n if n <= 0.25 => 0xff0000ff,
         n if n <= 0.75 => 0xec8915ff,
         _ => 0x00a0ffff,
     };
-    canvas::text!("energy", x = 20, y = 3, color = 0x000000ff, font = "small");
-    canvas::rect!(
+    text!("energy", x = 20, y = 3, color = 0x000000ff, font = Font::S);
+    rect!(
         w = 4 * state.energy,
         h = 6,
         color = energy_color,
         x = 18,
-        y = 10
+        y = 9
     );
 
     if state.tick < (60 / 2) {
-        canvas::text!("3", x = 124, y = 64, font = "large", color = 0x000000ff);
+        text!("3", x = 124, y = 64, font = Font::L, color = 0x000000ff);
     } else if state.tick < (120 / 2) {
-        canvas::text!("2", x = 124, y = 64, font = "large", color = 0x000000ff);
+        text!("2", x = 124, y = 64, font = Font::L, color = 0x000000ff);
     } else if state.tick < (180 / 2) {
-        canvas::text!("1", x = 124, y = 64, font = "large", color = 0x000000ff);
+        text!("1", x = 124, y = 64, font = Font::L, color = 0x000000ff);
     } else if state.tick < (240 / 2) {
-        canvas::text!("GO!", x = 118, y = 64, font = "large", color = 0x000000ff);
+        text!("GO!", x = 118, y = 64, font = Font::L, color = 0x000000ff);
     }
 
     // Game over logic
     if state.last_game_over > 0 {
-        canvas::text!(
+        text!(
             "GAME OVER",
             x = 90,
             y = 73,
-            font = "large",
+            font = Font::L,
             color = 0x000000aa
         );
-        canvas::text!(
+        text!(
             "GAME OVER",
             x = 90,
             y = 72,
-            font = "large",
+            font = Font::L,
             color = 0xff0000ff
         );
         // Add logic to restart or exit the game
         if state.tick - state.last_game_over > 60 {
             if state.tick / 2 % 32 < 16 {
-                canvas::text!(
+                text!(
                     "- press start -",
                     x = 88,
                     y = 84,
-                    font = "medium",
+                    font = Font::M,
                     color = 0x000000aa
                 );
-                canvas::text!(
+                text!(
                     "- press start -",
                     x = 88,
                     y = 83,
-                    font = "medium",
+                    font = Font::M,
                     color = 0x000000ff
                 );
             }
-            if gp.start.just_pressed() || mouse(0).left.just_pressed() {
+            if gp.start.just_pressed() {
                 state = GameState::new()
             }
         }

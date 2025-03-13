@@ -1,8 +1,0 @@
-name = "Platformer"
-version = "1.0.0"
-author = "Turbo"
-description = "A turbo platformer template""
-
-[canvas]
-width = 384
-height = 216

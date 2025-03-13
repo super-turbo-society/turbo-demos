@@ -1,3 +1,12 @@
+turbo::cfg! {r#"
+    name = "Sausagers: The Game"
+    version = "1.0.0"
+    author = "Sausagers"
+    description = "The greatest game in the world"
+    [settings]
+    resolution = [256, 387]
+"#}
+
 turbo::init! {
     struct GameState {
         screen: enum Screen {
@@ -12,10 +21,13 @@ turbo::init! {
         score: u32,
         tutorial_active: bool,
         help_messages: Vec<String>,
+        current_quest: Option<Quest>,
         notifications: Vec<String>,
+        unlockables: Unlockables,
 
         // Entities
         players: Vec<Player>,
+        boss: Option<Boss>,
         projectiles: Vec<Projectile>,
         enemies: Vec<Enemy>,
         powerups: Vec<Powerup>,
@@ -26,7 +38,7 @@ turbo::init! {
 
 impl GameState {
     pub fn new() -> Self {
-        let (screen_w, screen_h) = resolution();
+        let [screen_w, screen_h] = resolution();
         Self {
             // Initialize all fields with default values
             screen: Screen::Title,
@@ -39,12 +51,17 @@ impl GameState {
                 String::from("Use arrow keys to move"),
                 String::from("Press A to shoot projectiles"),
             ],
+            current_quest: Some(Quest::defeat_boss(
+                "Defeat the First Boss",
+                "A quest to defeat the infamous first boss!",
+            )),
             notifications: vec![
                 "Use arrow keys to move.".to_string(),
                 "Press SPACE or A to shoot.".to_string(),
                 "Defeat enemies. Get powerups.".to_string(),
                 "DESTROY ALL BUNS!".to_string(),
             ],
+            unlockables: Unlockables::new(),
             players: vec![Player {
                 id: 0,
                 x: ((screen_w / 2) - 8) as f32,
@@ -66,6 +83,7 @@ impl GameState {
                 powerups: vec![],
                 metrics: PlayerMetrics::new(),
             }],
+            boss: None,
             projectiles: vec![],
             enemies: vec![],
             powerups: vec![],
@@ -75,7 +93,7 @@ impl GameState {
 
 const MAX_POWERUPS: usize = 3;
 const INVULNERABLE_FRAMES: u32 = 30;
-const DEAD_FRAMES: u32 = 30;
+const DEAD_FRAMES: u32 = 120;
 const POWERUP_FRAMES: u32 = 60 * 30;
 const MAX_PLAYERS: usize = 4;
 const PLAYER_COLORS: [u32; MAX_PLAYERS] = [
@@ -90,7 +108,7 @@ turbo::go!({
 
     // Draw moving parallax stars in the background
     clear(0x000333ff);
-    let (screen_w, screen_h) = resolution();
+    let [screen_w, screen_h] = canvas_size!();
     draw_stars(&state, screen_w, screen_h);
 
     match state.screen.clone() {
@@ -109,7 +127,7 @@ turbo::go!({
 });
 
 fn draw_title_screen(state: &GameState) {
-    let (screen_w, screen_h) = resolution();
+    let [screen_w, screen_h] = canvas_size!();
     let screen_w = screen_w as i32;
     let screen_h = screen_h as i32;
     let center = screen_w / 2;
@@ -150,7 +168,7 @@ fn draw_title_screen(state: &GameState) {
         );
         text!(
            "P{} joined", player.id + 1;
-            font = "medium",
+            font = Font::M,
             x = left + 4 + (i as i32 * (52)),
             y = screen_h - 12
         );
@@ -170,7 +188,7 @@ fn draw_title_screen(state: &GameState) {
         let y = screen_h / 2;
         rect!(w = screen_w, h = 32, x = 0, y = y - 12, color = 0x000333ff);
         if state.tick % 60 < 30 {
-            text!("PRESS START", font = "large", x = x, y = y);
+            text!("PRESS START", font = Font::L, x = x, y = y);
         }
         // Show players who joined
         let num_players = state.players.len();
@@ -200,7 +218,7 @@ fn update_title_screen(state: &mut GameState) {
 }
 
 fn update_game_screen(state: &mut GameState) {
-    let (screen_w, screen_h) = resolution();
+    let [screen_w, screen_h] = resolution();
 
     let is_game_over = state.players.iter().all(|p| p.health == 0);
     if is_game_over {
@@ -338,7 +356,7 @@ fn update_game_screen(state: &mut GameState) {
             initial_spawn_rate.saturating_sub(state.tick / speed_up_rate),
         );
         // if state.player.health > 0 {
-        //     text!(&format!("spawn rate: {spawn_rate}"), x = 4, y = 22, font = "small");
+        //     text!(&format!("spawn rate: {spawn_rate}"), x = 4, y = 22, font = Font::S);
         // }
         if state.tick % spawn_rate == 0 && state.enemies.len() < 24 {
             state.enemies.push(match rand() % 8 {
@@ -490,6 +508,68 @@ fn update_game_screen(state: &mut GameState) {
             projectile_active
         });
     }
+
+    // Check if a boss is present and handle collision with projectiles
+    state.projectiles.retain(|projectile| {
+        let mut projectile_active = true;
+        if projectile.projectile_owner != ProjectileOwner::Player {
+            return projectile_active;
+        }
+        if let Some(boss) = &mut state.boss {
+            let did_collide = check_collision(
+                projectile.x,
+                projectile.y,
+                projectile.width,
+                projectile.height,
+                boss.enemy.x,
+                boss.enemy.y,
+                boss.enemy.width,
+                boss.enemy.height,
+            );
+            if did_collide {
+                boss.enemy.health -= projectile.damage;
+                projectile_active = false; // Remove projectile on collision
+                if boss.enemy.health == 0 {
+                    state.score += 10; // Award more points for defeating a boss
+                    state.boss = None; // Remove boss on defeat
+                }
+                // Additional behavior based on projectile type
+                match projectile.projectile_type {
+                    ProjectileType::Basic => {
+                        // ...
+                    }
+                    ProjectileType::Splatter => {
+                        // Splatter creates fragments on impact, affecting a wider area
+                        let splash_angles = [45.0, 135.0, 225.0, 315.0]; // Diagonal angles
+                        for &angle in splash_angles.iter() {
+                            splashes.push(Projectile {
+                                x: projectile.x,
+                                y: projectile.y,
+                                width: projectile.width,
+                                height: projectile.height,
+                                velocity: projectile.velocity / 2.0, // Reduced velocity for splash projectiles
+                                angle,
+                                damage: projectile.damage / 2, // Reduced damage for splash projectiles
+                                projectile_type: ProjectileType::Fragment,
+                                projectile_owner: ProjectileOwner::Player,
+                                ttl: Some(10),
+                            });
+                        }
+                    }
+                    ProjectileType::Fragment => {
+                        // ...
+                    }
+                    ProjectileType::Laser => {
+                        // ...
+                    }
+                    ProjectileType::Bomb => {
+                        // ...
+                    }
+                }
+            }
+        }
+        return projectile_active;
+    });
 
     // Handle collisions between enemy projectiles and the player
     for i in 0..state.players.len() {
@@ -646,6 +726,33 @@ fn update_game_screen(state: &mut GameState) {
         }
     }
 
+    for i in 0..state.players.len() {
+        let player = &mut state.players[i];
+        if let Some(boss) = &mut state.boss {
+            // Logic for attacking with specified intensity
+            let intensity = 4.0;
+            if rand() % (100 / intensity as u32) == 0 {
+                // Calculate angle from enemy to player
+                let angle = ((player.y - boss.enemy.y).atan2(player.x - boss.enemy.x) * 180.0)
+                    / std::f32::consts::PI;
+
+                // Create and shoot projectiles from enemy towards the player
+                state.projectiles.push(Projectile {
+                    x: boss.enemy.x,
+                    y: boss.enemy.y,
+                    width: 4,
+                    height: 4,
+                    velocity: intensity * 2.0, // Velocity based on attack intensity
+                    angle: angle,
+                    damage: boss.enemy.attack + intensity as u32, // Damage based on attack intensity
+                    projectile_type: ProjectileType::Laser,       // Assuming enemy uses Laser
+                    projectile_owner: ProjectileOwner::Enemy,
+                    ttl: None,
+                });
+            }
+        }
+    }
+
     // Update power-up positions based on their movement patterns
     for powerup in &mut state.powerups {
         match powerup.movement {
@@ -690,6 +797,61 @@ fn update_game_screen(state: &mut GameState) {
         });
     }
 
+    // Check for quest completion
+    for i in 0..state.players.len() {
+        let player = &mut state.players[i];
+        if let Some(quest) = &mut state.current_quest {
+            if !quest.completed {
+                match quest.objective {
+                    QuestObjective::DefeatBoss => {
+                        if state.boss.as_ref().map_or(false, |b| b.enemy.health == 0) {
+                            quest.completed = true;
+                            let boss = state.boss.as_ref().unwrap();
+                            player.metrics.bosses_defeated.push(boss.boss_type.clone());
+                            player.metrics.completed_quests.push(quest.clone());
+                            // Check and update boss-gated unlockables
+                            match boss.boss_type {
+                                BossType::FirstBoss => {
+                                    state.unlockables.special_ability = Some(SpecialAbility::Slow);
+                                }
+                            }
+                            state
+                                .notifications
+                                .push(format!("Quest completed: {}", quest.title));
+                        }
+                    }
+                    QuestObjective::CollectProjectiles(num_projectiles) => {
+                        if player.metrics.num_projectiles_collected >= num_projectiles {
+                            quest.completed = true;
+                            player.metrics.completed_quests.push(quest.clone());
+                            state
+                                .notifications
+                                .push(format!("Quest completed: {}", quest.title));
+                        }
+                    }
+                    QuestObjective::DefeatEnemies(num_enemies) => {
+                        if player.metrics.num_enemies_defeated >= num_enemies {
+                            quest.completed = true;
+                            player.metrics.completed_quests.push(quest.clone());
+                            state
+                                .notifications
+                                .push(format!("Quest completed: {}", quest.title));
+                        }
+                    }
+                    QuestObjective::SkillPoints(num_skill_points) => {
+                        if player.skill_points >= num_skill_points {
+                            quest.completed = true;
+                            player.metrics.completed_quests.push(quest.clone());
+                            state
+                                .notifications
+                                .push(format!("Quest completed: {}", quest.title));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // Enable skills
     for i in 0..state.players.len() {
         let player = &mut state.players[i];
@@ -716,12 +878,12 @@ fn update_game_screen(state: &mut GameState) {
 
 // Define a function for rendering game elements
 fn draw_game_screen(state: &GameState) {
-    let (screen_w, screen_h) = resolution();
+    let [screen_w, screen_h] = resolution();
 
     if state.hit_timer > 0 {
-        camera::move_xy(rand() as i32 % 3 - 1, rand() as i32 % 3 - 1)
+        set_camera(rand() as i32 % 3, rand() as i32 % 3);
     } else {
-        camera::set_xy(128, 193);
+        set_camera(0, 0);
     }
 
     // Drawing the character with customization
@@ -749,7 +911,7 @@ fn draw_game_screen(state: &GameState) {
     }
 
     // Reset camera
-    //canvas::camera::set_xy(128, 193);
+    set_camera(0, 0);
 
     // Render notifications
     draw_notifications(state, screen_w, screen_h);
@@ -807,7 +969,7 @@ fn draw_player(player: &Player, show_number: bool) {
             "{}", player.id + 1;
             x = player.x as i32 + 8,
             y = player.y as i32 + 24,
-            font = "small",
+            font = Font::S,
         );
     }
     if let Some(accessory) = &player.accessory {
@@ -891,7 +1053,7 @@ fn draw_powerup(powerup: &Powerup, tick: u32) {
             PowerupEffect::DamageBoost => 0xff006699,
             PowerupEffect::SpeedBoost => 0x6600ff99,
         },
-        border_size = 1,
+        border_width = 1,
     );
     let key = match powerup.effect {
         PowerupEffect::Heal => "powerup_heal",
@@ -926,7 +1088,7 @@ fn draw_hud(state: &GameState, screen_w: u32) {
         &skill_points_text,
         x = center + 68,
         y = 6,
-        font = "large",
+        font = Font::L,
         color = text_color
     );
 }
@@ -944,10 +1106,10 @@ fn draw_notifications(state: &GameState, screen_w: u32, _screen_h: u32) {
             y = 24 - 2,
             color = 0x68386cff,
             border_radius = 4,
-            border_size = 1,
+            border_width = 1,
             border_color = 0xb55088ff,
         );
-        text!(notif, x = x, y = 26, font = "large", color = 0xf6757aff);
+        text!(notif, x = x, y = 26, font = Font::L, color = 0xf6757aff);
         break;
     }
 }
@@ -957,7 +1119,7 @@ fn draw_game_over(state: &GameState, screen_w: u32, screen_h: u32) {
         "GAME OVER",
         x = (screen_w / 2) - 32,
         y = (screen_h / 2) - 4,
-        font = "large"
+        font = Font::L
     );
     if state.hit_timer == 0 {
         if state.tick / 4 % 8 < 4 {
@@ -965,7 +1127,7 @@ fn draw_game_over(state: &GameState, screen_w: u32, screen_h: u32) {
                 "PRESS START",
                 x = (screen_w / 2) - 24,
                 y = (screen_h / 2) - 4 + 16,
-                font = "medium"
+                font = Font::M
             );
         }
     }
@@ -1018,6 +1180,8 @@ struct PlayerMetrics {
     longest_run_seconds: f32,
     num_projectiles_collected: u32,
     num_enemies_defeated: u32,
+    completed_quests: Vec<Quest>,
+    bosses_defeated: Vec<BossType>,
 }
 impl PlayerMetrics {
     pub fn new() -> Self {
@@ -1025,6 +1189,8 @@ impl PlayerMetrics {
             longest_run_seconds: 0.0,
             num_projectiles_collected: 0,
             num_enemies_defeated: 0,
+            completed_quests: vec![],
+            bosses_defeated: vec![],
         }
     }
 }
@@ -1066,6 +1232,18 @@ enum ProjectileOwner {
 }
 
 #[derive(Debug, Clone, BorshDeserialize, BorshSerialize, PartialEq)]
+// Struct for Boss that is basically an enemy with a type
+struct Boss {
+    boss_type: BossType,
+    enemy: Enemy,
+}
+
+#[derive(Debug, Copy, Clone, BorshDeserialize, BorshSerialize, PartialEq)]
+enum BossType {
+    FirstBoss,
+}
+
+#[derive(Debug, Clone, BorshDeserialize, BorshSerialize, PartialEq)]
 // Struct for Enemies
 struct Enemy {
     sprite: String,
@@ -1083,7 +1261,7 @@ struct Enemy {
 }
 impl Enemy {
     pub fn tank() -> Self {
-        let (screen_w, _) = resolution();
+        let [screen_w, _] = resolution();
         Self {
             sprite: "enemy_tank".to_string(),
             x: (rand() % screen_w - 32) as f32,
@@ -1100,7 +1278,7 @@ impl Enemy {
         }
     }
     pub fn shooter() -> Self {
-        let (screen_w, _) = resolution();
+        let [screen_w, _] = resolution();
         Self {
             sprite: "enemy_shooter".to_string(),
             x: (rand() % screen_w - 16) as f32,
@@ -1117,7 +1295,7 @@ impl Enemy {
         }
     }
     pub fn turret() -> Self {
-        let (screen_w, _) = resolution();
+        let [screen_w, _] = resolution();
         Self {
             sprite: "enemy_turret".to_string(),
             x: (rand() % screen_w - 16) as f32,
@@ -1134,7 +1312,7 @@ impl Enemy {
         }
     }
     pub fn zipper() -> Self {
-        let (screen_w, _) = resolution();
+        let [screen_w, _] = resolution();
         Self {
             sprite: "enemy_zipper".to_string(),
             x: (rand() % screen_w - 16) as f32,
@@ -1151,7 +1329,7 @@ impl Enemy {
         }
     }
     pub fn meteor() -> Self {
-        let (screen_w, _) = resolution();
+        let [screen_w, _] = resolution();
         Self {
             sprite: "enemy_meteor".to_string(),
             x: (rand() % screen_w - 8) as f32,
@@ -1176,6 +1354,63 @@ enum EnemyStrategy {
     ShootDown(f32, f32, u32),    // Moves down. Attacks with given intensity, speed, and size
     MoveDown,                    // Moves down. Nothing fancy
     RandomZigZag(f32),           // Moves in a random zig zag pattern with a given angle
+}
+
+#[derive(Debug, Clone, BorshDeserialize, BorshSerialize, PartialEq)]
+// Struct for Quests in the game
+struct Quest {
+    title: String,
+    description: String,
+    completed: bool,
+    objective: QuestObjective,
+}
+impl Quest {
+    fn defeat_boss(title: &str, description: &str) -> Self {
+        Self {
+            title: title.to_string(),
+            description: description.to_string(),
+            completed: false,
+            objective: QuestObjective::DefeatBoss,
+        }
+    }
+}
+
+#[derive(Debug, Copy, Clone, BorshDeserialize, BorshSerialize, PartialEq)]
+enum QuestObjective {
+    DefeatBoss,              // Defeat the boss
+    DefeatEnemies(u32),      // Number of enemies to defeat
+    CollectProjectiles(u32), // Number of items to collect
+    SkillPoints(u32),        // Number of skill points to obtain
+}
+
+#[derive(Debug, Clone, BorshDeserialize, BorshSerialize, PartialEq)]
+// Struct for Unlockable content
+struct Unlockables {
+    special_ability: Option<SpecialAbility>,
+    extra_levels: Vec<Level>,
+    cosmetic_items: Vec<String>,
+}
+impl Unlockables {
+    fn new() -> Self {
+        Self {
+            special_ability: None,
+            extra_levels: vec![],
+            cosmetic_items: vec![],
+        }
+    }
+}
+
+#[derive(Debug, Copy, Clone, BorshDeserialize, BorshSerialize, PartialEq)]
+enum SpecialAbility {
+    ChainDamage,
+    AutomaticWeapons,
+    Armor(u32),
+    Regen,
+    Vampire,
+    Lucky,
+    Slow,
+    Freeze,
+    Poison,
 }
 
 #[derive(Debug, Clone, BorshDeserialize, BorshSerialize, PartialEq)]

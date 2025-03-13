@@ -1,4 +1,12 @@
 // Define the game configuration
+turbo::cfg! {r#"
+    name = "RectaRunner"
+    version = "1.0.0"
+    author = "Turbo"
+    description = "RectaRunner!"
+    [settings]
+    resolution = [256, 144]
+"#}
 
 // Define the game state
 turbo::init! {
@@ -77,7 +85,7 @@ turbo::go!({
             "Press Start to Play",
             x = 55,
             y = 70,
-            font = "large",
+            font = Font::L,
             color = 0xffd700ff
         );
     } else if state.is_game_over {
@@ -113,9 +121,9 @@ turbo::go!({
         // Display Game Over message
         text!(
             "Game Over",
-            x = 98,
+            x = 65,
             y = 70,
-            font = "large",
+            font = Font::XL,
             color = 0xff0000ff
         );
 
@@ -124,7 +132,7 @@ turbo::go!({
             "Press Start to Restart",
             x = 80,
             y = 90,
-            font = "medium",
+            font = Font::M,
             color = 0x00ffffff
         );
     } else {
@@ -289,18 +297,24 @@ turbo::go!({
         clear(0x00ffffff);
 
         // Draw the background
-        sprite!("bg_mountains", x = state.bg_x, y = 70);
-        sprite!("bg_mountains", x = state.bg_x + 256.0, y = 70,);
+        sprite!("bg_mountains", x = state.bg_x, y = 70, fps = fps::FAST);
+        sprite!(
+            "bg_mountains",
+            x = state.bg_x + 256.0,
+            y = 70,
+            fps = fps::FAST
+        );
 
         // Draw the foreground
-        sprite!("fg_path", x = state.fg_x as i32, y = 120,);
-        sprite!("fg_path", x = state.fg_x + 256.0, y = 120,);
+        sprite!("fg_path", x = state.fg_x as i32, y = 120, fps = fps::FAST);
+        sprite!("fg_path", x = state.fg_x + 256.0, y = 120, fps = fps::FAST);
 
         // Draw the player
         sprite!(
             "npc_spex",
             x = state.player_x - 5.0,
             y = state.player_y - 25.0,
+            fps = fps::FAST
         );
 
         // Draw obstacles
@@ -323,8 +337,8 @@ turbo::go!({
         rect!(x = 0, y = 0, w = 256, h = 20, color = 0x000000ff);
 
         // Draw the score and lives text
-        text!("Score: {}", state.score; x = 10, y = 6, font = "medium", color = 0x00ffffff);
-        text!("Lives: {}", state.lives; x = 175, y = 6, font = "medium", color = 0x00ffffff);
+        text!("Score: {}", state.score; x = 10, y = 6, font = Font::M, color = 0x00ffffff);
+        text!("Lives: {}", state.lives; x = 175, y = 6, font = Font::M, color = 0x00ffffff);
 
         state.frame += 1;
     }

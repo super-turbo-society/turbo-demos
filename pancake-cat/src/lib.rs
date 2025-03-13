@@ -1,3 +1,14 @@
+// Define the game configuration using the turbo::cfg! macro
+turbo::cfg! {r#"
+    name = "Pancake Cat"
+    version = "1.0.0"
+    author = "Turbo"
+    description = "Catch falling pancakes!"
+    [settings]
+    resolution = [256, 144]
+"#}
+
+// Define the game state initialization using the turbo::init! macro
 turbo::init! {
     struct GameState {
         frame: u32,
@@ -12,14 +23,16 @@ turbo::init! {
             radius: f32,
         }>,
         score: u32,
-    } = Self {
-        frame: 0,
-        last_munch_at: 0,
-        cat_x: 128.0,
-        cat_y: 112.0,
-        cat_r: 8.0,
-        pancakes: vec![],
-        score: 0,
+    } = {
+        Self {
+            frame: 0,
+            last_munch_at: 0,
+            cat_x: 128.0,
+            cat_y: 112.0,
+            cat_r: 8.0,
+            pancakes: vec![],
+            score: 0,
+        }
     }
 }
 
@@ -80,7 +93,7 @@ turbo::go!({
     clear(0x00ffffff);
 
     // Draw a tiled background of moving sprites
-    let frame = (state.frame as i32) / 2;
+    let frame = state.frame / 2;
     for col in 0..9 {
         for row in 0..6 {
             let x = col * 32;
@@ -101,13 +114,18 @@ turbo::go!({
             "MUNCH!",
             x = state.cat_x + 33.0,
             y = state.cat_y + 3.0,
-            font = "small",
+            font = Font::S,
             color = 0x000000ff
         );
     }
 
     // Draw the cat
-    sprite!("munch_cat", x = state.cat_x - state.cat_r, y = state.cat_y - 16.0);
+    sprite!(
+        "munch_cat",
+        x = state.cat_x - state.cat_r,
+        y = state.cat_y - 16.,
+        fps = fps::FAST
+    );
 
     // Draw the falling pancakes
     for pancake in &state.pancakes {
@@ -132,7 +150,7 @@ turbo::go!({
     }
 
     // Draw the score
-    text!("Score: {}", state.score; x = 10, y = 10, font = "large", color = 0xffffffff); // Render the score
+    text!("Score: {}", state.score; x = 10, y = 10, font = Font::L, color = 0xffffffff); // Render the score
 
     // Uncomment to print game state for debugging
     // text!(&format!("{:#?}", state), y = 24);

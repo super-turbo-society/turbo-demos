@@ -1,3 +1,12 @@
+turbo::cfg! {r#"
+    name = "DinoRunner"
+    version = "1.0.0"
+    author = "Turbo"
+    description = "DinoRunner!"
+    [settings]
+    resolution = [256, 144]
+"#}
+
 turbo::init! {
 struct GameState {
     frame: u32,
@@ -44,7 +53,7 @@ turbo::go! {
             "Press Start to Play",
             x = 55,
             y = 70,
-            font = "large",
+            font = Font::L,
             color = 0xffd700ff
         );
 
@@ -58,7 +67,7 @@ turbo::go! {
 
     if state.is_game_over {
         // Display Game Over message
-        text!("Game Over!", x = 85, y = 75, font = "large", color = 0xff0000ff);
+        text!("Game Over!", x = 85, y = 75, font = Font::L, color = 0xff0000ff);
 
         if state.score > state.high_score {
             state.high_score = state.score;
@@ -113,8 +122,8 @@ turbo::go! {
 
     if cycle_phase == 1 {
         // Night mode: Use "backgroundnight" sprite for the background
-        sprite!("backgroundnight", x = bg_x % bg_width, y = -250);
-        sprite!("backgroundnight", x = (bg_x % bg_width) + bg_width, y = -250);
+        sprite!("backgroundnight", x = bg_x % bg_width, y = -250, fps = fps::FAST);
+        sprite!("backgroundnight", x = (bg_x % bg_width) + bg_width, y = -250, fps = fps::FAST);
 
         // Show stars
         for col in 0..9 {
@@ -133,8 +142,8 @@ turbo::go! {
         sprite!("moon", x = 90, y = -1);
     } else {
         // Day mode: Use "bglonger" sprite for the background
-        sprite!("bglonger", x = bg_x % bg_width, y = -250);
-        sprite!("bglonger", x = (bg_x % bg_width) + bg_width, y = -250);
+        sprite!("bglonger", x = bg_x % bg_width, y = -250, fps = fps::FAST);
+        sprite!("bglonger", x = (bg_x % bg_width) + bg_width, y = -250, fps = fps::FAST);
 
         // Show clouds
         for col in 0..9 {
@@ -164,7 +173,7 @@ turbo::go! {
         sprite!("floor", x = x_pos + num_floors * floor_width, y = 114);
     }
 
-    sprite!("dinorun-Sheet", x = state.player_x, y = state.player_y);
+    sprite!("dinorun-Sheet", x = state.player_x, y = state.player_y, fps = fps::FAST);
 
     let tree_speed_factor = 5;
 
@@ -184,7 +193,7 @@ turbo::go! {
              state.is_game_over = true;
          }
 
-         sprite!("tree32px", x = state.tree_positions[i], y = 105);
+         sprite!("tree32px", x = state.tree_positions[i], y = 105, fps = fps::FAST);
      }
 
      // Move and reposition tree16x16
@@ -213,12 +222,12 @@ turbo::go! {
              state.is_game_over = true;
          }
 
-     sprite!("tree16x16", x = tree16_x, y = 118); // Y-position of 16x16 trees
+     sprite!("tree16x16", x = tree16_x, y = 118, fps = fps::FAST); // Y-position of 16x16 trees
  }
 
 
-    text!("Score: {}", state.score; x = 170, y = 30, font = "large", color = 0x0000ffff);
-      text!("High Score: {}", state.high_score; x = 10, y = 30, font = "medium", color = 0x0000ffff);
+    text!("Score: {}", state.score; x = 170, y = 30, font = Font::L, color = 0x0000ffff);
+      text!("High Score: {}", state.high_score; x = 10, y = 30, font = Font::M, color = 0x0000ffff);
 
 
     state.frame += 1;
