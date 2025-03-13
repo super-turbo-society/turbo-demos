@@ -1,0 +1,19 @@
+{
+  "name": "turbo-genesis-impl-wasm-bindgen",
+  "type": "module",
+  "collaborators": [
+    "@jozanza (hello@jsavary.com)"
+  ],
+  "version": "0.1.0",
+  "license": "SEE LICENSE IN ../LICENSE",
+  "files": [
+    "turbo_genesis_impl_wasm_bindgen_bg.wasm",
+    "turbo_genesis_impl_wasm_bindgen.js",
+    "turbo_genesis_impl_wasm_bindgen.d.ts"
+  ],
+  "main": "turbo_genesis_impl_wasm_bindgen.js",
+  "types": "turbo_genesis_impl_wasm_bindgen.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}

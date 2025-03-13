@@ -1,12 +1,3 @@
-turbo::cfg! {r#"
-    name = "Space Shooter"
-    version = "2.5.0"
-    author = "Turbo"
-    description = "A thrilling projectile combat adventure in space!"
-    [settings]
-    resolution = [512, 512]
-"#}
-
 turbo::init! {
     struct GameState {
         tick: u32,
@@ -17,13 +8,10 @@ turbo::init! {
         score: u32,
         tutorial_active: bool,
         help_messages: Vec<String>,
-        current_quest: Option<Quest>,
         notifications: Vec<String>,
-        unlockables: Unlockables,
 
         // Entities
         player: Player,
-        boss: Option<Boss>,
         projectiles: Vec<Projectile>,
         enemies: Vec<Enemy>,
         powerups: Vec<Powerup>,
@@ -34,7 +22,7 @@ turbo::init! {
 
 impl GameState {
     pub fn new() -> Self {
-        let [screen_w, screen_h] = resolution();
+        let (screen_w, screen_h) = canvas::resolution();
         Self {
             // Initialize all fields with default values
             tick: 0,
@@ -46,17 +34,13 @@ impl GameState {
                 String::from("Use arrow keys to move"),
                 String::from("Press A to shoot projectiles"),
             ],
-            current_quest: Some(Quest::defeat_boss(
-                "Defeat the First Boss",
-                "A quest to defeat the infamous first boss!",
-            )),
+
             notifications: vec![
                 "Use arrow keys to move.".to_string(),
                 "Press SPACE or A to shoot.".to_string(),
                 "Defeat enemies and collect powerups.".to_string(),
                 "Try to not die. Good luck!".to_string(),
             ],
-            unlockables: Unlockables::new(),
             player: Player {
                 x: ((screen_w / 2) - 8) as f32,
                 y: (screen_h - 64) as f32,
@@ -76,7 +60,6 @@ impl GameState {
                 },
                 metrics: PlayerMetrics::new(),
             },
-            boss: None,
             projectiles: vec![],
             enemies: vec![],
             powerups: vec![],
@@ -90,11 +73,11 @@ turbo::go!({
         let health = state.player.health;
         let xy = (state.player.x, state.player.y);
         let score = state.score;
-        let res = canvas_size!();
-        log!("- Health = {health}\n- Position: {xy:?}\n- Score: {score}\n- Resolution: {res:?}");
+        let canvas_size = canvas::resolution();
+        log!("- Health = {health}\n- Position: {xy:?}\n- Score: {score}\n- Resolution: {canvas_size:?}");
     }
 
-    let [screen_w, screen_h] = resolution();
+    let (screen_w, screen_h) = canvas::resolution();
 
     // Drawing all game elements, including player, enemies, environment, and UI
     draw_game_elements(&state);
@@ -110,21 +93,17 @@ turbo::go!({
             state.player.y = (state.player.y - state.player.speed).max(0.0); // Move up
         }
         if gamepad(0).down.pressed() {
-            state.player.y =
-                (state.player.y + state.player.speed).min((screen_h - state.player.height) as f32);
-            // Move down
+            state.player.y = (state.player.y + state.player.speed).min((screen_h - state.player.height) as f32); // Move down
         }
         if gamepad(0).left.pressed() {
             state.player.x = (state.player.x - state.player.speed).max(0.0); // Move left
         }
         if gamepad(0).right.pressed() {
-            state.player.x =
-                (state.player.x + state.player.speed).min((screen_w - state.player.width) as f32);
-            // Move right
+            state.player.x = (state.player.x + state.player.speed).min((screen_w - state.player.width) as f32); // Move right
         }
 
         // Shooting projectiles
-        if gamepad(1).start.just_pressed() || gamepad(1).a.just_pressed() {
+        if gamepad(0).start.just_pressed() || gamepad(0).a.just_pressed() {
             state.projectiles.push(Projectile {
                 x: state.player.x + ((state.player.width / 2) as f32) - 2.0,
                 y: state.player.y,
@@ -164,6 +143,7 @@ turbo::go!({
         });
     }
 
+
     // Start spawning enemies after intro dialog
     if state.tick > (state.notifications.len() as u32 + 1) * 240 {
         // Enemy spawning logic based on time elapsed
@@ -175,15 +155,10 @@ turbo::go!({
         // Calculate current spawn interval based on time elapsed
         let spawn_rate = std::cmp::max(
             minimum_spawn_rate,
-            initial_spawn_rate.saturating_sub(state.tick / speed_up_rate),
+            initial_spawn_rate.saturating_sub(state.tick / speed_up_rate)
         );
         if state.player.health > 0 {
-            text!(
-                &format!("spawn rate: {spawn_rate}"),
-                x = 4,
-                y = 22,
-                font = Font::S
-            );
+            canvas::text!("spawn rate: {}", spawn_rate; x = 4, y = 22, font = "small");
         }
         if state.tick % spawn_rate == 0 && state.enemies.len() < 24 {
             state.enemies.push(match rand() % 8 {
@@ -195,47 +170,36 @@ turbo::go!({
                 5 => Enemy::zipper(),
                 6 => Enemy::turret(),
                 7 => Enemy::turret(),
-                _ => unreachable!(),
+                _ => unreachable!()
             });
         }
     }
     // Handle player picking up power-ups
     state.powerups.retain(|powerup| {
-        if check_collision(
-            powerup.x,
-            powerup.y,
-            powerup.width,
-            powerup.height,
-            state.player.x,
-            state.player.y,
-            state.player.width,
-            state.player.height,
-        ) {
+        if check_collision(powerup.x, powerup.y, powerup.width, powerup.height,
+                        state.player.x, state.player.y, state.player.width, state.player.height) {
             match powerup.effect {
                 PowerupEffect::Heal => {
                     state.player.health = (state.player.health + 1).min(state.player.max_health);
                     state.player.skill_points += 1;
                     state.notifications.push("+1 Health".to_string());
-                }
+                },
                 PowerupEffect::MaxHealthUp => {
                     state.player.max_health = (state.player.max_health + 1).min(10);
                     state.player.health = state.player.max_health;
                     state.player.skill_points += 1;
                     state.notifications.push("Max Health +1".to_string());
-                }
+                },
                 PowerupEffect::SpeedBoost => {
                     state.player.speed *= 1.1;
                     state.player.skill_points += 1;
                     state.notifications.push("1.1x Speed Boost".to_string());
-                }
+                },
                 PowerupEffect::DamageBoost(projectile_type) => {
                     if state.player.projectile_type == projectile_type {
-                        state
-                            .notifications
-                            .push(format!("+1 {projectile_type:?} Damage"));
+                        state.notifications.push(format!("+1 {projectile_type:?} Damage"));
                         state.player.skill_points += 1;
-                        state.player.projectile_damage =
-                            (state.player.projectile_damage + 1).min(2);
+                        state.player.projectile_damage = (state.player.projectile_damage + 1).min(2);
                     }
                 }
             }
@@ -254,14 +218,8 @@ turbo::go!({
         }
         state.enemies.retain_mut(|enemy| {
             let did_collide = check_collision(
-                projectile.x,
-                projectile.y,
-                projectile.width,
-                projectile.height,
-                enemy.x,
-                enemy.y,
-                enemy.width,
-                enemy.height,
+                projectile.x, projectile.y, projectile.width, projectile.height,
+                enemy.x, enemy.y, enemy.width, enemy.height
             );
             if did_collide {
                 enemy.health = enemy.health.saturating_sub(projectile.damage);
@@ -279,8 +237,7 @@ turbo::go!({
                             movement: PowerupMovement::Floating(0.1),
                         });
                         // Spawn additional power-up when player reaches skill point threshold
-                        if state.player.skill_points > 500 {
-                            // Adjust the skill point threshold
+                        if state.player.skill_points > 500 { // Adjust the skill point threshold
                             state.powerups.push(Powerup {
                                 x: (rand() % screen_w) as f32,
                                 y: (rand() % screen_h) as f32,
@@ -299,98 +256,36 @@ turbo::go!({
                     }
                     ProjectileType::Splatter => {
                         // Splatter creates fragments on impact, affecting a wider area
-                        let splash_angles = [45.0, 135.0, 225.0, 315.0]; // Diagonal angles
+                        let splash_angles = [45.0, 135.0, 225.0, 315.0];  // Diagonal angles
                         for &angle in splash_angles.iter() {
                             splashes.push(Projectile {
                                 x: projectile.x,
                                 y: projectile.y,
                                 width: projectile.width,
                                 height: projectile.height,
-                                velocity: projectile.velocity / 2.0, // Reduced velocity for splash projectiles
+                                velocity: projectile.velocity / 2.0,  // Reduced velocity for splash projectiles
                                 angle,
-                                damage: projectile.damage / 2, // Reduced damage for splash projectiles
+                                damage: projectile.damage / 2,  // Reduced damage for splash projectiles
                                 projectile_type: ProjectileType::Fragment,
                                 projectile_owner: ProjectileOwner::Player,
-                                ttl: Some(10),
+                                ttl: Some(10)
                             });
                         }
-                    }
+                    },
                     ProjectileType::Fragment => {
                         // ...
-                    }
+                    },
                     ProjectileType::Laser => {
                         // ...
-                    }
+                    },
                     ProjectileType::Bomb => {
                         // ...
-                    }
+                    },
                 }
             }
             enemy.health > 0
         });
         projectile_active
-    });
-
-    // Check if a boss is present and handle collision with projectiles
-    state.projectiles.retain(|projectile| {
-        let mut projectile_active = true;
-        if projectile.projectile_owner != ProjectileOwner::Player {
-            return projectile_active;
-        }
-        if let Some(boss) = &mut state.boss {
-            let did_collide = check_collision(
-                projectile.x,
-                projectile.y,
-                projectile.width,
-                projectile.height,
-                boss.enemy.x,
-                boss.enemy.y,
-                boss.enemy.width,
-                boss.enemy.height,
-            );
-            if did_collide {
-                boss.enemy.health -= projectile.damage;
-                projectile_active = false; // Remove projectile on collision
-                if boss.enemy.health == 0 {
-                    state.score += 10; // Award more points for defeating a boss
-                    state.boss = None; // Remove boss on defeat
-                }
-                // Additional behavior based on projectile type
-                match projectile.projectile_type {
-                    ProjectileType::Basic => {
-                        // ...
-                    }
-                    ProjectileType::Splatter => {
-                        // Splatter creates fragments on impact, affecting a wider area
-                        let splash_angles = [45.0, 135.0, 225.0, 315.0]; // Diagonal angles
-                        for &angle in splash_angles.iter() {
-                            splashes.push(Projectile {
-                                x: projectile.x,
-                                y: projectile.y,
-                                width: projectile.width,
-                                height: projectile.height,
-                                velocity: projectile.velocity / 2.0, // Reduced velocity for splash projectiles
-                                angle,
-                                damage: projectile.damage / 2, // Reduced damage for splash projectiles
-                                projectile_type: ProjectileType::Fragment,
-                                projectile_owner: ProjectileOwner::Player,
-                                ttl: Some(10),
-                            });
-                        }
-                    }
-                    ProjectileType::Fragment => {
-                        // ...
-                    }
-                    ProjectileType::Laser => {
-                        // ...
-                    }
-                    ProjectileType::Bomb => {
-                        // ...
-                    }
-                }
-            }
-        }
-        return projectile_active;
     });
 
     // Handle collisions between enemy projectiles and the player
@@ -400,29 +295,22 @@ turbo::go!({
             return projectile_active;
         }
         let did_collide = check_collision(
-            projectile.x,
-            projectile.y,
-            projectile.width,
-            projectile.height,
-            state.player.x,
-            state.player.y,
-            state.player.width,
-            state.player.height,
+            projectile.x, projectile.y, projectile.width, projectile.height,
+            state.player.x, state.player.y, state.player.width, state.player.height
         );
         if did_collide {
-            let prev_hp = state.player.health;
-            state.player.health = state.player.health.saturating_sub(projectile.damage);
-            // hit timer is longer on final hit
-            state.hit_timer = if prev_hp > 0 && state.player.health == 0 {
-                240
-            } else {
-                10
-            };
-            projectile_active = false // Remove the projectile on collision
+            if state.player.health != 0{
+                let prev_hp = state.player.health;
+                state.player.health = state.player.health.saturating_sub(projectile.damage);
+                // hit timer is longer on final hit
+                state.hit_timer = if prev_hp > 0 && state.player.health == 0 { 20 } else { 10 };
+                projectile_active = false // Remove the projectile on collision
+            }
         }
 
         projectile_active
     });
+
 
     // Add projectile splashes
     for projectile in splashes {
@@ -443,29 +331,23 @@ turbo::go!({
 
     // Remove expired and out-of-bounds projectiles
     state.projectiles.retain(|projectile| {
-        projectile.ttl.map_or(true, |ttl| ttl > 0)
-            || projectile.y < -(projectile.height as f32)
-            || projectile.x < -(projectile.width as f32)
-            || projectile.x > screen_w as f32
-            || projectile.y > screen_h as f32
+        projectile.ttl.map_or(true, |ttl| ttl > 0) ||
+        projectile.y < -(projectile.height as f32) ||
+        projectile.x < -(projectile.width as f32) ||
+        projectile.x > screen_w as f32 ||
+        projectile.y > screen_h as f32
     });
 
     // Check enemy x player collisions
     state.enemies.retain(|enemy| {
         let did_collide = check_collision(
-            state.player.x,
-            state.player.y,
-            state.player.width,
-            state.player.height,
-            enemy.x,
-            enemy.y,
-            enemy.width,
-            enemy.height,
+            state.player.x, state.player.y, state.player.width, state.player.height,
+            enemy.x, enemy.y, enemy.width, enemy.height
         );
         if did_collide {
             // Collision detected, reduce player health
             state.player.health = state.player.health.saturating_sub(1); // Adjust damage as needed
-                                                                         // return false;
+            // return false;
         }
         return enemy.y < screen_h as f32;
     });
@@ -477,9 +359,7 @@ turbo::go!({
                 enemy.y += enemy.speed;
                 if rand() % (250 / intensity as u32) == 0 {
                     // Calculate angle from enemy to player
-                    let angle = ((state.player.y - enemy.y).atan2(state.player.x - enemy.x)
-                        * 180.0)
-                        / std::f32::consts::PI;
+                    let angle = ((state.player.y - enemy.y).atan2(state.player.x - enemy.x) * 180.0) / std::f32::consts::PI;
 
                     // Create and shoot projectiles from enemy towards the player
                     state.projectiles.push(Projectile {
@@ -496,7 +376,7 @@ turbo::go!({
                         ttl: None,
                     });
                 }
-            }
+            },
             EnemyStrategy::ShootDown(intensity, speed, size) => {
                 // Logic for attacking with specified intensity
                 enemy.y += enemy.speed;
@@ -516,10 +396,10 @@ turbo::go!({
                         ttl: None,
                     });
                 }
-            }
+            },
             EnemyStrategy::MoveDown => {
                 enemy.y += enemy.speed;
-            }
+            },
             EnemyStrategy::RandomZigZag(angle) => {
                 // Logic for dodging attacks, using angle to determine movement
                 enemy.x += enemy.speed * enemy.angle.cos();
@@ -532,37 +412,12 @@ turbo::go!({
                 else if rand() % 20 == 0 {
                     enemy.angle += std::f32::consts::PI / angle; // Change angle
                 }
-            }
-        }
-    }
-
-    if let Some(boss) = &mut state.boss {
-        // Logic for attacking with specified intensity
-        let intensity = 4.0;
-        if rand() % (100 / intensity as u32) == 0 {
-            // Calculate angle from enemy to player
-            let angle = ((state.player.y - boss.enemy.y).atan2(state.player.x - boss.enemy.x)
-                * 180.0)
-                / std::f32::consts::PI;
-
-            // Create and shoot projectiles from enemy towards the player
-            state.projectiles.push(Projectile {
-                x: boss.enemy.x,
-                y: boss.enemy.y,
-                width: 4,
-                height: 4,
-                velocity: intensity * 2.0, // Velocity based on attack intensity
-                angle: angle,
-                damage: intensity as u32, // Damage based on attack intensity
-                projectile_type: ProjectileType::Laser, // Assuming enemy uses Laser
-                projectile_owner: ProjectileOwner::Enemy,
-                ttl: None,
-            });
+            },
         }
     }
 
     // Update power-up positions based on their movement patterns
-    for powerup in &mut state.powerups {
+     for powerup in &mut state.powerups {
         match powerup.movement {
             PowerupMovement::Floating(speed) => {
                 powerup.y += speed;
@@ -570,75 +425,20 @@ turbo::go!({
                 if powerup.y <= 0.0 || powerup.y >= screen_h as f32 {
                     powerup.movement = PowerupMovement::Floating(-speed);
                 }
-            }
+            },
             PowerupMovement::Drifting(speed) => {
                 powerup.x += speed;
                 // Optionally, reverse the direction if it reaches the screen bounds
                 if powerup.x <= 0.0 || powerup.x >= screen_w as f32 {
                     powerup.movement = PowerupMovement::Drifting(-speed);
                 }
-            }
+            },
             PowerupMovement::Static => {
                 // Static powerups do not move
-            }
+            },
         }
     }
 
-    // Check for quest completion
-    if let Some(quest) = &mut state.current_quest {
-        if !quest.completed {
-            match quest.objective {
-                QuestObjective::DefeatBoss => {
-                    if state.boss.as_ref().map_or(false, |b| b.enemy.health == 0) {
-                        quest.completed = true;
-                        let boss = state.boss.as_ref().unwrap();
-                        state
-                            .player
-                            .metrics
-                            .bosses_defeated
-                            .push(boss.boss_type.clone());
-                        state.player.metrics.completed_quests.push(quest.clone());
-                        // Check and update boss-gated unlockables
-                        match boss.boss_type {
-                            BossType::FirstBoss => {
-                                state.unlockables.special_ability = Some(SpecialAbility::Slow);
-                            }
-                        }
-                        state
-                            .notifications
-                            .push(format!("Quest completed: {}", quest.title));
-                    }
-                }
-                QuestObjective::CollectProjectiles(num_projectiles) => {
-                    if state.player.metrics.num_projectiles_collected >= num_projectiles {
-                        quest.completed = true;
-                        state.player.metrics.completed_quests.push(quest.clone());
-                        state
-                            .notifications
-                            .push(format!("Quest completed: {}", quest.title));
-                    }
-                }
-                QuestObjective::DefeatEnemies(num_enemies) => {
-                    if state.player.metrics.num_enemies_defeated >= num_enemies {
-                        quest.completed = true;
-                        state.player.metrics.completed_quests.push(quest.clone());
-                        state
-                            .notifications
-                            .push(format!("Quest completed: {}", quest.title));
-                    }
-                }
-                QuestObjective::SkillPoints(num_skill_points) => {
-                    if state.player.skill_points >= num_skill_points {
-                        quest.completed = true;
-                        state.player.metrics.completed_quests.push(quest.clone());
-                        state
-                            .notifications
-                            .push(format!("Quest completed: {}", quest.title));
-                    }
-                }
-            }
-        }
-    }
 
     // Enable skills
     if state.score > 100 && !state.player.skills.speed_boost {
@@ -662,16 +462,16 @@ turbo::go!({
 
     state.tick += 1;
     state.save();
-});
+}
 
 // Define a function for rendering game elements
 fn draw_game_elements(state: &GameState) {
-    let [screen_w, screen_h] = resolution();
+    let (screen_w, screen_h) = canvas::resolution();
 
     if state.hit_timer > 0 {
-        set_camera(rand() as i32 % 3, rand() as i32 % 3);
+        camera::move_xy(rand() as i32 % 3 - 1, rand() as i32 % 3 - 1);
     } else {
-        set_camera(0, 0);
+        camera::reset();
     }
 
     // Draw moving parallax stars in the background
@@ -698,7 +498,7 @@ fn draw_game_elements(state: &GameState) {
     }
 
     // Reset camera
-    set_camera(0, 0);
+    //canvas::camera::reset();
 
     // Render notifications
     draw_notifications(state, screen_w, screen_h);
@@ -733,7 +533,7 @@ fn draw_stars(state: &GameState, screen_w: u32, screen_h: u32) {
             let y = (state.tick as f32 * speed) as i32 + rand_y as i32 + adjust_y as i32;
 
             // Draw the star
-            circ!(
+            canvas::circ!(
                 x = x % screen_w as i32,
                 y = y % screen_h as i32,
                 d = size,
@@ -741,25 +541,25 @@ fn draw_stars(state: &GameState, screen_w: u32, screen_h: u32) {
             ); // Adjust star size and color if needed
         }
     }
-}
+});
 
 fn draw_player(player: &Player) {
-    rect!(
-        x = player.x,
-        y = player.y,
+    canvas::rect!(
+        x = player.x as i32,
+        y = player.y as i32,
         w = player.width,
         h = player.height,
         color = player.color
     );
     if let Some(accessory) = &player.accessory {
-        sprite!(accessory, x = player.x, y = player.y);
+        canvas::sprite!(accessory, x = player.x as i32, y = player.y as i32);
     }
 }
 
 fn draw_enemy(enemy: &Enemy) {
-    rect!(
-        x = enemy.x,
-        y = enemy.y,
+    canvas::rect!(
+        x = enemy.x as i32,
+        y = enemy.y as i32,
         w = enemy.width,
         h = enemy.height,
         color = 0xaaaaaaff
@@ -768,12 +568,12 @@ fn draw_enemy(enemy: &Enemy) {
 
 fn draw_projectile(projectile: &Projectile) {
     let color = match projectile.projectile_type {
-        ProjectileType::Splatter | ProjectileType::Fragment => 0xff0000ffu32,
+        ProjectileType::Splatter | ProjectileType::Fragment => 0xff0000ff,
         ProjectileType::Basic | ProjectileType::Bomb | ProjectileType::Laser => 0xffff00ff,
     };
-    circ!(
-        x = projectile.x,
-        y = projectile.y,
+    canvas::circ!(
+        x = projectile.x as i32,
+        y = projectile.y as i32,
         d = projectile.width.max(projectile.height),
         color = color
     );
@@ -786,19 +586,19 @@ fn draw_powerup(powerup: &Powerup, tick: u32) {
         y = (powerup.y - (n * 0.5)) as i32,
         d = powerup.width.max(powerup.height) + n as u32,
         color = match powerup.effect {
-            PowerupEffect::Heal => 0x00ff66ffu32,
+            PowerupEffect::Heal => 0x00ff66ff,
             PowerupEffect::MaxHealthUp => 0x00ffffff,
             PowerupEffect::DamageBoost(_) => 0xff0066ff,
             PowerupEffect::SpeedBoost => 0x6600ffff,
         }
     );
-    sprite!("powerup_sprite", x = powerup.x as i32, y = powerup.y as i32);
+    canvas::sprite!("powerup_sprite", x = powerup.x as i32, y = powerup.y as i32);
 }
 
 fn draw_hud(state: &GameState, screen_w: u32) {
     // Drawing the HUD panel
     let hud_height = 16; // Height of the HUD panel
-    rect!(
+    canvas::rect!(
         x = 0,
         y = 0,
         w = screen_w,
@@ -807,9 +607,9 @@ fn draw_hud(state: &GameState, screen_w: u32) {
     ); // Black background for the HUD
 
     // Drawing borders for the HUD section
-    rect!(
+    canvas::rect!(
         x = 0,
-        y = hud_height,
+        y = hud_height as i32,
         w = screen_w,
         h = 1,
         // border = 1,
@@ -818,26 +618,26 @@ fn draw_hud(state: &GameState, screen_w: u32) {
 
     // Displaying game information on the HUD
     let hud_padding = 4; // Padding inside the HUD
-    let text_color = 0xffffffffu32; // White text color
+    let text_color = 0xffffffff; // White text color
 
-    // Display Score
-    let score_text = format!("LVL: 1");
-    text!(
-        &score_text,
+    // Display Level
+    let level_text = format!("LVL: 1");
+    canvas::text!(
+        &level_text,
         x = hud_padding,
         y = hud_padding,
-        font = Font::L,
+        font = "large",
         color = text_color
     );
 
     // Display Health
     let health_text = format!("HP: {}", state.player.health);
     let health_text_x = (screen_w as i32 / 2) - ((health_text.chars().count() as i32 * 8) / 2);
-    text!(
+    canvas::text!(
         &health_text,
         x = health_text_x,
         y = hud_padding,
-        font = Font::L,
+        font = "large",
         color = text_color
     );
 
@@ -845,11 +645,11 @@ fn draw_hud(state: &GameState, screen_w: u32) {
     let skill_points_text = format!("XP: {:0>5}", state.player.skill_points);
     let skill_points_text_x =
         screen_w as i32 - (skill_points_text.chars().count() as i32 * 8) - hud_padding;
-    text!(
+    canvas::text!(
         &skill_points_text,
         x = skill_points_text_x,
         y = hud_padding,
-        font = Font::L,
+        font = "large",
         color = text_color
     );
 }
@@ -860,25 +660,37 @@ fn draw_notifications(state: &GameState, screen_w: u32, screen_h: u32) {
         let len = notif.chars().count();
         let w = len * 5;
         let x = (screen_w as usize / 2) - (w / 2);
-        rect!(w = w + 4, h = 10, x = x - 2, y = 24 - 2, color = 0x22aaaaff);
-        text!(notif, x = x, y = 24, font = Font::M, color = 0xffffffff);
+        canvas::rect!(
+            w = w as u32 + 4,
+            h = 10,
+            x = x as i32 - 2,
+            y = 24 - 2,
+            color = 0x22aaaaff
+        );
+        canvas::text!(
+            notif,
+            x = x as i32,
+            y = 24,
+            font = "medium",
+            color = 0xffffffff
+        );
         break;
     }
 }
 
 fn draw_game_over(state: &GameState, screen_w: u32, screen_h: u32) {
-    text!(
+    canvas::text!(
         "GAME OVER",
-        x = (screen_w / 2) - 32,
-        y = (screen_h / 2) - 4,
-        font = Font::L
+        x = (screen_w as i32 / 2) - 32,
+        y = (screen_h as i32 / 2) - 4,
+        font = "large"
     );
     if state.tick / 4 % 8 < 4 {
-        text!(
+        canvas::text!(
             "PRESS START",
-            x = (screen_w / 2) - 24,
-            y = (screen_h / 2) - 4 + 16,
-            font = Font::M
+            x = (screen_w as i32 / 2) - 24,
+            y = (screen_h as i32 / 2) - 4 + 16,
+            font = "medium"
         );
     }
 }
@@ -928,8 +740,6 @@ struct PlayerMetrics {
     longest_run_seconds: f32,
     num_projectiles_collected: u32,
     num_enemies_defeated: u32,
-    completed_quests: Vec<Quest>,
-    bosses_defeated: Vec<BossType>,
 }
 impl PlayerMetrics {
     pub fn new() -> Self {
@@ -937,8 +747,6 @@ impl PlayerMetrics {
             longest_run_seconds: 0.0,
             num_projectiles_collected: 0,
             num_enemies_defeated: 0,
-            completed_quests: vec![],
-            bosses_defeated: vec![],
         }
     }
 }
@@ -980,18 +788,6 @@ enum ProjectileOwner {
 }
 
 #[derive(Debug, Clone, BorshDeserialize, BorshSerialize, PartialEq)]
-// Struct for Boss that is basically an enemy with a type
-struct Boss {
-    boss_type: BossType,
-    enemy: Enemy,
-}
-
-#[derive(Debug, Copy, Clone, BorshDeserialize, BorshSerialize, PartialEq)]
-enum BossType {
-    FirstBoss,
-}
-
-#[derive(Debug, Clone, BorshDeserialize, BorshSerialize, PartialEq)]
 // Struct for Enemies
 struct Enemy {
     x: f32,
@@ -1006,7 +802,7 @@ struct Enemy {
 }
 impl Enemy {
     pub fn tank() -> Self {
-        let [screen_w, _] = resolution();
+        let (screen_w, _) = canvas::resolution();
         Self {
             x: (rand() % screen_w - 32) as f32,
             y: -32.0,
@@ -1020,7 +816,7 @@ impl Enemy {
         }
     }
     pub fn shooter() -> Self {
-        let [screen_w, _] = resolution();
+        let (screen_w, _) = canvas::resolution();
         Self {
             x: (rand() % screen_w - 16) as f32,
             y: -16.0,
@@ -1034,7 +830,7 @@ impl Enemy {
         }
     }
     pub fn turret() -> Self {
-        let [screen_w, _] = resolution();
+        let (screen_w, _) = canvas::resolution();
         Self {
             x: (rand() % screen_w - 16) as f32,
             y: -8.0,
@@ -1048,7 +844,7 @@ impl Enemy {
         }
     }
     pub fn zipper() -> Self {
-        let [screen_w, _] = resolution();
+        let (screen_w, _) = canvas::resolution();
         Self {
             x: (rand() % screen_w - 16) as f32,
             y: -16.0,
@@ -1062,7 +858,7 @@ impl Enemy {
         }
     }
     pub fn meteor() -> Self {
-        let [screen_w, _] = resolution();
+        let (screen_w, _) = canvas::resolution();
         Self {
             x: (rand() % screen_w - 8) as f32,
             y: -8.0,
@@ -1084,63 +880,6 @@ enum EnemyStrategy {
     ShootDown(f32, f32, u32),    // Moves down. Attacks with given intensity, speed, and size
     MoveDown,                    // Moves down. Nothing fancy
     RandomZigZag(f32),           // Moves in a random zig zag pattern with a given angle
-}
-
-#[derive(Debug, Clone, BorshDeserialize, BorshSerialize, PartialEq)]
-// Struct for Quests in the game
-struct Quest {
-    title: String,
-    description: String,
-    completed: bool,
-    objective: QuestObjective,
-}
-impl Quest {
-    fn defeat_boss(title: &str, description: &str) -> Self {
-        Self {
-            title: title.to_string(),
-            description: description.to_string(),
-            completed: false,
-            objective: QuestObjective::DefeatBoss,
-        }
-    }
-}
-
-#[derive(Debug, Copy, Clone, BorshDeserialize, BorshSerialize, PartialEq)]
-enum QuestObjective {
-    DefeatBoss,              // Defeat the boss
-    DefeatEnemies(u32),      // Number of enemies to defeat
-    CollectProjectiles(u32), // Number of items to collect
-    SkillPoints(u32),        // Number of skill points to obtain
-}
-
-#[derive(Debug, Clone, BorshDeserialize, BorshSerialize, PartialEq)]
-// Struct for Unlockable content
-struct Unlockables {
-    special_ability: Option<SpecialAbility>,
-    extra_levels: Vec<Level>,
-    cosmetic_items: Vec<String>,
-}
-impl Unlockables {
-    fn new() -> Self {
-        Self {
-            special_ability: None,
-            extra_levels: vec![],
-            cosmetic_items: vec![],
-        }
-    }
-}
-
-#[derive(Debug, Copy, Clone, BorshDeserialize, BorshSerialize, PartialEq)]
-enum SpecialAbility {
-    ChainDamage,
-    AutomaticWeapons,
-    Armor(u32),
-    Regen,
-    Vampire,
-    Lucky,
-    Slow,
-    Freeze,
-    Poison,
 }
 
 #[derive(Debug, Clone, BorshDeserialize, BorshSerialize, PartialEq)]
