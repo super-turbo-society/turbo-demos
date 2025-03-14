@@ -25,10 +25,10 @@ turbo::init! {
             height: u32,
         }>
     } = {
-        let (w, h) = canvas::size();
-        let w = w as f32;
-        let h = h as f32;
-        Self {
+        let wh = resolution();
+        let w = wh[0] as f32;
+        let h = wh[1] as f32;
+                Self {
             winner: None,
             tanks: vec![
                 Tank {
