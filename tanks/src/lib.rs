@@ -25,9 +25,9 @@ turbo::init! {
             height: u32,
         }>
     } = {
-        let wh = resolution();
-        let w = wh[0] as f32;
-        let h = wh[1] as f32;
+        let (w, h) = resolution();
+        let w = w as f32;
+        let h = h as f32;        
                 Self {
             winner: None,
             tanks: vec![
