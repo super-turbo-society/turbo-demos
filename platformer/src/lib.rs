@@ -1,12 +1,3 @@
-turbo::cfg! {r#"
-    name = "Platformer"
-    version = "1.0.0"
-    author = "Turbo"
-    description = "A turbo platformer template"
-    [settings]
-    resolution = [384, 216]
-"#}
-
 const TILE_SIZE: i32 = 16;
 const GRAVITY: f32 = 0.6;
 
@@ -204,18 +195,14 @@ impl Player {
                 "kiwi_walking",
                 x = self.x as i32,
                 y = self.y as i32,
-                sw = 16,
                 flip_x = self.is_facing_left,
-                fps = fps::FAST
             );
         } else {
             sprite!(
                 "kiwi_idle",
                 x = self.x as i32,
                 y = self.y as i32,
-                sw = 16,
                 flip_x = self.is_facing_left,
-                fps = fps::MEDIUM
             );
         }
     }
@@ -301,11 +288,6 @@ fn check_collision(player_x: f32, player_y: f32, direction: Direction, tiles: &[
 }
 
 fn center_camera(x: f32, y: f32) {
-    let canvas_width = canvas_size!()[0] as f32;
-    let canvas_height = canvas_size!()[1] as f32;
     //Subtract half the width of the canvas, then add half the size of the player to center the camera
-    set_cam!(
-        x = x - canvas_width / 2. + 8.,
-        y = y - canvas_height / 2. + 8.
-    );
+    canvas::camera::set_xy(x + 8., y + 8.);
 }

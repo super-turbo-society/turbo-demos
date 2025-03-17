@@ -1,0 +1,181 @@
+@font-face {
+  font-family: "04b03";
+  src: url("./04b03.ttf");
+}
+
+* {
+  box-sizing: border-box;
+}
+
+:root {
+  --doc-height: 100vh;
+  --button-size: 40px;
+  --button-font-size: 12px;
+  --start-select-width: 50px;
+  --start-select-height: 20px;
+  --start-select-font-size: 8px;
+  --gamepad-opacity: 0.25;
+}
+
+html, body {
+  touch-action: none;
+  user-select: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  /* align-items: center; */
+  font-family: "04b03", monospace;
+  align-items: flex-start;
+  height: var(--doc-height);
+  max-height: -webkit-fill-available;
+  width: 100vw;
+  margin: 0;
+  background: #202124;
+}
+@media (orientation: portrait) and (hover: none) {
+  html, body {
+    justify-content: flex-start;
+  }
+}
+
+@media (orientation: portrait) and (hover: none) {
+  iframe {
+    width: calc(100% - 32px) !important;
+  }
+}
+
+button {
+  font-family: "04b03", monospace;
+}
+
+#player {
+  position: relative;
+  display: flex;
+  flex: 1;
+  width: 100vw;
+  height: 100%;
+  justify-content: center;
+  align-items: center;
+  background: #202124;
+  user-select: none;
+}
+
+canvas {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain;
+  margin: auto;
+  background-color: #202124;
+  image-rendering: pixelated;
+  outline: none;
+}
+
+p {
+  color: #fff;
+  font-size: 100px;
+}
+
+#virtual-gamepad {
+  position: absolute;
+  bottom: 20px;
+  left: 10px;
+  right: 10px;
+  display: none;
+  max-width: 100vw;
+  height: 120px;
+  margin: auto 20px;
+  z-index: 1;
+  opacity: var(--gamepad-opacity);
+}
+@media (hover: none) {
+  #virtual-gamepad {
+    display: flex;
+  }
+}
+
+#virtual-gamepad button {
+  position: absolute;
+  width: var(--button-size);
+  height: var(--button-size);
+  color: #000;
+  font-size: var(--button-font-size);
+  box-shadow: 0 0 0px 4px #000;
+  background: #fff;
+  user-select: none;
+  padding: 0;
+  transition: transform 0.5s ease;
+}
+
+#virtual-gamepad button:active {
+  transform: translateY(10px) scale(0.9);
+}
+
+#virtual-gamepad button.up,
+#virtual-gamepad button.down,
+#virtual-gamepad button.left,
+#virtual-gamepad button.right {
+  bottom: var(--button-size);
+  left: var(--button-size);
+  border-radius: 10px;
+}
+
+#virtual-gamepad button.up {
+  margin-bottom: var(--button-size);
+}
+
+#virtual-gamepad button.down {
+  margin-bottom: calc(-1 * var(--button-size));
+}
+
+#virtual-gamepad button.left {
+  margin-left: calc(-1 * var(--button-size));
+}
+
+#virtual-gamepad button.right {
+  margin-left: var(--button-size);
+}
+
+#virtual-gamepad button.a,
+#virtual-gamepad button.b,
+#virtual-gamepad button.x,
+#virtual-gamepad button.y {
+  bottom: var(--button-size);
+  right: var(--button-size);
+  border-radius: 100%;
+}
+
+#virtual-gamepad button.a {
+  margin-right: calc(-1 * var(--button-size));
+}
+
+#virtual-gamepad button.b {
+  margin-bottom: calc(-1 * var(--button-size));
+}
+
+#virtual-gamepad button.x {
+  margin-bottom: var(--button-size);
+}
+
+#virtual-gamepad button.y {
+  margin-right: var(--button-size);
+}
+
+#virtual-gamepad button.start,
+#virtual-gamepad button.select {
+  left: 0;
+  right: 0;
+  bottom: 0;
+  margin: auto;
+  border-radius: 24px;
+  width: var(--start-select-width);
+  height: var(--start-select-height);
+  font-size: var(--start-select-font-size);
+}
+
+#virtual-gamepad button.start {
+  left: calc(-1 * var(--start-select-width) + -10px);
+}
+
+#virtual-gamepad button.select {
+  right: calc(-1 * var(--start-select-width) + -10px);
+}

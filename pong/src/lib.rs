@@ -1,12 +1,3 @@
-turbo::cfg! {r#"
-    name = "Pong"
-    version = "1.0.0"
-    author = "Turbo"
-    description = "A simple Pong game"
-    [settings]
-    resolution = [256, 144]
-"#}
-
 turbo::init! {
     struct GameState {
         p1_score: u32,
@@ -25,9 +16,9 @@ turbo::init! {
             radius: f32,
         },
     } = {
-        let res = resolution();
-        let w = res[0] as f32;
-        let h = res[1] as f32;
+        let canvas_size = canvas::size();
+        let w = canvas_size.0 as f32;
+        let h = canvas_size.1 as f32;
         let paddle_height = 32.0;
         let paddle_width = 8.0;
         let ball_radius = 4.0;
@@ -41,14 +32,14 @@ turbo::init! {
     }
 }
 
-turbo::go! ({
+turbo::go!({
     let mut state = GameState::load();
 
     let paddle_speed = 4.0;
 
-    let res = resolution();
-    let screen_w = res[0] as f32;
-    let screen_h = res[1] as f32;
+    let canvas_size = canvas::size();
+    let screen_w = canvas_size.0 as f32;
+    let screen_h = canvas_size.1 as f32;
 
     let gp1 = gamepad(0);
     let gp2 = gamepad(1);
@@ -94,12 +85,13 @@ turbo::go! ({
     }
 
     // Ball collisions with paddles
-    if (state.ball.x - state.ball.radius < state.paddle1.x + 8.0 &&
-        state.ball.y > state.paddle1.y &&
-        state.ball.y < state.paddle1.y + state.paddle1.height) ||
-       (state.ball.x + state.ball.radius > state.paddle2.x &&
-        state.ball.y > state.paddle2.y &&
-        state.ball.y < state.paddle2.y + state.paddle2.height) {
+    if (state.ball.x - state.ball.radius < state.paddle1.x + 8.0
+        && state.ball.y > state.paddle1.y
+        && state.ball.y < state.paddle1.y + state.paddle1.height)
+        || (state.ball.x + state.ball.radius > state.paddle2.x
+            && state.ball.y > state.paddle2.y
+            && state.ball.y < state.paddle2.y + state.paddle2.height)
+    {
         state.ball.velocity_x = -state.ball.velocity_x;
     }
 
@@ -109,29 +101,33 @@ turbo::go! ({
     }
 
     // Draw paddles and ball
-    rect!(
-        x = state.paddle1.x,
-        y = state.paddle1.y,
+    canvas::rect!(
+        x = state.paddle1.x as i32,
+        y = state.paddle1.y as i32,
         w = 8,
-        h = state.paddle1.height,
+        h = state.paddle1.height as u32,
         color = 0xffffffff
     );
-    rect!(
-        x = state.paddle2.x,
-        y = state.paddle2.y,
+    canvas::rect!(
+        x = state.paddle2.x as i32,
+        y = state.paddle2.y as i32,
         w = 8,
-        h = state.paddle2.height,
+        h = state.paddle2.height as u32,
         color = 0xffffffff
     );
-    circ!(
-        x = state.ball.x,
-        y = state.ball.y,
-        d = state.ball.radius,
+    canvas::circ!(
+        x = state.ball.x as i32,
+        y = state.ball.y as i32,
+        d = state.ball.radius as u32,
         color = 0xffffffff
     );
-    text!("P1: {}", state.p1_score; font = Font::L, x = 64);
-    text!("P2: {}", state.p2_score; font = Font::L, x = (screen_w / 2.0) + 64.0);
+    canvas::text!("P1: {}", state.p1_score; font = "large", x = 64);
+    canvas::text!(
+        "P2: {}", state.p2_score;
+        font = "large",
+        x = (screen_w as i32 / 2) + 64
+    );
 
     // Save game state for the next frame
     state.save();
-})
+});
