@@ -1,23 +1,12 @@
 mod state;
 use state::*;
 
-// Define the game configuration
-turbo::cfg! {r#"
-    name = "Bork Runner"
-    version = "1.0.0"
-    author = "Turbo"
-    description = "Infinite runner as a dog with borks and a bat."
-    [settings]
-    resolution = [256, 144]
-"#}
-
 // Define the game state initialization
 turbo::init! {
     struct GameState {
         is_ready: bool,
         dog_x: f32,
         dog_y: f32,
-        tick: u32,
         last_bork: u32,
         bork_rate: u32,
         bork_range: f32,
@@ -48,7 +37,6 @@ impl GameState {
             is_ready: false,
             dog_x: 20.0,
             dog_y: 100.0,
-            tick: 0,
             last_bork: 0,
             bork_rate: 10,
             bork_range: 96.0,
@@ -76,9 +64,11 @@ impl GameState {
 turbo::go!({
     let mut state = GameState::load();
 
+    let t = tick() as u32;
+
     let gp = gamepad(0);
 
-    if !state.is_ready && state.tick >= state.enemy_spawn_rate {
+    if !state.is_ready && t >= state.enemy_spawn_rate {
         state.is_ready = true;
         state.is_jumping = true;
         state.vel_y = -3.;
@@ -86,10 +76,10 @@ turbo::go!({
 
     if state.last_game_over == 0 && state.is_ready {
         // Bork!!!
-        if gp.start.just_released() {
-            if state.tick - state.last_bork >= state.bork_rate && state.energy > 0 {
+        if gp.start.just_released() || pointer().just_pressed() {
+            if t - state.last_bork >= state.bork_rate && state.energy > 0 {
                 state.borks.push(Bork::new(state.dog_x, state.dog_y));
-                state.last_bork = state.tick;
+                state.last_bork = t;
                 state.energy -= 1;
             }
         }
@@ -107,7 +97,7 @@ turbo::go!({
                                                  // state.score += 15; // Increase score for hitting with the bat
                 }
             }
-            state.last_bat_swing = state.tick;
+            state.last_bat_swing = t;
         }
 
         // Physics and jump logic
@@ -141,15 +131,13 @@ turbo::go!({
         if state.last_game_over == 0 {
             if state.dog_y > CANVAS_HEIGHT as f32 || state.dog_y < -DOGE_HEIGHT {
                 state.health = 0;
-                state.last_game_over = state.tick;
+                state.last_game_over = t;
             }
         }
     }
 
     // Increase energy
-    if state.last_game_over == 0
-        && state.tick % state.recharge_rate == 0
-        && state.energy < state.max_energy
+    if state.last_game_over == 0 && t % state.recharge_rate == 0 && state.energy < state.max_energy
     {
         state.energy += 1;
     }
@@ -172,18 +160,15 @@ turbo::go!({
     });
 
     // Spawn and update enemies
-    if state.tick - state.last_enemy_spawn >= state.enemy_spawn_rate {
-        // if rand() % 100 < 2 {
-        let vel_x = -1.0 + ((state.tick / 10) as f32 * -0.01).max(-1.);
+    if t - state.last_enemy_spawn >= state.enemy_spawn_rate {
+        let vel_x = -1.0 + ((t / 10) as f32 * -0.01).max(-1.);
         let modifier = (rand() % 200) as f32 / 100.;
         let vel_x = vel_x * modifier;
-        // let vel_x = vel_x + ((state.enemy_spawn_rate as f32)  + ((rand() % 100) as f32)) / -100.;
         state.enemies.push(Enemy::new(vel_x));
-        state.last_enemy_spawn = state.tick;
-        if state.tick > 60 * 1 && state.enemy_spawn_rate > 30 {
+        state.last_enemy_spawn = t;
+        if t > 60 * 1 && state.enemy_spawn_rate > 30 {
             state.enemy_spawn_rate -= 2;
         }
-        // }
     }
     state.enemies.retain_mut(|enemy| {
         enemy.update();
@@ -196,7 +181,7 @@ turbo::go!({
                 state.health -= 1;
             }
             if state.health == 0 {
-                state.last_game_over = state.tick;
+                state.last_game_over = t;
             }
             enemy.hits += 1; // Mark the enemy as hit
         }
@@ -253,10 +238,6 @@ turbo::go!({
                 // Diagonal movement
                 powerup.x -= 2.0;
                 powerup.y += powerup.vel_y;
-                // Change direction when hitting the screen bounds
-                // if powerup.y <= 0.0 || powerup.y >= CANVAS_HEIGHT.0 {
-                //     powerup.velocity_y = -powerup.velocity_y;
-                // }
                 // Enable multi-bork logic
                 state.can_fire_multiple_borks = true;
             }
@@ -285,17 +266,18 @@ turbo::go!({
 
     // Draw game elements
     clear(0x00ffffff);
+    
+    
     // Draw speed lines
     let line_count = 15; // Number of speed lines
     let max_speed = 25; // Maximum speed of the lines
     let line_width = 128; // Screen width
-
+    
     for i in 0..line_count {
         let speed = (i + 1) as u32 * max_speed / line_count; // Varying speeds for each line
-                                                             // let height = 1 + i; // Varying heights for each line
         let height = 1;
         let y_position = ((i * 28) % 144) as i32; // Vertical position of each line
-        let x_position = (state.tick * speed) as i32 % (512) as i32 - 20; // Moving from right to left
+        let x_position = (t * speed) as i32 % (512) as i32 - 20; // Moving from right to left
         rect!(
             w = line_width,
             h = height,
@@ -307,28 +289,27 @@ turbo::go!({
     if state.last_game_over == 0 {
         let (balloons, doge) = match state.health {
             0 | 1 => ("one_balloon", "doge_worried"),
-            2 => ("two_balloons", "doge"),
-            _ => ("three_balloons", "doge"),
+            2 => ("two_balloons", "doge_worried"),
+            _ => ("three_balloons", "doge_worried"),
         };
-        let fps = if state.vel_y > 0. { 14 } else { 8 };
+        let speed = if state.vel_y > 0. { 1.0 } else { 0.5 };
         sprite!(
             balloons,
             x = state.dog_x - DOGE_WIDTH,
             y = state.dog_y - 16.,
-            fps = fps::SLOW
         );
         sprite!(
             doge,
             x = state.dog_x - DOGE_WIDTH,
             y = state.dog_y,
-            fps = fps
+            animation_speed = speed,
         );
     } else {
         sprite!(
             "sad_doge",
             x = state.dog_x - DOGE_WIDTH,
             y = state.dog_y,
-            fps = fps::FAST
+            animation_speed = 2.0,
         );
     }
     for bork in state.borks.iter() {
@@ -346,50 +327,48 @@ turbo::go!({
     let seconds = if state.last_game_over > 0 {
         state.last_game_over
     } else {
-        state.tick
+        t
     } / 60;
     let minutes = seconds / 60;
     let seconds = seconds % 60;
     let mmss = &format!("{:02}:{:02}", minutes, seconds);
-    text!("time", x = 118, y = 3, color = 0x000000ff, font = Font::S);
-    text!(mmss, x = 108, y = 9, font = Font::L, color = 0x000000aa);
-    text!(mmss, x = 108, y = 8, font = Font::L, color = 0x000000ff);
+    text!("time", x = 118, y = 3, color = 0xff0000ff, font = "small");
+    text!(mmss, x = 108, y = 9, font = "large", color = 0x000000aa);
+    text!(mmss, x = 108, y = 8, font = "large", color = 0x000000ff);
 
     text!(
         "BORK points",
         x = 190,
         y = 3,
         color = 0x000000ff,
-        font = Font::S
+        font = "small"
     );
-    text!("${:06}", state.score; x = 190, y = 9, font = Font::L, color = 0x000000aa);
-    text!("${:06}", state.score; x = 190, y = 8, font = Font::L, color = 0x000000ff);
-    // text!(&format!("Health: {}", state.health), x = 10, y = 20, font = Font::M, color = 0xffffffff);
-    // text!(&format!("Energy: {}", state.energy), x = 10, y = 30, font = Font::M, color = 0xffffffff);
+    text!("${:06}", state.score; x = 190, y = 9, font = "large", color = 0x000000aa);
+    text!("${:06}", state.score; x = 190, y = 8, font = "large", color = 0x000000ff);
 
-    sprite!("energy", x = 4, y = 4);
+    sprite!("energy", x = 4, y = 5);
     let energy_color = match state.energy as f32 / state.max_energy as f32 {
         n if n <= 0.25 => 0xff0000ff,
         n if n <= 0.75 => 0xec8915ff,
         _ => 0x00a0ffff,
     };
-    text!("energy", x = 20, y = 3, color = 0x000000ff, font = Font::S);
+    text!("energy", x = 20, y = 3, color = 0x000000ff, font = "small");
     rect!(
         w = 4 * state.energy,
         h = 6,
         color = energy_color,
         x = 18,
-        y = 9
+        y = 10
     );
 
-    if state.tick < (60 / 2) {
-        text!("3", x = 124, y = 64, font = Font::L, color = 0x000000ff);
-    } else if state.tick < (120 / 2) {
-        text!("2", x = 124, y = 64, font = Font::L, color = 0x000000ff);
-    } else if state.tick < (180 / 2) {
-        text!("1", x = 124, y = 64, font = Font::L, color = 0x000000ff);
-    } else if state.tick < (240 / 2) {
-        text!("GO!", x = 118, y = 64, font = Font::L, color = 0x000000ff);
+    if t < (60 / 2) {
+        text!("3", x = 124, y = 64, font = "large", color = 0x000000ff);
+    } else if t < (120 / 2) {
+        text!("2", x = 124, y = 64, font = "large", color = 0x000000ff);
+    } else if t < (180 / 2) {
+        text!("1", x = 124, y = 64, font = "large", color = 0x000000ff);
+    } else if t < (240 / 2) {
+        text!("GO!", x = 118, y = 64, font = "large", color = 0x000000ff);
     }
 
     // Game over logic
@@ -398,40 +377,39 @@ turbo::go!({
             "GAME OVER",
             x = 90,
             y = 73,
-            font = Font::L,
+            font = "large",
             color = 0x000000aa
         );
         text!(
             "GAME OVER",
             x = 90,
             y = 72,
-            font = Font::L,
+            font = "large",
             color = 0xff0000ff
         );
         // Add logic to restart or exit the game
-        if state.tick - state.last_game_over > 60 {
-            if state.tick / 2 % 32 < 16 {
+        if t - state.last_game_over > 60 {
+            if t / 2 % 32 < 16 {
                 text!(
                     "- press start -",
                     x = 88,
                     y = 84,
-                    font = Font::M,
+                    font = "medium",
                     color = 0x000000aa
                 );
                 text!(
                     "- press start -",
                     x = 88,
                     y = 83,
-                    font = Font::M,
+                    font = "medium",
                     color = 0x000000ff
                 );
             }
-            if gp.start.just_pressed() {
+            if gp.start.just_pressed() || pointer().just_pressed() {
                 state = GameState::new()
             }
         }
     }
 
-    state.tick += 1;
     state.save();
 });

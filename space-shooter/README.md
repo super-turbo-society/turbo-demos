@@ -4,14 +4,14 @@
 
 ## Description
 
-Navigate a spaceship through the depths of space, battling enemies and bosses while dodging and shooting projectiles. Collect power-ups to enhance your ship's abilities and complete quests for rewards. The longer you survive and the more enemies you defeat, the higher your score.
+Navigate a spaceship through the depths of space, battling enemies while dodging and shooting projectiles. Collect power-ups to enhance your ship's abilities. The longer you survive and the more enemies you defeat, the higher your score.
 
 ## Getting Started
 
 From the project directory, run the following command:
 
 ```sh
-turbo-cli run -w .
+turbo run -w .
 ```
 
 ## Walkthrough
@@ -23,7 +23,7 @@ Think of `GameState` as the command center of our game. It's got all the info we
 -   `tick`: This is our game clock. It ticks forward, driving the game's events and timing.
 -   `score`: Your bragging rights! The higher this number, the better you're doing.
 -   `player`: Here's you! This struct has all the details about your spaceship, like health, position, and firepower.
--   `boss`: When it's time for a big challenge, the boss comes into play. This struct holds all the scary details about them.
+them.
 -   `projectiles`: These are all the bullets and beams flying around. The struct keeps track of their positions and who shot them.
 -   `enemies`: These guys are out to get you. The struct tracks all the enemy ships you're up against.
 -   `powerups`: Everyone loves a good power-up! This struct keeps tabs on all the goodies you can pick up to boost your ship.
@@ -39,13 +39,10 @@ turbo::init! {
         score: u32,
         tutorial_active: bool,
         help_messages: Vec<String>,
-        current_quest: Option<Quest>,
         notifications: Vec<String>,
-        unlockables: Unlockables,
 
         // Entities
         player: Player,
-        boss: Option<Boss>,
         projectiles: Vec<Projectile>,
         enemies: Vec<Enemy>,
         powerups: Vec<Powerup>,
@@ -419,13 +416,13 @@ fn draw_hud(state: &GameState, screen_w: u32) {
     let hud_padding = 4; // Padding inside the HUD
     let text_color = 0xffffffff; // White text color
 
-    // Display Score
-    let score_text = format!("LVL: 1");
+    // Display Level
+    let level_text = format!("LVL: 1");
     text!(
-        &score_text,
+        &level_text,
         x = hud_padding,
         y = hud_padding,
-        font = Font::L,
+        font = "large",
         color = text_color
     );
 
@@ -436,7 +433,7 @@ fn draw_hud(state: &GameState, screen_w: u32) {
         &health_text,
         x = health_text_x,
         y = hud_padding,
-        font = Font::L,
+        font = "large",
         color = text_color
     );
 
@@ -448,7 +445,7 @@ fn draw_hud(state: &GameState, screen_w: u32) {
         &skill_points_text,
         x = skill_points_text_x,
         y = hud_padding,
-        font = Font::L,
+        font = "large",
         color = text_color
     );
 }
@@ -456,13 +453,13 @@ fn draw_hud(state: &GameState, screen_w: u32) {
 
 #### Camera Shake
 
-To add impact, when the player is hit, we adjust the camera's x and y position randomly by 3px until the hit timer expires.
+To add impact, when the player is hit, we adjust the camera's x and y position randomly by 1px until the hit timer expires. `rand() as i32 % 3` gives us a number between 0 and 2, so then when we subtract 2 we get a random between -2 and 1
 
 ```rs
 if state.hit_timer > 0 {
-    set_camera(rand() as i32 % 3, rand() as i32 % 3);
+    camera::move_xy(rand() as i32 % 4 - 2, rand() as i32 % 4 - 2);
 } else {
-    set_camera(0, 0);
+    camera::reset();
 }
 ```
 
@@ -476,14 +473,14 @@ fn draw_game_over(state: &GameState, screen_w: u32, screen_h: u32) {
         "GAME OVER",
         x = (screen_w as i32 / 2) - 32,
         y = (screen_h as i32 / 2) - 4,
-        font = Font::L
+        font = "large"
     );
     if state.tick / 4 % 8 < 4 {
         text!(
             "PRESS START",
             x = (screen_w as i32 / 2) - 24,
             y = (screen_h as i32 / 2) - 4 + 16,
-            font = Font::M
+            font = "medium"
         );
     }
 }

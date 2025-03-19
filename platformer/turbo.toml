@@ -1,0 +1,8 @@
+name = "Platformer"
+version = "1.0.0"
+authors = ["Turbo"]
+description = "A Turbo platformer template"
+
+[canvas]
+width = 384
+height = 216

@@ -1,12 +1,3 @@
-turbo::cfg! {r#"
-    name = "Platformer"
-    version = "1.0.0"
-    author = "Turbo"
-    description = "A turbo platformer template"
-    [settings]
-    resolution = [384, 216]
-"#}
-
 const TILE_SIZE: i32 = 16;
 const GRAVITY: f32 = 0.6;
 
@@ -55,7 +46,7 @@ turbo::go!({
     state.player.handle_input();
     state.player.check_collision_tilemap(&state.tiles);
     state.player.update_position();
-    center_camera(state.player.x, state.player.y);
+    camera::focus_rect(state.player.x, state.player.y, 16, 16);
     state.player.draw();
     state.save();
 });
@@ -204,18 +195,14 @@ impl Player {
                 "kiwi_walking",
                 x = self.x as i32,
                 y = self.y as i32,
-                sw = 16,
                 flip_x = self.is_facing_left,
-                fps = fps::FAST
             );
         } else {
             sprite!(
                 "kiwi_idle",
                 x = self.x as i32,
                 y = self.y as i32,
-                sw = 16,
                 flip_x = self.is_facing_left,
-                fps = fps::MEDIUM
             );
         }
     }
@@ -246,7 +233,8 @@ impl Tile {
         let x = self.grid_x as i32 * TILE_SIZE;
         let y = self.grid_y as i32 * TILE_SIZE;
 
-        sprite!("tile", x = x, y = y);
+        // sprite!("tile", x = x, y = y);
+        rect!(w = 16, h = 16, x = x, y = y, color = 0x333333ff);
     }
 }
 
@@ -298,14 +286,4 @@ fn check_collision(player_x: f32, player_y: f32, direction: Direction, tiles: &[
         }
     }
     false
-}
-
-fn center_camera(x: f32, y: f32) {
-    let canvas_width = canvas_size!()[0] as f32;
-    let canvas_height = canvas_size!()[1] as f32;
-    //Subtract half the width of the canvas, then add half the size of the player to center the camera
-    set_cam!(
-        x = x - canvas_width / 2. + 8.,
-        y = y - canvas_height / 2. + 8.
-    );
 }

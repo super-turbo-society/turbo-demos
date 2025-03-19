@@ -1,12 +1,3 @@
-turbo::cfg! {r#"
-    name = "Game of Life"
-    version = "1.0.0"
-    author = "Turbo"
-    description = "Conway's Game of Life Simulation"
-    [settings]
-    resolution = [256, 256]
-"#}
-
 turbo::init! {
     struct GameState {
         grid: Vec<Vec<bool>>,
@@ -28,7 +19,7 @@ turbo::go!({
 
     if gamepad(0).start.just_pressed()
         || gamepad(0).select.just_pressed()
-        || mouse(0).left.just_pressed()
+        || pointer().just_pressed()
     {
         // Randomize grid on A button press
         for row in 0..state.grid.len() {

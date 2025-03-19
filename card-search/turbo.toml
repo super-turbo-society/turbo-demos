@@ -1,0 +1,11 @@
+name = "Card Search"
+version = "1.0.0"
+authors = ["Turbo"]
+description = "A multiplayer game of find the crown"
+
+[canvas]
+width = 132
+height = 224
+
+[turbo-os]
+api-url = "https://os.turbo.computer"

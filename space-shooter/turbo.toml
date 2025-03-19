@@ -1,0 +1,8 @@
+name = "Space Shooter"
+version = "0.1.0"
+authors = ["Turbo"]
+description = "A thrilling projectile combat adventure in space"
+
+[canvas]
+width = 512
+height = 512

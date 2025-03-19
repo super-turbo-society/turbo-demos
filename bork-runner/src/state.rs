@@ -36,13 +36,6 @@ impl Bork {
     // Method to draw the bork
     pub fn draw(&self) {
         sprite!("bork", x = self.x, y = self.y);
-        // rect!(
-        //     x = self.x as i32,
-        //     y = self.y as i32,
-        //     w = BORK_WIDTH as u32,
-        //     h = BORK_HEIGHT as u32,
-        //     color = 0xff0000ff
-        // );
     }
 }
 
@@ -77,14 +70,7 @@ impl Enemy {
 
     // Method to draw the enemy
     pub fn draw(&self) {
-        sprite!("enemy", x = self.x, y = self.y, fps = fps::FAST);
-        // rect!(
-        //     w = ENEMY_WIDTH as u32,
-        //     h = ENEMY_HEIGHT as u32,
-        //     color = if self.hit { 0xff00ffff } else { 0x000000ff },
-        //     x = self.x as i32,
-        //     y = self.y as i32
-        // );
+        sprite!("enemy", x = self.x, y = self.y);
     }
 }
 

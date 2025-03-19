@@ -1,0 +1,8 @@
+name = "Pancake Cat"
+version = "1.0.0"
+authors = ["Turbo"]
+description = "Catch falling pancakes!"
+
+[canvas]
+width = 256
+height = 144

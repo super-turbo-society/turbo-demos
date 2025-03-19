@@ -1,14 +1,3 @@
-// Define the game configuration
-turbo::cfg! {r#"
-    name = "Space Invaders"
-    version = "1.0.0"
-    author = "Turbo"
-    description = "Defend Earth from waves of space invaders!"
-    [settings]
-    resolution = [224, 256]
-"#}
-
-// Define the game state initialization
 turbo::init! {
     struct GameState {
         player_x: f32,
@@ -96,7 +85,7 @@ turbo::go!({
         let mut hit_edge = false;
         if state.tick % state.move_rate == 0 {
             for invader in &mut state.invaders {
-                let canvas_w = canvas_size!()[0] as f32;
+                let canvas_w = 224.0 as f32;
                 invader.x += if invader.moving_right { 2.0 } else { -2.0 };
                 if invader.x + 16.0 >= canvas_w || invader.x < 0. {
                     hit_edge = true;
@@ -162,7 +151,7 @@ turbo::go!({
     }
 
     // Draw the score
-    text!("SCORE: {:0>5}", state.score; x = 10, y = 10, font = Font::L, color = 0xffffffff);
+    text!("SCORE: {:0>5}", state.score; x = 10, y = 10, font = "large", color = 0xffffffff);
 
     if won_game {
         // TODO: draw game over text
@@ -170,7 +159,7 @@ turbo::go!({
             "YOU WIN!",
             x = 80,
             y = 80,
-            font = Font::L,
+            font = "large",
             color = 0xffffffff
         );
     }
@@ -180,7 +169,7 @@ turbo::go!({
             "GAME OVER",
             x = 76,
             y = 80,
-            font = Font::L,
+            font = "large",
             color = 0xffffffff
         );
     }

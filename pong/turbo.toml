@@ -1,0 +1,8 @@
+name = "Pong"
+version = "1.0.0"
+authors = ["Turbo"]
+description = "A simple Pong game"
+
+[canvas]
+width = 256
+height = 144
