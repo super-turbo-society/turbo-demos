@@ -654,7 +654,7 @@ fn draw_hud(state: &GameState, screen_w: u32) {
     );
 }
 
-fn draw_notifications(state: &GameState, screen_w: u32, screen_h: u32) {
+fn draw_notifications(state: &GameState, screen_w: u32, _screen_h: u32) {
     // Render notifications
     for notif in &state.notifications {
         let len = notif.chars().count();
