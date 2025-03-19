@@ -44,7 +44,7 @@ Feel free to run, modify, and use these demos as a starting point for your proje
 
 |                      [Rect Runner](./rectrunner)                      |                      [Space Invaders](./space-invaders)                       |                      [Platformer](./platformer)                       |
 | :-------------------------------------------------------------------: | :---------------------------------------------------------------------------: | :-------------------------------------------------------------------: |
-| [<img width="880" src="./rectrunner/screenshot.png" />](./rectrunner) | [<img width="880" src="./space-invaders/screenshot.png" />](./space-invaders) | [<img width="880" src="./platformer/screenshot.PNG" />](./platformer) |
+| [<img width="880" src="./rectrunner/screenshot.png" />](./rectrunner) | [<img width="880" src="./space-invaders/screenshot.png" />](./space-invaders) | [<img width="880" src="./platformer/screenshot.png" />](./platformer) |
 
 ## Contributing
 
