@@ -38,9 +38,6 @@ turbo::init! {
 }
 
 turbo::go!({
-    if shaders::get().is_empty() {
-        shaders::set("foo");
-    }
     let mut state = GameState::load();
     clear(0xadd8e6ff);
     for t in &mut state.tiles {
