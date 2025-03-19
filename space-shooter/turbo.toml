@@ -1,6 +1,6 @@
 name = "Space Shooter"
 version = "0.1.0"
-author = "Turbo"
+authors = ["Turbo"]
 description = "A thrilling projectile combat adventure in space"
 
 [canvas]

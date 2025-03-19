@@ -16,7 +16,7 @@ turbo::init! {
             radius: f32,
         },
     } = {
-        let canvas_size = canvas::size();
+        let canvas_size = canvas::resolution();
         let w = canvas_size.0 as f32;
         let h = canvas_size.1 as f32;
         let paddle_height = 32.0;
@@ -37,7 +37,7 @@ turbo::go!({
 
     let paddle_speed = 4.0;
 
-    let canvas_size = canvas::size();
+    let canvas_size = canvas::resolution();
     let screen_w = canvas_size.0 as f32;
     let screen_h = canvas_size.1 as f32;
 

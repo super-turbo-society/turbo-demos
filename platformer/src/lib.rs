@@ -46,7 +46,7 @@ turbo::go!({
     state.player.handle_input();
     state.player.check_collision_tilemap(&state.tiles);
     state.player.update_position();
-    center_camera(state.player.x, state.player.y);
+    camera::focus_rect(state.player.x, state.player.y, 16, 16);
     state.player.draw();
     state.save();
 });
@@ -285,9 +285,4 @@ fn check_collision(player_x: f32, player_y: f32, direction: Direction, tiles: &[
         }
     }
     false
-}
-
-fn center_camera(x: f32, y: f32) {
-    //Subtract half the width of the canvas, then add half the size of the player to center the camera
-    camera::set_xy(x + 8., y + 8.);
 }

@@ -1,6 +1,6 @@
 name = "Tanks"
-version = "0.1.0"
-author = "Turbo"
+version = "1.0.0"
+authors = ["Turbo"]
 description = "A 2-Player Tank Battle"
 
 [canvas]

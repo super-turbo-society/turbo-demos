@@ -107,7 +107,11 @@ turbo::go!({
     }
 
     // Draw the cat
-    sprite!("munch_cat", x = state.cat_x - state.cat_r, y = state.cat_y - 16.0);
+    sprite!(
+        "munch_cat",
+        x = state.cat_x - state.cat_r,
+        y = state.cat_y - 16.0
+    );
 
     // Draw the falling pancakes
     for pancake in &state.pancakes {

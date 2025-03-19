@@ -1,7 +1,7 @@
-name = "RectaRunner"
+name = "RectRunner"
 version = "1.0.0"
-author = "Turbo"
-description = "RectaRunner!"
+authors = ["Turbo"]
+description = "RectRunner!"
 
 [canvas]
 width = 256

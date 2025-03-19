@@ -1,7 +1,7 @@
 name = "Platformer"
 version = "1.0.0"
-author = "Turbo"
-description = "A turbo platformer template""
+authors = ["Turbo"]
+description = "A Turbo platformer template"
 
 [canvas]
 width = 384

@@ -8,3 +8,6 @@ turbo = { version = "2.0.0-alpha.11", package = "turbo-genesis-sdk" }
 
 [lib]
 crate-type = ["cdylib"]
+
+[lints.rust]
+unexpected_cfgs = { level = "allow" }

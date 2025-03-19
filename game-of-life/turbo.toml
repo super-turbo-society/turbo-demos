@@ -1,6 +1,6 @@
 name = "Game of Life"
-version = "0.1.0"
-author = "Turbo"
+version = "1.0.0"
+authors = ["Turbo"]
 description = "Conway's Game of Life Simulation"
 
 [canvas]

@@ -1,6 +1,6 @@
 name = "Pong"
-version = "0.1.0"
-author = "Turbo"
+version = "1.0.0"
+authors = ["Turbo"]
 description = "A simple Pong game"
 
 [canvas]
