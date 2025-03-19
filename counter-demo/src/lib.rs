@@ -21,10 +21,12 @@ turbo::go!({
         font = "large",
         color = BUTTON_TEXT_COLOR
     );
-    let m = mouse(0);
+
+    // Store the mouse as a variable
+    let m = pointer();
 
     //subtract 1 if minus button is clicked
-    if m.left.just_pressed() && button_contains_pos(m.position[0], m.position[1], w, h, x, y) {
+    if m.just_pressed() && button_contains_pos(m.x, m.y, w, h, x, y) {
         let delta: i32 = -1;
         let bytes = delta.to_le_bytes();
         os::client::exec("counter", "increment_counter", &bytes);
@@ -42,7 +44,7 @@ turbo::go!({
     );
 
     //add 1 if plus button is clicked
-    if m.left.just_pressed() && button_contains_pos(m.position[0], m.position[1], w, h, x, y) {
+    if m.just_pressed() && button_contains_pos(m.x, m.y, w, h, x, y) {
         let delta: i32 = 1;
         let bytes = delta.to_le_bytes();
         os::client::exec("counter", "increment_counter", &bytes);

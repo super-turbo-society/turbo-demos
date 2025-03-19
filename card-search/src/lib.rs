@@ -24,8 +24,7 @@ turbo::go!({
     //draw the background
     draw_checkerboard();
 
-    let m = mouse(0);
-    let m_pos = (m.position[0], m.position[1]);
+    let m = pointer();
 
     //get the board from the file system.
     state.board = watch_file("card_search", "board")
@@ -38,9 +37,9 @@ turbo::go!({
         Some(b) => {
             let crown_found = is_crown_found(&b);
             for card in &mut b.cards {
-                card.draw(m_pos);
-                if m.left.just_pressed() && !crown_found {
-                    card.on_click(m_pos);
+                card.draw((m.x, m.y));
+                if m.just_pressed() && !crown_found {
+                    card.on_click((m.x, m.y));
                 }
             }
         }

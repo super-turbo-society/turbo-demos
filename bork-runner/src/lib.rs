@@ -76,7 +76,7 @@ turbo::go!({
 
     if state.last_game_over == 0 && state.is_ready {
         // Bork!!!
-        if gp.start.just_released() || mouse(0).left.just_pressed() {
+        if gp.start.just_released() || pointer().just_pressed() {
             if state.tick - state.last_bork >= state.bork_rate && state.energy > 0 {
                 state.borks.push(Bork::new(state.dog_x, state.dog_y));
                 state.last_bork = state.tick;
@@ -415,7 +415,7 @@ turbo::go!({
                     color = 0x000000ff
                 );
             }
-            if gp.start.just_pressed() || mouse(0).left.just_pressed() {
+            if gp.start.just_pressed() || pointer().just_pressed() {
                 state = GameState::new()
             }
         }
