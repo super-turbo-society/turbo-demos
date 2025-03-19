@@ -23,10 +23,10 @@ turbo::go!({
     );
 
     // Store the mouse as a variable
-    let m = pointer();
+    let p = pointer();
 
     //subtract 1 if minus button is clicked
-    if m.just_pressed() && button_contains_pos(m.x, m.y, w, h, x, y) {
+    if p.just_pressed() && button_contains_pos(p.x, p.y, w, h, x, y) {
         let delta: i32 = -1;
         let bytes = delta.to_le_bytes();
         os::client::exec("counter", "increment_counter", &bytes);
@@ -44,7 +44,7 @@ turbo::go!({
     );
 
     //add 1 if plus button is clicked
-    if m.just_pressed() && button_contains_pos(m.x, m.y, w, h, x, y) {
+    if p.just_pressed() && button_contains_pos(p.x, p.y, w, h, x, y) {
         let delta: i32 = 1;
         let bytes = delta.to_le_bytes();
         os::client::exec("counter", "increment_counter", &bytes);

@@ -289,5 +289,5 @@ fn check_collision(player_x: f32, player_y: f32, direction: Direction, tiles: &[
 
 fn center_camera(x: f32, y: f32) {
     //Subtract half the width of the canvas, then add half the size of the player to center the camera
-    canvas::camera::set_xy(x + 8., y + 8.);
+    camera::set_xy(x + 8., y + 8.);
 }

@@ -24,8 +24,12 @@ turbo::go!({
     //draw the background
     draw_checkerboard();
 
-    let m = pointer();
-
+    let p = pointer();
+    if gamepad(0).a.just_pressed() {
+        let c = camera::xy();
+        log!("{:?}", c);
+        camera::reset();
+    }
     //get the board from the file system.
     state.board = watch_file("card_search", "board")
         .data
@@ -37,9 +41,9 @@ turbo::go!({
         Some(b) => {
             let crown_found = is_crown_found(&b);
             for card in &mut b.cards {
-                card.draw((m.x, m.y));
-                if m.just_pressed() && !crown_found {
-                    card.on_click((m.x, m.y));
+                card.draw((p.x, p.y));
+                if p.just_pressed() && !crown_found {
+                    card.on_click((p.x, p.y));
                 }
             }
         }
@@ -207,11 +211,11 @@ impl Card {
             && py <= card_y as i32 + CARD_SIZE.1 as i32
     }
 
-    fn draw(&self, mouse_pos: (i32, i32)) {
+    fn draw(&self, pointer_pos: (i32, i32)) {
         let (x, y) = self.get_position_from_id();
 
         let mut color = CARD_COLOR;
-        if self.is_hovered(mouse_pos) {
+        if self.is_hovered(pointer_pos) {
             color = CARD_HIGHLIGHT;
         }
         if self.is_flipped {

@@ -50,14 +50,14 @@ turbo::go!({
     state.next_grid = temp;
 
     // Drawing
-    canvas::clear(0x000000ff); // Clear screen with black
+    clear(0x000000ff); // Clear screen with black
 
     for y in 0..state.grid.len() {
         for x in 0..state.grid[y].len() {
             if state.grid[y][x] {
                 let x_pos = x as i32 * state.cell_size as i32;
                 let y_pos = y as i32 * state.cell_size as i32;
-                canvas::rect!(
+                rect!(
                     x = x_pos,
                     y = y_pos,
                     w = state.cell_size,
