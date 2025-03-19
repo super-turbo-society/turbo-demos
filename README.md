@@ -1,6 +1,6 @@
 # 🎮 Turbo Demo Games
 
-![chibi kids and a random bunner sitting on the floor with their laptops](./demos-banner.png)
+![Pixelated texture](./banner.gif)
 
 Welcome to the official repository of Turbo Demo Games - a collection of sample games created using the Turbo game engine. These demos are designed to showcase the capabilities of Turbo and provide inspiration for your game development projects.
 
@@ -34,21 +34,17 @@ Feel free to run, modify, and use these demos as a starting point for your proje
 
 ## Demos
 
-| [Game of Life](./game-of-life) | [Pong](./pong) | [Tanks](./tanks) |
-| :-: | :-: | :-: |
-| [<img width="880" src="./game-of-life/screenshot.png" />]("./game-of-life) | [<img width="880" src="./pong/screenshot.png" />](./pong) | [<img width="880" src="./tanks/screenshot.png" />](./tanks) |
+|                       [Game of Life](./game-of-life)                        |                      [Pong](./pong)                       |                      [Tanks](./tanks)                       |
+| :-------------------------------------------------------------------------: | :-------------------------------------------------------: | :---------------------------------------------------------: |
+| [<img width="500" src="./game-of-life/screenshot.png" />]("./game-of-life) | [<img width="880" src="./pong/screenshot.png" />](./pong) | [<img width="880" src="./tanks/screenshot.png" />](./tanks) |
 
-| [Space Shooter](./space-shooter) | [Pancake Cat](./pancake-cat) | [Bork Runner](./bork-runner) |
-| :-: | :-: | :-: |
+|                      [Space Shooter](./space-shooter)                       |                       [Pancake Cat](./pancake-cat)                       |                      [Bork Runner](./bork-runner)                       |
+| :-------------------------------------------------------------------------: | :----------------------------------------------------------------------: | :---------------------------------------------------------------------: |
 | [<img width="880" src="./space-shooter/screenshot.png" />](./space-shooter) | [<img width="880" src="./pancake-cat/screenshot.png" />](./pancake-cat/) | [<img width="880" src="./bork-runner/screenshot.png" />](./bork-runner) |
 
-| [Solana Lumberjack](./solana-lumberjack) | [Space Invaders](./space-invaders) | [dreamland](./dreamland) |
-| :-: | :-: | :-: |
-| [<img width="880" src="./solana-lumberjack/screenshot.png" />](./solana-lumberjack) | [<img width="880" src="./space-invaders/screenshot.png" />](./space-invaders) | [<img width="880" src="./dreamland/screenshot.PNG" />](./dreamland) |
-
-| [Staring at the Sun](./staring-at-the-sun) | | |
-| :-: | :-: | :-: |
-| [<img width="880" src="./staring-at-the-sun/sats.png" />](./staring-at-the-sun) | <img width="880"/>| <img width="880"/>|
+|                      [Rect Runner](./rectrunner)                      |                      [Space Invaders](./space-invaders)                       |                      [Platformer](./platformer)                       |
+| :-------------------------------------------------------------------: | :---------------------------------------------------------------------------: | :-------------------------------------------------------------------: |
+| [<img width="880" src="./rectrunner/screenshot.png" />](./rectrunner) | [<img width="880" src="./space-invaders/screenshot.png" />](./space-invaders) | [<img width="880" src="./platformer/screenshot.PNG" />](./platformer) |
 
 ## Contributing
 

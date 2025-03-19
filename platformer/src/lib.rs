@@ -38,6 +38,9 @@ turbo::init! {
 }
 
 turbo::go!({
+    if shaders::get().is_empty() {
+        shaders::set("foo");
+    }
     let mut state = GameState::load();
     clear(0xadd8e6ff);
     for t in &mut state.tiles {
@@ -233,7 +236,8 @@ impl Tile {
         let x = self.grid_x as i32 * TILE_SIZE;
         let y = self.grid_y as i32 * TILE_SIZE;
 
-        sprite!("tile", x = x, y = y);
+        // sprite!("tile", x = x, y = y);
+        rect!(w = 16, h = 16, x = x, y = y, color = 0x333333ff);
     }
 }
 
