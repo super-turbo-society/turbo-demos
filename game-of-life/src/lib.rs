@@ -19,7 +19,7 @@ turbo::go!({
 
     if gamepad(0).start.just_pressed()
         || gamepad(0).select.just_pressed()
-        || mouse(0).left.just_pressed()
+        || pointer().just_pressed()
     {
         // Randomize grid on A button press
         for row in 0..state.grid.len() {
