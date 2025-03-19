@@ -1,6 +1,6 @@
 name = "Pancake Cat"
 version = "0.1.0"
-author = "Turbo"
+authors = ["Turbo"]
 description = "Catch falling pancakes!"
 
 [canvas]

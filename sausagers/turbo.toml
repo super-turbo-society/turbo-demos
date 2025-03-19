@@ -1,8 +1,0 @@
- name = "Sausagers: The Game"
-version = "1.0.0"
-author = "Sausagers"
-description = "The greatest game in the world"
-
-[canvas]
-width = 256
-height = 387

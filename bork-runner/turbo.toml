@@ -1,6 +1,6 @@
 name = "Bork Runner"
 version = "1.0.0"
-author = "Turbo"
+authors = ["Turbo"]
 description = "Infinite runner as a dog with borks and a bat."
 
 [canvas]

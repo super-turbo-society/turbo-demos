@@ -1,10 +1,11 @@
 name = "Counter"
-    version = "1.0.0"
-    author = "Turbo"
-    description = "Set Up a Counter in Turbo OS"
-    [turbo-os]
-    api-url = "https://os.turbo.computer"
+version = "1.0.0"
+authors = ["Turbo"]
+description = "Set Up a Counter in Turbo OS"
 
 [canvas]
 width = 132
 height = 224
+
+[turbo-os]
+api-url = "https://os.turbo.computer"

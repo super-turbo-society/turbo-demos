@@ -10,4 +10,4 @@ turbo = { version = "2.0.0-alpha.11", package = "turbo-genesis-sdk" }
 crate-type = ["cdylib"]
 
 [lints.rust]
-unexpected_cfgs = { level = "allow", check-cfg = ['cfg(no_run)'] }
+unexpected_cfgs = { level = "allow" }

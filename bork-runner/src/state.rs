@@ -35,7 +35,7 @@ impl Bork {
 
     // Method to draw the bork
     pub fn draw(&self) {
-        canvas::sprite!("bork", x = self.x, y = self.y);
+        sprite!("bork", x = self.x, y = self.y);
     }
 }
 
@@ -70,7 +70,7 @@ impl Enemy {
 
     // Method to draw the enemy
     pub fn draw(&self) {
-        canvas::sprite!("enemy", x = self.x, y = self.y);
+        sprite!("enemy", x = self.x, y = self.y);
     }
 }
 
@@ -97,8 +97,8 @@ impl Powerup {
     pub fn draw(&self) {
         match self.powerup_type {
             PowerupType::DoubleJump => {
-                canvas::sprite!("double_jump", x = self.x, y = self.y);
-                canvas::rect!(
+                sprite!("double_jump", x = self.x, y = self.y);
+                rect!(
                     w = POWERUP_WIDTH,
                     h = POWERUP_HEIGHT,
                     color = 0xff000fff,
@@ -107,8 +107,8 @@ impl Powerup {
                 );
             }
             PowerupType::SpeedBoost => {
-                canvas::sprite!("speed_boost", x = self.x, y = self.y);
-                canvas::rect!(
+                sprite!("speed_boost", x = self.x, y = self.y);
+                rect!(
                     w = POWERUP_WIDTH,
                     h = POWERUP_HEIGHT,
                     color = 0xffff00ff,
@@ -117,8 +117,8 @@ impl Powerup {
                 );
             }
             PowerupType::MultiBork => {
-                canvas::sprite!("multi_bork", x = self.x, y = self.y);
-                canvas::rect!(
+                sprite!("multi_bork", x = self.x, y = self.y);
+                rect!(
                     w = POWERUP_WIDTH,
                     h = POWERUP_HEIGHT,
                     color = 0xff00ffff,
@@ -127,8 +127,8 @@ impl Powerup {
                 );
             }
             PowerupType::Bat => {
-                canvas::sprite!("coin", x = self.x, y = self.y);
-                // canvas::rect!(
+                sprite!("coin", x = self.x, y = self.y);
+                // rect!(
                 //     w = POWERUP_WIDTH as u32,
                 //     h = POWERUP_HEIGHT as u32,
                 //     color = 0x0000ffff,
