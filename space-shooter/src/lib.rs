@@ -22,7 +22,7 @@ turbo::init! {
 
 impl GameState {
     pub fn new() -> Self {
-        let (screen_w, screen_h) = canvas::resolution();
+        let (screen_w, screen_h) = resolution();
         Self {
             // Initialize all fields with default values
             tick: 0,
@@ -73,11 +73,11 @@ turbo::go!({
         let health = state.player.health;
         let xy = (state.player.x, state.player.y);
         let score = state.score;
-        let canvas_size = canvas::resolution();
+        let canvas_size = resolution();
         log!("- Health = {health}\n- Position: {xy:?}\n- Score: {score}\n- Resolution: {canvas_size:?}");
     }
 
-    let (screen_w, screen_h) = canvas::resolution();
+    let (screen_w, screen_h) = resolution();
 
     // Drawing all game elements, including player, enemies, environment, and UI
     draw_game_elements(&state);
@@ -158,7 +158,7 @@ turbo::go!({
             initial_spawn_rate.saturating_sub(state.tick / speed_up_rate)
         );
         if state.player.health > 0 {
-            canvas::text!("spawn rate: {}", spawn_rate; x = 4, y = 22, font = "small");
+            text!("spawn rate: {}", spawn_rate; x = 4, y = 22, font = "small");
         }
         if state.tick % spawn_rate == 0 && state.enemies.len() < 24 {
             state.enemies.push(match rand() % 8 {
@@ -466,7 +466,7 @@ turbo::go!({
 
 // Define a function for rendering game elements
 fn draw_game_elements(state: &GameState) {
-    let (screen_w, screen_h) = canvas::resolution();
+    let (screen_w, screen_h) = resolution();
 
     if state.hit_timer > 0 {
         camera::move_xy(rand() as i32 % 3 - 1, rand() as i32 % 3 - 1);
@@ -498,7 +498,7 @@ fn draw_game_elements(state: &GameState) {
     }
 
     // Reset camera
-    //canvas::camera::reset();
+    //camera::reset();
 
     // Render notifications
     draw_notifications(state, screen_w, screen_h);
@@ -533,7 +533,7 @@ fn draw_stars(state: &GameState, screen_w: u32, screen_h: u32) {
             let y = (state.tick as f32 * speed) as i32 + rand_y as i32 + adjust_y as i32;
 
             // Draw the star
-            canvas::circ!(
+            circ!(
                 x = x % screen_w as i32,
                 y = y % screen_h as i32,
                 d = size,
@@ -544,7 +544,7 @@ fn draw_stars(state: &GameState, screen_w: u32, screen_h: u32) {
 });
 
 fn draw_player(player: &Player) {
-    canvas::rect!(
+    rect!(
         x = player.x as i32,
         y = player.y as i32,
         w = player.width,
@@ -552,12 +552,12 @@ fn draw_player(player: &Player) {
         color = player.color
     );
     if let Some(accessory) = &player.accessory {
-        canvas::sprite!(accessory, x = player.x as i32, y = player.y as i32);
+        sprite!(accessory, x = player.x as i32, y = player.y as i32);
     }
 }
 
 fn draw_enemy(enemy: &Enemy) {
-    canvas::rect!(
+    rect!(
         x = enemy.x as i32,
         y = enemy.y as i32,
         w = enemy.width,
@@ -571,7 +571,7 @@ fn draw_projectile(projectile: &Projectile) {
         ProjectileType::Splatter | ProjectileType::Fragment => 0xff0000ff,
         ProjectileType::Basic | ProjectileType::Bomb | ProjectileType::Laser => 0xffff00ff,
     };
-    canvas::circ!(
+    circ!(
         x = projectile.x as i32,
         y = projectile.y as i32,
         d = projectile.width.max(projectile.height),
@@ -592,13 +592,13 @@ fn draw_powerup(powerup: &Powerup, tick: u32) {
             PowerupEffect::SpeedBoost => 0x6600ffff,
         }
     );
-    canvas::sprite!("powerup_sprite", x = powerup.x as i32, y = powerup.y as i32);
+    sprite!("powerup_sprite", x = powerup.x as i32, y = powerup.y as i32);
 }
 
 fn draw_hud(state: &GameState, screen_w: u32) {
     // Drawing the HUD panel
     let hud_height = 16; // Height of the HUD panel
-    canvas::rect!(
+    rect!(
         x = 0,
         y = 0,
         w = screen_w,
@@ -607,7 +607,7 @@ fn draw_hud(state: &GameState, screen_w: u32) {
     ); // Black background for the HUD
 
     // Drawing borders for the HUD section
-    canvas::rect!(
+    rect!(
         x = 0,
         y = hud_height as i32,
         w = screen_w,
@@ -622,7 +622,7 @@ fn draw_hud(state: &GameState, screen_w: u32) {
 
     // Display Level
     let level_text = format!("LVL: 1");
-    canvas::text!(
+    text!(
         &level_text,
         x = hud_padding,
         y = hud_padding,
@@ -633,7 +633,7 @@ fn draw_hud(state: &GameState, screen_w: u32) {
     // Display Health
     let health_text = format!("HP: {}", state.player.health);
     let health_text_x = (screen_w as i32 / 2) - ((health_text.chars().count() as i32 * 8) / 2);
-    canvas::text!(
+    text!(
         &health_text,
         x = health_text_x,
         y = hud_padding,
@@ -645,7 +645,7 @@ fn draw_hud(state: &GameState, screen_w: u32) {
     let skill_points_text = format!("XP: {:0>5}", state.player.skill_points);
     let skill_points_text_x =
         screen_w as i32 - (skill_points_text.chars().count() as i32 * 8) - hud_padding;
-    canvas::text!(
+    text!(
         &skill_points_text,
         x = skill_points_text_x,
         y = hud_padding,
@@ -660,14 +660,14 @@ fn draw_notifications(state: &GameState, screen_w: u32, screen_h: u32) {
         let len = notif.chars().count();
         let w = len * 5;
         let x = (screen_w as usize / 2) - (w / 2);
-        canvas::rect!(
+        rect!(
             w = w as u32 + 4,
             h = 10,
             x = x as i32 - 2,
             y = 24 - 2,
             color = 0x22aaaaff
         );
-        canvas::text!(
+        text!(
             notif,
             x = x as i32,
             y = 24,
@@ -679,14 +679,14 @@ fn draw_notifications(state: &GameState, screen_w: u32, screen_h: u32) {
 }
 
 fn draw_game_over(state: &GameState, screen_w: u32, screen_h: u32) {
-    canvas::text!(
+    text!(
         "GAME OVER",
         x = (screen_w as i32 / 2) - 32,
         y = (screen_h as i32 / 2) - 4,
         font = "large"
     );
     if state.tick / 4 % 8 < 4 {
-        canvas::text!(
+        text!(
             "PRESS START",
             x = (screen_w as i32 / 2) - 24,
             y = (screen_h as i32 / 2) - 4 + 16,
@@ -802,7 +802,7 @@ struct Enemy {
 }
 impl Enemy {
     pub fn tank() -> Self {
-        let (screen_w, _) = canvas::resolution();
+        let (screen_w, _) = resolution();
         Self {
             x: (rand() % screen_w - 32) as f32,
             y: -32.0,
@@ -816,7 +816,7 @@ impl Enemy {
         }
     }
     pub fn shooter() -> Self {
-        let (screen_w, _) = canvas::resolution();
+        let (screen_w, _) = resolution();
         Self {
             x: (rand() % screen_w - 16) as f32,
             y: -16.0,
@@ -830,7 +830,7 @@ impl Enemy {
         }
     }
     pub fn turret() -> Self {
-        let (screen_w, _) = canvas::resolution();
+        let (screen_w, _) = resolution();
         Self {
             x: (rand() % screen_w - 16) as f32,
             y: -8.0,
@@ -844,7 +844,7 @@ impl Enemy {
         }
     }
     pub fn zipper() -> Self {
-        let (screen_w, _) = canvas::resolution();
+        let (screen_w, _) = resolution();
         Self {
             x: (rand() % screen_w - 16) as f32,
             y: -16.0,
@@ -858,7 +858,7 @@ impl Enemy {
         }
     }
     pub fn meteor() -> Self {
-        let (screen_w, _) = canvas::resolution();
+        let (screen_w, _) = resolution();
         Self {
             x: (rand() % screen_w - 8) as f32,
             y: -8.0,

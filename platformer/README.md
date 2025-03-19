@@ -486,8 +486,8 @@ Lets start by making a function to center the camera at a certain point. This fu
 
 ```rs
 fn center_camera(x: f32, y: f32) {
-    //Subtract half the width of the canvas, then add half the size of the player to center the camera
-    canvas::camera::set_xy(x + 8., y + 8.);
+    // Subtract half the width of the canvas, then add half the size of the player to center the camera
+    camera::set_xy(x + 8., y + 8.);
 }
 ```
 

@@ -16,7 +16,7 @@ turbo::init! {
             radius: f32,
         },
     } = {
-        let canvas_size = canvas::resolution();
+        let canvas_size = resolution();
         let w = canvas_size.0 as f32;
         let h = canvas_size.1 as f32;
         let paddle_height = 32.0;
@@ -37,7 +37,7 @@ turbo::go!({
 
     let paddle_speed = 4.0;
 
-    let canvas_size = canvas::resolution();
+    let canvas_size = resolution();
     let screen_w = canvas_size.0 as f32;
     let screen_h = canvas_size.1 as f32;
 
@@ -101,28 +101,28 @@ turbo::go!({
     }
 
     // Draw paddles and ball
-    canvas::rect!(
+    rect!(
         x = state.paddle1.x as i32,
         y = state.paddle1.y as i32,
         w = 8,
         h = state.paddle1.height as u32,
         color = 0xffffffff
     );
-    canvas::rect!(
+    rect!(
         x = state.paddle2.x as i32,
         y = state.paddle2.y as i32,
         w = 8,
         h = state.paddle2.height as u32,
         color = 0xffffffff
     );
-    canvas::circ!(
+    circ!(
         x = state.ball.x as i32,
         y = state.ball.y as i32,
         d = state.ball.radius as u32,
         color = 0xffffffff
     );
-    canvas::text!("P1: {}", state.p1_score; font = "large", x = 64);
-    canvas::text!(
+    text!("P1: {}", state.p1_score; font = "large", x = 64);
+    text!(
         "P2: {}", state.p2_score;
         font = "large",
         x = (screen_w as i32 / 2) + 64

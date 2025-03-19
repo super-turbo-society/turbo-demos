@@ -418,7 +418,7 @@ fn draw_hud(state: &GameState, screen_w: u32) {
 
     // Display Level
     let level_text = format!("LVL: 1");
-    canvas::text!(
+    text!(
         &level_text,
         x = hud_padding,
         y = hud_padding,

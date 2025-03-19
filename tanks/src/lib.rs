@@ -67,7 +67,7 @@ turbo::go! {
     let mut tank2 = tanks.next().unwrap();
 
     // Draw stuff
-    canvas::rect!(w = 256,h = 144, color = 0x222222ff);
+    rect!(w = 256,h = 144, color = 0x222222ff);
     draw_blocks(&state.blocks);
     draw_tank(&tank1);
     draw_tank(&tank2);
@@ -78,7 +78,7 @@ turbo::go! {
 
     if let Some(winner) = &state.winner {
         // Show winner message
-        canvas::text!("WINNER {:#?}", winner; font = "large");
+        text!("WINNER {:#?}", winner; font = "large");
     } else {
         // Update tanks and check for missile collisions
         update_tank(&gp1, &mut tank1, &state.blocks);
@@ -175,7 +175,7 @@ fn update_tank(gp: &Gamepad<Button>, tank: &mut Tank, blocks: &[Block]) {
 fn draw_tank(tank: &Tank) {
     // Draw tank's missiles
     for missile in &tank.missiles {
-        canvas::rect!(
+        rect!(
             x = (missile.x - 3.) as i32,
             y = (missile.y - 3.) as i32,
             w = 6,
@@ -189,14 +189,14 @@ fn draw_tank(tank: &Tank) {
     let tank_y = tank.y as i32;
 
     // Draw tank body
-    canvas::circ!(x = tank_x - 8, y = tank_y - 8, d = 16, color = tank.color);
+    circ!(x = tank_x - 8, y = tank_y - 8, d = 16, color = tank.color);
 
     // Draw tank turret
     for i in 8..16 {
         let turret_length = i as f32;
         let turret_end_x = tank_x as f32 + turret_length * tank.rot.cos();
         let turret_end_y = tank_y as f32 + turret_length * tank.rot.sin();
-        canvas::rect!(
+        rect!(
             x = (turret_end_x - 2.) as i32,
             y = (turret_end_y - 2.) as i32,
             w = 4,
@@ -208,7 +208,7 @@ fn draw_tank(tank: &Tank) {
 
 fn draw_blocks(blocks: &[Block]) {
     for block in blocks {
-        canvas::rect!(
+        rect!(
             x = block.x as i32,
             y = block.y as i32,
             w = block.width,
