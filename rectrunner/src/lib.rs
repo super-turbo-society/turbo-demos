@@ -1,5 +1,4 @@
 // Define the game configuration
-
 // Define the game state
 turbo::init! {
     struct GameState {
@@ -9,13 +8,14 @@ turbo::init! {
         velocity_y: f32,
         obstacles: Vec<Obstacle>,
         coins: Vec<Coin>,
-        score: u32,
+        score: f32,
         lives: u32,
         is_game_over: bool,
         is_started: bool,
         speed: f32,
         collision_cooldown: u32,
         acceleration: f32,
+        score_acceleration: f32,
         max_speed: f32,
         bg_x: f32,
         fg_x: f32,
@@ -27,13 +27,14 @@ turbo::init! {
             velocity_y: 0.0,
             obstacles: vec![],
             coins: vec![],
-            score: 0,
+            score: 0.0,
             lives: 1,
             is_game_over: false,
             is_started: false,
             speed: 2.0,
             collision_cooldown: 0,
             acceleration: 0.001,
+            score_acceleration: 0.001,
             max_speed: 5.0,
             bg_x: 0.0,
             fg_x: 0.0,
@@ -53,6 +54,8 @@ struct Obstacle {
 struct Coin {
     x: f32,
     y: f32,
+    width: f32,
+    height: f32,
 }
 
 turbo::go!({
@@ -91,13 +94,14 @@ turbo::go!({
                 velocity_y: 0.0,
                 obstacles: vec![],
                 coins: vec![],
-                score: 0,
+                score: 0.0,
                 lives: 1, // Reset lives to three
                 is_game_over: false,
                 is_started: true,
                 speed: 2.0,
                 collision_cooldown: 0,
                 acceleration: 0.001, // Reset acceleration
+                score_acceleration: 0.001,
                 max_speed: 5.0,      // Reset maximum speed
                 bg_x: 0.0,           // Reset background position
                 fg_x: 0.0,           // Reset foreground position
@@ -138,8 +142,8 @@ turbo::go!({
         state.player_y += state.velocity_y;
 
         // Ensure the player stays within the screen bounds
-        if state.player_y < 0.0 {
-            state.player_y = 0.0;
+        if state.player_y < 30.0 {
+            state.player_y = 30.0;
             state.velocity_y = 0.0;
         } else if state.player_y > 144.0 - 10.0 {
             state.player_y = 144.0 - 10.0;
@@ -159,16 +163,17 @@ turbo::go!({
         state.coins.retain(|c| c.x > -5.0);
         // Generate new obstacles with dynamic gap size and more randomness
         if state.frame % 60 == 0 {
-            let height = (rand() % 50 + 20) as f32; // Random height between 20 and 70
+            let height = (rand() % 20 + 20) as f32; // Random height between 20 and 70
 
             // Add more variability to the gap size
             let base_gap = 50.0;
+            let top_variability = 140.0;
             let gap_variability = (rand() % 40 - 20) as f32; // Random variability between -20 and 20
-            let gap = base_gap + (state.score / 100) as f32 + gap_variability;
+            let gap = base_gap + (state.score / 10.0) as f32 + gap_variability;
 
             // Add the top obstacle
             state.obstacles.push(Obstacle {
-                x: 256.0,
+                x: 256.0 + top_variability,
                 y: 144.0 - height,
                 width: 10.0,
                 height,
@@ -188,7 +193,7 @@ turbo::go!({
                 let extra_height = (rand() % 50 + 10) as f32; // Random height between 10 and 60
                 let extra_gap = base_gap + (rand() % 30 - 15) as f32; // Random variability between -15 and 15
                 state.obstacles.push(Obstacle {
-                    x: 256.0 + (rand() % 30 + 20) as f32, // Random x position between 20 and 50
+                    x: 256.0 + top_variability + (rand() % 30 + 60) as f32, 
                     y: 144.0 - extra_height,
                     width: 10.0,
                     height: extra_height,
@@ -208,6 +213,8 @@ turbo::go!({
             state.coins.push(Coin {
                 x: 256.0,
                 y: (rand() % 120) as f32,
+                width: 10.0,
+                height: 10.0,
             });
         }
 
@@ -224,20 +231,21 @@ turbo::go!({
         }
 
         // Check for collisions with obstacles
-        let player_width = 10.0;
-        let player_height = 10.0;
+        let player_width = 12.0;
+        let player_height = 16.0; 
         let mut has_collision = false;
 
         for obstacle in &state.obstacles {
-            if state.player_x < obstacle.x + obstacle.width
-                && state.player_x + player_width > obstacle.x
-                && state.player_y < obstacle.y + obstacle.height
-                && state.player_y + player_height > obstacle.y
+            if state.player_x + 5.0 < obstacle.x + obstacle.width
+                && state.player_x + 5.0 + player_width > obstacle.x
+                && state.player_y - 15.0 < obstacle.y + obstacle.height
+                && state.player_y - 15.0 + player_height > obstacle.y
             {
                 has_collision = true;
                 break;
             }
         }
+        
 
         if has_collision && state.collision_cooldown == 0 {
             if state.lives > 0 {
@@ -259,10 +267,10 @@ turbo::go!({
         // Check for coin collection
         let mut coins_to_remove = Vec::new();
         for (i, coin) in state.coins.iter().enumerate() {
-            if state.player_x < coin.x + 5.0
-                && state.player_x + 10.0 > coin.x
-                && state.player_y < coin.y + 5.0
-                && state.player_y + 10.0 > coin.y
+            if state.player_x + 5.0 < coin.x + coin.width
+                && state.player_x + 5.0 + player_width > coin.x
+                && state.player_y - 15.0 < coin.y + coin.height
+                && state.player_y - 15.0 + player_height > coin.y
             {
                 coins_to_remove.push(i); // Collect the index for removal
                 state.lives += 1; // Increase a life
@@ -273,10 +281,6 @@ turbo::go!({
         for &i in coins_to_remove.iter().rev() {
             state.coins.remove(i);
         }
-
-        // Increase score
-        state.score += 1;
-
         // Gradually increase speed over time, but cap it at maximum speed
         if state.speed < state.max_speed {
             state.speed += state.acceleration;
@@ -284,6 +288,8 @@ turbo::go!({
                 state.speed = state.max_speed;
             }
         }
+
+        state.score += 1.0;
 
         // Clear the screen
         clear(0x00ffffff);
@@ -296,11 +302,20 @@ turbo::go!({
         sprite!("fg_path", x = state.fg_x as i32, y = 120,);
         sprite!("fg_path", x = state.fg_x + 256.0, y = 120,);
 
+        let sprite_x = 5.0;
+        let sprite_y = 25.0;
         // Draw the player
+
         sprite!(
-            "npc_spex",
-            x = state.player_x - 5.0,
-            y = state.player_y - 25.0,
+            "shadow",
+            x = state.player_x - sprite_x,
+            y = 134.0 - sprite_y,
+        );
+
+        sprite!(
+            "npc_spex_shadowless",
+            x = state.player_x - sprite_x,
+            y = state.player_y - sprite_y,
         );
 
         // Draw obstacles
@@ -315,15 +330,19 @@ turbo::go!({
         }
 
         // Draw coins
+
         for coin in &state.coins {
-            circ!(x = coin.x, y = coin.y, d = 5, color = 0xffd700ff);
+            ellipse!(x = coin.x, y = coin.y, w = coin.width, h = coin.height, color = 0xffd700ff);
         }
 
+        // Draw player's collision box
+        //rect!(x = state.player_x + 5.0, y = state.player_y - 15.0, w = player_width, h = player_height, color = 0xffffffff);
+ 
         // Draw the dark background rectangle for the score and lives area
         rect!(x = 0, y = 0, w = 256, h = 20, color = 0x000000ff);
 
         // Draw the score and lives text
-        text!("Score: {}", state.score; x = 10, y = 6, font = "medium", color = 0x00ffffff);
+        text!("Score: {:.0}", state.score; x = 10, y = 6, font = "medium", color = 0x00ffffff);
         text!("Lives: {}", state.lives; x = 175, y = 6, font = "medium", color = 0x00ffffff);
 
         state.frame += 1;
