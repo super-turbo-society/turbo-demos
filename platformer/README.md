@@ -4,7 +4,7 @@
 
 ## Description
 
-A basic platformer template made in Turbo! This tutorial will show you the key building blocks you need to make a 2D platformer style game. 
+A basic platformer template made in Turbo! This tutorial will show you the key building blocks you need to make a 2D platformer style game.
 
 This tutorial is meant for developers with some familiarity with Turbo and Rust. If you haven't made any games in Turbo yet, I'd suggest you first go through this [pancake cat tutorial](https://github.com/super-turbo-society/turbo-demos/tree/main/pancake-cat) or watch the video version [here](https://www.youtube.com/watch?v=q1XirzwOxRM).
 
@@ -41,23 +41,24 @@ turbo run -w
 
 ## Walkthrough
 
-### Game Configuration  
+### Game Configuration
 
-The `turbo::cfg!` macro is used to define metadata and settings for your game.
+The `turbo.toml` is used to define metadata and settings for your game.
 
 - `name, version, author`: Basic information about your game.
 - `description`: A short description of your game.
 - `resolution`: The resolution of the game window.
 
 ```rs
-turbo::cfg! {r#"
-    name = "Platformer"
-    version = "1.0.0"
-    author = "Turbo"
-    description = "A turbo platformer template"
-    [settings]
-    resolution = [384, 216]
-"#} 
+name = "Platformer"
+version = "1.0.0"
+authors = ["Turbo"]
+description = "A Turbo platformer template"
+
+[canvas]
+width = 384
+height = 216
+
 ```
 
 ### Part One: Render the tiles and player
@@ -137,7 +138,7 @@ When we start moving our player in Part 2, we'll use all of the variables in `st
 
 For the tiles, we are going to use a 16x16 grid to determine where they are positioned in the level. The draw position in pixel units is calculated as `grid position * TILE_SIZE`.
 
-Next, we need to add specific instances of the player and tiles to our game state inside of turbo:init. Player can just be a single Player object, since there is only one player in the game, but there will be lots of tiles, so lets put them all into a `Vec<Tile>` 
+Next, we need to add specific instances of the player and tiles to our game state inside of turbo:init. Player can just be a single Player object, since there is only one player in the game, but there will be lots of tiles, so lets put them all into a `Vec<Tile>`
 
 We will also define a constant value for TILE_SIZE, which tells the game that our tiles are 16 pixels wide. We can use a const because we know the size of our tiles will never change.
 
@@ -346,7 +347,7 @@ impl Player {
         } else if gp.right.pressed() {
             self.speed_x += PLAYER_ACCELERATION;
             self.is_facing_left = false;
-        } 
+        }
         //otherwise decelerate
         else {
             if self.speed_x > 0. {
@@ -697,7 +698,7 @@ impl Player {
 ```
 The logic for the proportional jump is to add a minimum jump force when you first press the jump button, and then keep adding more force as you hold it down, until you reach a maximum amount. Save your file and try tapping the jump button lightly. You should see a much smaller jump, compared to if you hold it down.
 
-The logic for coyote time is to isolate the moment the player first runs off a ledge (but without jumping), which we do in the collision check. Once we have that moment, we set coyote time to the maximum value, and then subtract 1 each subsequent frame. As long as coyote time is positive, the player will still have the chance to jump, even though they aren't touching the ground in that frame. 
+The logic for coyote time is to isolate the moment the player first runs off a ledge (but without jumping), which we do in the collision check. Once we have that moment, we set coyote time to the maximum value, and then subtract 1 each subsequent frame. As long as coyote time is positive, the player will still have the chance to jump, even though they aren't touching the ground in that frame.
 
 It can be a little harder to test. If you are having trouble seeing it, try changing the const value for PLAYER_COYOTE_TIMER_DUR to something higher. That should make it easier to see it in action.
 
