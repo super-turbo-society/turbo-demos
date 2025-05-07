@@ -35,7 +35,7 @@ turbo::init! {
             collision_cooldown: 0,
             acceleration: 0.001,
             score_acceleration: 0.001,
-            max_speed: 5.0,
+            max_speed: 2.0,
             bg_x: 0.0,
             fg_x: 0.0,
         }
@@ -161,63 +161,46 @@ turbo::go!({
         // Remove off-screen obstacles and coins
         state.obstacles.retain(|o| o.x + o.width > 0.0);
         state.coins.retain(|c| c.x > -5.0);
-        // Generate new obstacles with dynamic gap size and more randomness
+
         if state.frame % 60 == 0 {
-            let height = (rand() % 20 + 20) as f32; // Random height between 20 and 70
-
-            // Add more variability to the gap size
-            let base_gap = 50.0;
-            let top_variability = 140.0;
-            let gap_variability = (rand() % 40 - 20) as f32; // Random variability between -20 and 20
-            let gap = base_gap + (state.score / 10.0) as f32 + gap_variability;
-
-            // Add the top obstacle
-            state.obstacles.push(Obstacle {
-                x: 256.0 + top_variability,
-                y: 144.0 - height,
-                width: 10.0,
-                height,
-            });
-
-            // Add the bottom obstacle
+            // Favor gap size of 50 with small variation
+            let base_gap = 50.0f32;
+            let gap_variation = (rand() % 11) as f32 - 5.0; // -5.0 to +5.0
+            let gap_size = (base_gap + gap_variation).clamp(40.0, 60.0);
+        
+            let min_gap_y = 40.0f32;
+            let max_gap_y = 144.0 - gap_size - 45.0;
+        
+            let gap_y_range = (max_gap_y - min_gap_y).max(1.0) as u32;
+            let gap_y = (rand() % gap_y_range + min_gap_y as u32) as f32;
+        
+            // Bottom obstacle
             state.obstacles.push(Obstacle {
                 x: 256.0,
                 y: 0.0,
                 width: 10.0,
-                height: 144.0 - height - gap,
+                height: gap_y,
             });
-
-            // Randomly generate an additional obstacle for more unpredictability
-            if rand() % 10 < 3 {
-                // 30% chance to add an additional obstacle
-                let extra_height = (rand() % 50 + 10) as f32; // Random height between 10 and 60
-                let extra_gap = base_gap + (rand() % 30 - 15) as f32; // Random variability between -15 and 15
-                state.obstacles.push(Obstacle {
-                    x: 256.0 + top_variability + (rand() % 30 + 60) as f32, 
-                    y: 144.0 - extra_height,
+        
+            // Top obstacle
+            state.obstacles.push(Obstacle {
+                x: 256.0,
+                y: gap_y + gap_size,
+                width: 10.0,
+                height: 144.0 - (gap_y + gap_size),
+            });
+        
+            if state.frame % 320 == 0 {
+                state.coins.push(Coin {
+                    x: 256.0,
+                    y: gap_y + (gap_size / 2.0) - 5.0,
                     width: 10.0,
-                    height: extra_height,
-                });
-                state.obstacles.push(Obstacle {
-                    x: 256.0 + (rand() % 30 + 20) as f32,
-                    y: 0.0,
-                    width: 10.0,
-                    height: 144.0 - extra_height - extra_gap,
+                    height: 10.0,
                 });
             }
         }
-
-        // Generate new coins less frequently
-        if state.frame % 300 == 0 {
-            // Adjust the frequency here
-            state.coins.push(Coin {
-                x: 256.0,
-                y: (rand() % 120) as f32,
-                width: 10.0,
-                height: 10.0,
-            });
-        }
-
+        
+                     
         // Update background and foreground positions
         state.bg_x -= state.speed * 0.5;
         state.fg_x -= state.speed;
@@ -337,7 +320,17 @@ turbo::go!({
 
         // Draw player's collision box
         //rect!(x = state.player_x + 5.0, y = state.player_y - 15.0, w = player_width, h = player_height, color = 0xffffffff);
- 
+        
+        // Debug: show max bottom platform (gap near top)
+        // let max_gap_size = 40.0; // Smallest possible gap
+        // let max_bottom = 144.0 - max_gap_size - 45.0;
+        // rect!(x = 150, y = 0.0, w = 10.0, h = max_bottom, color = 0xff000088);
+
+        // // Debug: show max top platform (gap near bottom)
+        // let gap_y_low = 60.0;
+        // let max_top = 144.0 - (gap_y_low + max_gap_size);
+        // rect!(x = 170, y = gap_y_low + max_gap_size, w = 10.0, h = max_top, color = 0x0000ff88);
+
         // Draw the dark background rectangle for the score and lives area
         rect!(x = 0, y = 0, w = 256, h = 20, color = 0x000000ff);
 
