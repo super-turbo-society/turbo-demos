@@ -43,6 +43,7 @@ turbo::go!({
     for t in &mut state.tiles {
         t.draw();
     }
+
     state.player.handle_input();
     state.player.check_collision_tilemap(&state.tiles);
     state.player.update_position();

@@ -22,17 +22,18 @@ turbo::go!({
         color = BUTTON_TEXT_COLOR
     );
 
-    // Store the mouse as a variable
-    let p = pointer();
 
-    //subtract 1 if minus button is clicked
-    if p.just_pressed() && button_contains_pos(p.x, p.y, w, h, x, y) {
+    // Store the pointer struct once
+    let pointer = pointer();
+
+    // subtract 1 if minus button is clicked
+    if pointer.just_pressed() && pointer.intersects(x, y, w, h) {
         let delta: i32 = -1;
         let bytes = delta.to_le_bytes();
         os::client::exec("counter", "increment_counter", &bytes);
     }
 
-    //draw the plus button
+    // draw the plus button
     let (x, y) = (82, 180);
     draw_button(w, h, x, y);
     text!(
@@ -43,12 +44,13 @@ turbo::go!({
         color = BUTTON_TEXT_COLOR
     );
 
-    //add 1 if plus button is clicked
-    if p.just_pressed() && button_contains_pos(p.x, p.y, w, h, x, y) {
+    // add 1 if plus button is clicked
+    if pointer.just_pressed() && pointer.intersects(x, y, w, h) {
         let delta: i32 = 1;
         let bytes = delta.to_le_bytes();
         os::client::exec("counter", "increment_counter", &bytes);
     }
+
 
     //draw texts on top of screen
     let userid = os::client::user_id();
@@ -95,10 +97,6 @@ fn draw_button(w: i32, h: i32, x: i32, y: i32) {
         color = BUTTON_COLOR,
         border_radius = 2
     );
-}
-
-fn button_contains_pos(px: i32, py: i32, w: i32, h: i32, x: i32, y: i32) -> bool {
-    px >= x && px <= x + w && py >= y && py <= y + h
 }
 
 #[export_name = "turbo/increment_counter"]
