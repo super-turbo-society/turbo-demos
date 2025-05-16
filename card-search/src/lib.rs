@@ -24,30 +24,33 @@ turbo::go!({
     //draw the background
     draw_checkerboard();
 
-    let p = pointer();
+
+    let pointer = pointer(); 
+    let (x, y) = pointer.xy(); 
+
     if gamepad(0).a.just_pressed() {
         let c = camera::xy();
         log!("{:?}", c);
         camera::reset();
     }
-    //get the board from the file system.
+
     state.board = watch_file("card_search", "board")
         .data
-        .and_then(|file| Board::try_from_slice(&file.contents).ok()); //deserialize the board
+        .and_then(|file| Board::try_from_slice(&file.contents).ok());
 
-    //if we have a board, draw the cards and handle any clicks
     match &mut state.board {
         None => {}
         Some(b) => {
             let crown_found = is_crown_found(&b);
             for card in &mut b.cards {
-                card.draw((p.x, p.y));
-                if p.just_pressed() && !crown_found {
-                    card.on_click((p.x, p.y));
+                card.draw((x, y));
+                if pointer.just_pressed() && !crown_found {
+                    card.on_click((x, y));
                 }
             }
         }
     }
+
 
     //Watch for alerts
     if let Some(event) = os::client::watch_events("card_search", Some("alert")).data {
