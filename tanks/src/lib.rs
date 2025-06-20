@@ -44,13 +44,13 @@ impl GameState {
         }
     }
     fn update(&mut self) {
-        let mut tanks = state.tanks.iter_mut();
+        let mut tanks = self.tanks.iter_mut();
         let mut tank1 = tanks.next().unwrap();
         let mut tank2 = tanks.next().unwrap();
 
         // Draw stuff
         rect!(w = 256, h = 144, color = 0x222222ff);
-        draw_blocks(&state.blocks);
+        draw_blocks(&self.blocks);
         draw_tank(&tank1);
         draw_tank(&tank2);
 
@@ -58,16 +58,16 @@ impl GameState {
         let gp1 = gamepad(0);
         let gp2 = gamepad(1);
 
-        if let Some(winner) = &state.winner {
+        if let Some(winner) = &self.winner {
             // Show winner message
             text!("WINNER {:#?}", winner; font = "large");
         } else {
             // Update tanks and check for missile collisions
-            update_tank(&gp1, &mut tank1, &state.blocks);
-            update_tank(&gp2, &mut tank2, &state.blocks);
+            update_tank(&gp1, &mut tank1, &self.blocks);
+            update_tank(&gp2, &mut tank2, &self.blocks);
             let tank1_got_hit = did_hit_missile(&tank1, &tank2.missiles);
             let tank2_got_hit = did_hit_missile(&tank2, &tank1.missiles);
-            state.winner = match (tank1_got_hit, tank2_got_hit) {
+            self.winner = match (tank1_got_hit, tank2_got_hit) {
                 (false, false) => None,
                 (true, true) => Some(Winner::Draw),
                 (true, false) => Some(Winner::P2),
