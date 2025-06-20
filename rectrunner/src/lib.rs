@@ -1,5 +1,7 @@
 use turbo::{
-    borsh::BorshDeserialize, canvas::{circ, clear, rect, sprite, text}, input::gamepad, sys::rand
+    canvas::{circ, clear, rect, sprite, text},
+    input::gamepad,
+    sys::rand,
 };
 
 #[turbo::game]
@@ -70,7 +72,7 @@ impl GameState {
             // Check for restart input
             if input.start.pressed() {
                 // Reset the game state
-                self = &mut GameState {
+                *self = GameState {
                     frame: 0,
                     player_x: 30.0,
                     player_y: 10.0,
@@ -317,7 +319,7 @@ impl GameState {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, BorshDeserialize, BorshSerialize)]
+#[derive(Debug, Clone, PartialEq)]
 struct Obstacle {
     x: f32,
     y: f32,
@@ -325,7 +327,7 @@ struct Obstacle {
     height: f32,
 }
 
-#[derive(Debug, Clone, PartialEq, BorshDeserialize, BorshSerialize)]
+#[derive(Debug, Clone, PartialEq)]
 struct Coin {
     x: f32,
     y: f32,
