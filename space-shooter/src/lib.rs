@@ -81,7 +81,7 @@ impl GameState {
             // Restart
             if self.hit_timer == 0 && gamepad(0).start.just_pressed() || gamepad(0).a.just_pressed()
             {
-                self = &mut GameState::new(); // running into an error here I cant solve
+                self = GameState::new(); // running into an error here I cant solve
             }
         } else {
             // Player movement handling
