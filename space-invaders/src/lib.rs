@@ -1,25 +1,30 @@
-turbo::init! {
-    struct GameState {
-        player_x: f32,
-        player_y: f32,
-        invaders: Vec<struct Invader {
-            x: f32,
-            y: f32,
-            moving_right: bool,
-            sprites: [String; 2],
-        }>,
-        bullets: Vec<struct Bullet {
-            x: f32,
-            y: f32,
-        }>,
-        invader_direction_change: bool,
-        score: u32,
-        game_over: bool,
-        tick: usize,
-        move_rate: usize,
-    } = {
-        GameState::new()
-    }
+use turbo::{
+    canvas::{rect, sprite, text},
+    input::gamepad,
+};
+
+struct Invader {
+    x: f32,
+    y: f32,
+    moving_right: bool,
+    sprites: [String; 2],
+}
+
+struct Bullet {
+    x: f32,
+    y: f32,
+}
+
+#[turbo::game]
+struct GameState {
+    player_x: f32,
+    player_y: f32,
+    invaders: Vec<Invader>,
+    bullets: Vec<Bullet>,
+    score: u32,
+    game_over: bool,
+    tick: usize,
+    move_rate: usize,
 }
 
 impl GameState {
@@ -43,138 +48,132 @@ impl GameState {
                 })
                 .collect(),
             bullets: vec![],
-            invader_direction_change: false,
             score: 0,
             game_over: false,
             tick: 0,
             move_rate: 10,
         }
     }
+    fn update(&mut self) {
+        let won_game = self.invaders.is_empty();
+        let lost_game = self.game_over;
+
+        // Handle player input
+        if !lost_game && !won_game {
+            if gamepad(0).left.pressed() {
+                self.player_x -= 2.0;
+            }
+            if gamepad(0).right.pressed() {
+                self.player_x += 2.0;
+            }
+            if gamepad(0).a.just_pressed() || gamepad(0).start.just_pressed() {
+                // Fire a bullet
+                self.bullets.push(Bullet {
+                    x: self.player_x,
+                    y: self.player_y, // Starting from the player's position
+                });
+            }
+
+            // Update bullet positions
+            self.bullets.retain_mut(|bullet| {
+                bullet.y -= 4.0; // Move the bullet upwards
+                bullet.y > 0.0 // Keep the bullet if it's within the screen bounds
+            });
+
+            // Move invaders and check for direction change
+            let mut hit_edge = false;
+            if self.tick % self.move_rate == 0 {
+                for invader in &mut self.invaders {
+                    let canvas_w = 224.0 as f32;
+                    invader.x += if invader.moving_right { 2.0 } else { -2.0 };
+                    if invader.x + 16.0 >= canvas_w || invader.x < 0. {
+                        hit_edge = true;
+                    }
+                    if invader.y >= self.player_y {
+                        self.game_over = true;
+                        break;
+                    }
+                }
+            }
+
+            // Increase move rate every 10s
+            if self.tick % 600 == 0 {
+                let increase = 1; // 6 frames (game runs at 60 frames per second).
+                let minimum = 1; // This is the smallest frame delay between movement.
+                self.move_rate = self.move_rate.saturating_sub(increase).max(minimum);
+            }
+
+            if hit_edge {
+                for invader in &mut self.invaders {
+                    invader.y += 8.0; // Move down 8px when hitting the screen edge
+                    invader.moving_right = !invader.moving_right; // Change direction
+                }
+            }
+
+            // Check for bullet collisions with invaders
+            self.bullets.retain_mut(|bullet| {
+                let mut bullet_hit = false;
+                self.invaders.retain_mut(|invader| {
+                    let did_hit = bullet.x < invader.x + 16.0
+                        && bullet.x + 2.0 > invader.x
+                        && bullet.y < invader.y + 8.0
+                        && bullet.y + 2.0 > invader.y;
+                    bullet_hit = bullet_hit || did_hit;
+                    if did_hit {
+                        self.score += 1; // Increase score for hitting an invader
+                    }
+                    !did_hit
+                });
+                !bullet_hit // Keep the bullet if it didn't hit an invader
+            });
+        } else {
+            if gamepad(0).a.just_pressed() || gamepad(0).start.just_pressed() {
+                // Reset game
+                GameState::new();
+            }
+        }
+
+        // Draw the player
+        sprite!("player", x = self.player_x - 8.0, y = self.player_y);
+
+        // Draw the invaders
+        for invader in &self.invaders {
+            // Change sprite every .5s
+            let sprite_index = if self.tick % 60 < 30 { 0 } else { 1 };
+            let sprite_name = &invader.sprites[sprite_index];
+            sprite!(sprite_name, x = invader.x, y = invader.y);
+        }
+
+        // Draw the bullets
+        for bullet in &self.bullets {
+            rect!(x = bullet.x, y = bullet.y, w = 2, h = 2, color = 0xffffffff);
+        }
+
+        // Draw the score
+        text!("SCORE: {:0>5}", self.score; x = 10, y = 10, font = "large", color = 0xffffffff);
+
+        if won_game {
+            // TODO: draw game over text
+            text!(
+                "YOU WIN!",
+                x = 80,
+                y = 80,
+                font = "large",
+                color = 0xffffffff
+            );
+        }
+        if lost_game {
+            // TODO: draw game over text
+            text!(
+                "GAME OVER",
+                x = 76,
+                y = 80,
+                font = "large",
+                color = 0xffffffff
+            );
+        }
+
+        // Save game state for the next frame
+        self.tick += 1;
+    }
 }
-
-// Implement the game loop
-turbo::go!({
-    let mut state = GameState::load();
-
-    let won_game = state.invaders.is_empty();
-    let lost_game = state.game_over;
-
-    // Handle player input
-    if !lost_game && !won_game {
-        if gamepad(0).left.pressed() {
-            state.player_x -= 2.0;
-        }
-        if gamepad(0).right.pressed() {
-            state.player_x += 2.0;
-        }
-        if gamepad(0).a.just_pressed() || gamepad(0).start.just_pressed() {
-            // Fire a bullet
-            state.bullets.push(Bullet {
-                x: state.player_x,
-                y: state.player_y, // Starting from the player's position
-            });
-        }
-
-        // Update bullet positions
-        state.bullets.retain_mut(|bullet| {
-            bullet.y -= 4.0; // Move the bullet upwards
-            bullet.y > 0.0 // Keep the bullet if it's within the screen bounds
-        });
-
-        // Move invaders and check for direction change
-        let mut hit_edge = false;
-        if state.tick % state.move_rate == 0 {
-            for invader in &mut state.invaders {
-                let canvas_w = 224.0 as f32;
-                invader.x += if invader.moving_right { 2.0 } else { -2.0 };
-                if invader.x + 16.0 >= canvas_w || invader.x < 0. {
-                    hit_edge = true;
-                }
-                if invader.y >= state.player_y {
-                    state.game_over = true;
-                    break;
-                }
-            }
-        }
-
-        // Increase move rate every 10s
-        if state.tick % 600 == 0 {
-            let increase = 1; // 6 frames (game runs at 60 frames per second).
-            let minimum = 1; // This is the smallest frame delay between movement.
-            state.move_rate = state.move_rate.saturating_sub(increase).max(minimum);
-        }
-
-        if hit_edge {
-            for invader in &mut state.invaders {
-                invader.y += 8.0; // Move down 8px when hitting the screen edge
-                invader.moving_right = !invader.moving_right; // Change direction
-            }
-        }
-
-        // Check for bullet collisions with invaders
-        state.bullets.retain_mut(|bullet| {
-            let mut bullet_hit = false;
-            state.invaders.retain_mut(|invader| {
-                let did_hit = bullet.x < invader.x + 16.0
-                    && bullet.x + 2.0 > invader.x
-                    && bullet.y < invader.y + 8.0
-                    && bullet.y + 2.0 > invader.y;
-                bullet_hit = bullet_hit || did_hit;
-                if did_hit {
-                    state.score += 1; // Increase score for hitting an invader
-                }
-                !did_hit
-            });
-            !bullet_hit // Keep the bullet if it didn't hit an invader
-        });
-    } else {
-        if gamepad(0).a.just_pressed() || gamepad(0).start.just_pressed() {
-            // Reset game
-            state = GameState::new();
-        }
-    }
-
-    // Draw the player
-    sprite!("player", x = state.player_x - 8.0, y = state.player_y);
-
-    // Draw the invaders
-    for invader in &state.invaders {
-        // Change sprite every .5s
-        let sprite_index = if state.tick % 60 < 30 { 0 } else { 1 };
-        let sprite_name = &invader.sprites[sprite_index];
-        sprite!(sprite_name, x = invader.x, y = invader.y);
-    }
-
-    // Draw the bullets
-    for bullet in &state.bullets {
-        rect!(x = bullet.x, y = bullet.y, w = 2, h = 2, color = 0xffffffff);
-    }
-
-    // Draw the score
-    text!("SCORE: {:0>5}", state.score; x = 10, y = 10, font = "large", color = 0xffffffff);
-
-    if won_game {
-        // TODO: draw game over text
-        text!(
-            "YOU WIN!",
-            x = 80,
-            y = 80,
-            font = "large",
-            color = 0xffffffff
-        );
-    }
-    if lost_game {
-        // TODO: draw game over text
-        text!(
-            "GAME OVER",
-            x = 76,
-            y = 80,
-            font = "large",
-            color = 0xffffffff
-        );
-    }
-
-    // Save game state for the next frame
-    state.tick += 1;
-    state.save();
-});

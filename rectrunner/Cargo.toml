@@ -4,6 +4,7 @@ version = "1.0.0"
 edition = "2021"
 
 [dependencies]
+borsh = "1.5.7"
 turbo = { version = "^3.0.0", package = "turbo-genesis-sdk" }
 
 [lib]
