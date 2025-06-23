@@ -1,8 +1,6 @@
-use turbo::{
-    canvas::{rect, sprite, text},
-    input::gamepad,
-};
+use turbo::prelude::*;
 
+#[derive(BorshDeserialize, BorshSerialize)]
 struct Invader {
     x: f32,
     y: f32,
@@ -10,11 +8,13 @@ struct Invader {
     sprites: [String; 2],
 }
 
+#[derive(BorshDeserialize, BorshSerialize)]
 struct Bullet {
     x: f32,
     y: f32,
 }
 
+#[derive(BorshDeserialize, BorshSerialize)]
 #[turbo::game]
 struct GameState {
     player_x: f32,
