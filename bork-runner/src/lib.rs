@@ -1,10 +1,4 @@
-mod state;
-use state::*;
-use turbo::{
-    canvas::{clear, rect, sprite, text},
-    input::{gamepad, pointer},
-    sys::{rand, tick},
-};
+use turbo::prelude::*;
 
 #[turbo::game]
 struct GameState {
