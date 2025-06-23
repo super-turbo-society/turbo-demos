@@ -1,10 +1,4 @@
-use turbo::{
-    canvas::{camera, rect},
-    input::{gamepad, pointer},
-    log, os,
-    sys::time,
-};
-use turbo_genesis_sdk::prelude::{BorshDeserialize, BorshSerialize};
+use turbo::{os::client::watch_file, prelude::*};
 
 const BOARD_SIZE: u8 = 16;
 const CARD_SIZE: (u8, u8) = (16, 24);
@@ -15,6 +9,7 @@ const CARD_COLOR: u32 = 0x1E3A8Aff;
 const CARD_HIGHLIGHT: u32 = 0x2563EBff;
 const CARD_FLIPPED_COLOR: u32 = 0xF0F0F0ff;
 
+#[derive(BorshDeserialize, BorshSerialize)]
 #[turbo::game]
 struct GameState {
     board: Option<Board>,
