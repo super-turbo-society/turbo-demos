@@ -1,9 +1,6 @@
-use turbo::{
-    canvas::{clear, rect},
-    input::{gamepad, pointer},
-    sys::rand,
-};
+use turbo::prelude::*;
 
+#[derive(BorshDeserialize, BorshSerialize)]
 #[turbo::game]
 struct GameState {
     grid: Vec<Vec<bool>>,
