@@ -1,8 +1,4 @@
-use turbo::{
-    canvas::{clear, rect, text},
-    os,
-};
-use turbo_genesis_sdk::prelude::BorshDeserialize;
+use turbo::prelude::*;
 
 //colors
 const BACKGROUND_COLOR: u32 = 0x2B2B2Bff;
@@ -12,10 +8,13 @@ const RED_COLOR: u32 = 0xFF4040ff;
 const BUTTON_COLOR: u32 = 0x4169E1ff;
 const BUTTON_TEXT_COLOR: u32 = 0xF0F8FFff;
 
+#[derive(BorshDeserialize, BorshSerialize)]
 #[turbo::game]
 struct GameState {}
 impl GameState {
-    fn new() -> Self {}
+    fn new() -> Self {
+        Self {}
+    }
     fn update(&mut self) {
         clear(BACKGROUND_COLOR);
         //draw the minus button
