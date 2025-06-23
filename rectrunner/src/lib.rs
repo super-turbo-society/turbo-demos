@@ -1,9 +1,6 @@
-use turbo::{
-    canvas::{circ, clear, rect, sprite, text},
-    input::gamepad,
-    sys::rand,
-};
+use turbo::prelude::*;
 
+#[derive(BorshDeserialize, BorshSerialize)]
 #[turbo::game]
 struct GameState {
     frame: u32,
@@ -319,7 +316,7 @@ impl GameState {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, BorshDeserialize, BorshSerialize)]
 struct Obstacle {
     x: f32,
     y: f32,
@@ -327,7 +324,7 @@ struct Obstacle {
     height: f32,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, BorshDeserialize, BorshSerialize)]
 struct Coin {
     x: f32,
     y: f32,
