@@ -1,4 +1,4 @@
-use turbo::{borsh::BorshDeserialize, canvas::clear};
+use turbo::prelude::*;
 
 const TILE_SIZE: i32 = 16;
 const GRAVITY: f32 = 0.6;
@@ -11,6 +11,7 @@ const PLAYER_MAX_JUMP_FORCE: f32 = 5.5;
 const PLAYER_JUMP_POWER_DUR: i32 = 6;
 const PLAYER_COYOTE_TIMER_DUR: i32 = 3;
 
+#[derive(BorshDeserialize, BorshSerialize)]
 #[turbo::game]
 struct GameState {
     player: Player,
