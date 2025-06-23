@@ -1,5 +1,6 @@
-use turbo::{canvas::*, input::gamepad, sys::rand};
+use turbo::prelude::*;
 
+#[derive(BorshDeserialize, BorshSerialize)]
 struct Pancake {
     x: f32,
     y: f32,
@@ -7,6 +8,7 @@ struct Pancake {
     radius: f32,
 }
 
+#[derive(BorshDeserialize, BorshSerialize)]
 #[turbo::game]
 struct GameState {
     frame: u32,
