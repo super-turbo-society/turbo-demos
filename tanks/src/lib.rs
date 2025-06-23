@@ -1,8 +1,8 @@
 use turbo::prelude::*;
-use turbo_genesis_sdk::prelude::*;
 
+#[derive(BorshDeserialize, BorshSerialize)]
 #[turbo::game]
-#[derive(Debug, Clone, PartialEq, BorshDeserialize, BorshSerialize)]
+
 struct GameState {
     winner: Option<Winner>,
     tanks: Vec<Tank>,
@@ -222,6 +222,7 @@ fn create_mirrored_blocks(positions: &[(f32, f32, u32, u32)]) -> Vec<Block> {
     mirrored_blocks
 }
 
+#[derive(PartialEq, Clone, Debug, BorshDeserialize, BorshSerialize)]
 enum Winner {
     P1,
     P2,
@@ -244,7 +245,7 @@ impl Rect {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, BorshDeserialize, BorshSerialize)]
+#[derive(BorshDeserialize, BorshSerialize)]
 
 struct Tank {
     color: u32,
@@ -265,7 +266,7 @@ impl Tank {
         }
     }
 }
-
+#[derive(BorshDeserialize, BorshSerialize)]
 struct Missile {
     x: f32,
     y: f32,
@@ -284,6 +285,7 @@ impl Missile {
     }
 }
 
+#[derive(BorshDeserialize, BorshSerialize)]
 struct Block {
     x: f32,
     y: f32,
