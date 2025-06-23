@@ -1,5 +1,8 @@
 use turbo::prelude::*;
+mod state;
+use state::*;
 
+#[derive(BorshDeserialize, BorshSerialize)]
 #[turbo::game]
 struct GameState {
     is_ready: bool,
