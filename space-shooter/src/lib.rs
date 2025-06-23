@@ -1,5 +1,6 @@
 use turbo::prelude::*;
-use turbo::{borsh::BorshDeserialize, input::gamepad, log, sys::rand};
+
+#[derive(BorshDeserialize, BorshSerialize)]
 #[turbo::game]
 struct GameState {
     tick: u32,
@@ -81,7 +82,7 @@ impl GameState {
             // Restart
             if self.hit_timer == 0 && gamepad(0).start.just_pressed() || gamepad(0).a.just_pressed()
             {
-                GameState::new(); // running into an error here I cant solve
+                *self = Self::new()
             }
         } else {
             // Player movement handling
