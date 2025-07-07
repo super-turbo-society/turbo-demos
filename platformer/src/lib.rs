@@ -1,3 +1,5 @@
+use turbo::prelude::*;
+
 const TILE_SIZE: i32 = 16;
 const GRAVITY: f32 = 0.6;
 
@@ -9,11 +11,14 @@ const PLAYER_MAX_JUMP_FORCE: f32 = 5.5;
 const PLAYER_JUMP_POWER_DUR: i32 = 6;
 const PLAYER_COYOTE_TIMER_DUR: i32 = 3;
 
-turbo::init! {
-    struct GameState {
-        player: Player,
-        tiles: Vec<Tile>,
-    } = {
+#[derive(BorshDeserialize, BorshSerialize)]
+#[turbo::game]
+struct GameState {
+    player: Player,
+    tiles: Vec<Tile>,
+}
+impl GameState {
+    fn new() -> Self {
         let mut tiles = Vec::new();
 
         //Bottom layer of tiles
@@ -35,22 +40,19 @@ turbo::init! {
             tiles,
         }
     }
-}
+    fn update(&mut self) {
+        clear(0xadd8e6ff);
+        for t in &mut self.tiles {
+            t.draw();
+        }
 
-turbo::go!({
-    let mut state = GameState::load();
-    clear(0xadd8e6ff);
-    for t in &mut state.tiles {
-        t.draw();
+        self.player.handle_input();
+        self.player.check_collision_tilemap(&self.tiles);
+        self.player.update_position();
+        camera::focus_rect(self.player.x, self.player.y, 16, 16);
+        self.player.draw();
     }
-
-    state.player.handle_input();
-    state.player.check_collision_tilemap(&state.tiles);
-    state.player.update_position();
-    camera::focus_rect(state.player.x, state.player.y, 16, 16);
-    state.player.draw();
-    state.save();
-});
+}
 
 #[derive(BorshDeserialize, BorshSerialize, Debug, Clone, PartialEq)]
 struct Player {

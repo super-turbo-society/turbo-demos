@@ -1,52 +1,38 @@
-turbo::init! {
-    struct GameState {
-        winner: Option<enum Winner {
-            P1,
-            P2,
-            Draw,
-        }>,
-        tanks: Vec<struct Tank {
-            color: u32,
-            x: f32,
-            y: f32,
-            vel: f32,
-            rot: f32,
-            missiles: Vec<struct Missile {
-                x: f32,
-                y: f32,
-                vel: f32,
-                rot: f32,
-            }>
-        }>,
-        blocks: Vec<struct Block {
-            x: f32,
-            y: f32,
-            width: u32,
-            height: u32,
-        }>
-    } = {
+use turbo::prelude::*;
+
+#[derive(BorshDeserialize, BorshSerialize)]
+#[turbo::game]
+
+struct GameState {
+    winner: Option<Winner>,
+    tanks: Vec<Tank>,
+    blocks: Vec<Block>,
+}
+
+impl GameState {
+    fn new() -> Self {
         let (w, h) = resolution();
         let w = w as f32;
-        let h = h as f32;        
-                Self {
+        let h = h as f32;
+        Self {
             winner: None,
             tanks: vec![
                 Tank {
                     color: 0xffff00ff,
                     x: 32.,
-                    y: (h/2.),
+                    y: (h / 2.),
                     vel: 0.,
                     rot: 0.,
-                    missiles: vec![]
+                    missiles: vec![],
                 },
                 Tank {
                     color: 0xff00ffff,
                     x: w - 32.,
-                    y: (h/2.),
+                    y: (h / 2.),
                     vel: 0.,
                     rot: std::f32::consts::PI, // 180deg in radians
-                    missiles: vec![]
-                }
+                    missiles: vec![],
+                },
             ],
             blocks: create_mirrored_blocks(&[
                 (32.0, 0.0, 16, 16),
@@ -54,47 +40,41 @@ turbo::init! {
                 (72.0, 40.0, 16, 64),
                 (128.0, 112.0, 8, 32),
                 (32.0, 128.0, 16, 16),
-            ])
+            ]),
         }
     }
-}
+    fn update(&mut self) {
+        let mut tanks = self.tanks.iter_mut();
+        let mut tank1 = tanks.next().unwrap();
+        let mut tank2 = tanks.next().unwrap();
 
-turbo::go! {
-    // Load game state
-    let mut state = GameState::load();
-    let mut tanks = state.tanks.iter_mut();
-    let mut tank1 = tanks.next().unwrap();
-    let mut tank2 = tanks.next().unwrap();
+        // Draw stuff
+        rect!(w = 256, h = 144, color = 0x222222ff);
+        draw_blocks(&self.blocks);
+        draw_tank(&tank1);
+        draw_tank(&tank2);
 
-    // Draw stuff
-    rect!(w = 256,h = 144, color = 0x222222ff);
-    draw_blocks(&state.blocks);
-    draw_tank(&tank1);
-    draw_tank(&tank2);
+        // Update tank positions, rotations, and firing
+        let gp1 = gamepad(0);
+        let gp2 = gamepad(1);
 
-    // Update tank positions, rotations, and firing
-    let gp1 = gamepad(0);
-    let gp2 = gamepad(1);
-
-    if let Some(winner) = &state.winner {
-        // Show winner message
-        text!("WINNER {:#?}", winner; font = "large");
-    } else {
-        // Update tanks and check for missile collisions
-        update_tank(&gp1, &mut tank1, &state.blocks);
-        update_tank(&gp2, &mut tank2, &state.blocks);
-        let tank1_got_hit = did_hit_missile(tank1, &tank2.missiles);
-        let tank2_got_hit = did_hit_missile(tank2, &tank1.missiles);
-        state.winner = match (tank1_got_hit, tank2_got_hit) {
-            (false, false) => None,
-            (true, true) => Some(Winner::Draw),
-            (true, false) => Some(Winner::P2),
-            (false, true) => Some(Winner::P1),
-        }
-    };
-
-    // Save the game state
-    state.save();
+        if let Some(winner) = &self.winner {
+            // Show winner message
+            text!("WINNER {:#?}", winner; font = "large");
+        } else {
+            // Update tanks and check for missile collisions
+            update_tank(&gp1, &mut tank1, &self.blocks);
+            update_tank(&gp2, &mut tank2, &self.blocks);
+            let tank1_got_hit = did_hit_missile(&tank1, &tank2.missiles);
+            let tank2_got_hit = did_hit_missile(&tank2, &tank1.missiles);
+            self.winner = match (tank1_got_hit, tank2_got_hit) {
+                (false, false) => None,
+                (true, true) => Some(Winner::Draw),
+                (true, false) => Some(Winner::P2),
+                (false, true) => Some(Winner::P1),
+            }
+        };
+    }
 }
 
 fn did_hit_missile(tank: &Tank, missiles: &[Missile]) -> bool {
@@ -242,6 +222,13 @@ fn create_mirrored_blocks(positions: &[(f32, f32, u32, u32)]) -> Vec<Block> {
     mirrored_blocks
 }
 
+#[derive(PartialEq, Clone, Debug, BorshDeserialize, BorshSerialize)]
+enum Winner {
+    P1,
+    P2,
+    Draw,
+}
+
 struct Rect {
     width: u32,
     height: u32,
@@ -258,6 +245,17 @@ impl Rect {
     }
 }
 
+#[derive(BorshDeserialize, BorshSerialize)]
+
+struct Tank {
+    color: u32,
+    x: f32,
+    y: f32,
+    vel: f32,
+    rot: f32,
+    missiles: Vec<Missile>,
+}
+
 impl Tank {
     fn hitbox(&self) -> Rect {
         Rect {
@@ -267,6 +265,13 @@ impl Tank {
             height: 16,
         }
     }
+}
+#[derive(BorshDeserialize, BorshSerialize)]
+struct Missile {
+    x: f32,
+    y: f32,
+    vel: f32,
+    rot: f32,
 }
 
 impl Missile {
@@ -278,6 +283,14 @@ impl Missile {
             height: 6,
         }
     }
+}
+
+#[derive(BorshDeserialize, BorshSerialize)]
+struct Block {
+    x: f32,
+    y: f32,
+    width: u32,
+    height: u32,
 }
 
 impl Block {

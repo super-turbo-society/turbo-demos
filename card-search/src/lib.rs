@@ -1,4 +1,4 @@
-use os::client::watch_file;
+use turbo::{os::client::watch_file, prelude::*};
 
 const BOARD_SIZE: u8 = 16;
 const CARD_SIZE: (u8, u8) = (16, 24);
@@ -9,80 +9,75 @@ const CARD_COLOR: u32 = 0x1E3A8Aff;
 const CARD_HIGHLIGHT: u32 = 0x2563EBff;
 const CARD_FLIPPED_COLOR: u32 = 0xF0F0F0ff;
 
-turbo::init! {
-    struct GameState {
-        board: Option<Board>,
-    } = {
-        Self {
-            board: None,
-        }
-    }
+#[derive(BorshDeserialize, BorshSerialize)]
+#[turbo::game]
+struct GameState {
+    board: Option<Board>,
 }
-
-turbo::go!({
-    let mut state = GameState::load();
-    //draw the background
-    draw_checkerboard();
-
-
-    let pointer = pointer(); 
-    let (x, y) = pointer.xy(); 
-
-    if gamepad(0).a.just_pressed() {
-        let c = camera::xy();
-        log!("{:?}", c);
-        camera::reset();
+impl GameState {
+    fn new() -> Self {
+        Self { board: None }
     }
+    fn update(&mut self) {
+        //draw the background
+        draw_checkerboard();
 
-    state.board = watch_file("card_search", "board")
-        .data
-        .and_then(|file| Board::try_from_slice(&file.contents).ok());
+        let pointer = pointer();
+        let (x, y) = pointer.xy();
 
-    match &mut state.board {
-        None => {}
-        Some(b) => {
-            let crown_found = is_crown_found(&b);
-            for card in &mut b.cards {
-                card.draw((x, y));
-                if pointer.just_pressed() && !crown_found {
-                    card.on_click((x, y));
+        if gamepad(0).a.just_pressed() {
+            let c = camera::xy();
+            log!("{:?}", c);
+            camera::reset();
+        }
+
+        self.board = watch_file("card_search", "board")
+            .data
+            .and_then(|file| Board::try_from_slice(&file.contents).ok());
+
+        match &mut self.board {
+            None => {}
+            Some(b) => {
+                let crown_found = is_crown_found(&b);
+                for card in &mut b.cards {
+                    card.draw((x, y));
+                    if pointer.just_pressed() && !crown_found {
+                        card.on_click((x, y));
+                    }
                 }
             }
         }
-    }
 
-
-    //Watch for alerts
-    if let Some(event) = os::client::watch_events("card_search", Some("alert")).data {
-        //Display an alert banner for notifications that are < 10s old
-        let duration = 10_000;
-        let millis_since_event = time::now() - event.created_at as u64 * 1000;
-        if millis_since_event < duration {
-            if let Ok(msg) = std::str::from_utf8(&event.data) {
-                let txt = format!("User {}", msg);
-                centered_text(&txt, 200, CARD_FLIPPED_COLOR);
-                centered_text("Found the crown", 210, CARD_FLIPPED_COLOR);
+        //Watch for alerts
+        if let Some(event) = os::client::watch_events("card_search", Some("alert")).data {
+            //Display an alert banner for notifications that are < 10s old
+            let duration = 10_000;
+            let millis_since_event = time::now() - event.created_at as u64 * 1000;
+            if millis_since_event < duration {
+                if let Ok(msg) = std::str::from_utf8(&event.data) {
+                    let txt = format!("User {}", msg);
+                    centered_text(&txt, 200, CARD_FLIPPED_COLOR);
+                    centered_text("Found the crown", 210, CARD_FLIPPED_COLOR);
+                }
             }
         }
-    }
-    //if you don't have a board (should never happen) or the crown is found
-    //then show text saying press Z to start a new game
-    if state.board.is_none() || state.board.as_ref().map_or(false, is_crown_found) {
-        //show text to press z to get a new game
-        centered_text("Press Z", 10, CARD_FLIPPED_COLOR);
-        centered_text("To Start New Game", 20, CARD_FLIPPED_COLOR);
-        let gp = gamepad(0);
-        if gp.a.just_pressed() {
-            //if you press Z (gamepad a), call the generate_board function
-            os::client::exec("card_search", "generate_board", &[]);
+        //if you don't have a board (should never happen) or the crown is found
+        //then show text saying press Z to start a new game
+        if self.board.is_none() || self.board.as_ref().map_or(false, is_crown_found) {
+            //show text to press z to get a new game
+            centered_text("Press Z", 10, CARD_FLIPPED_COLOR);
+            centered_text("To Start New Game", 20, CARD_FLIPPED_COLOR);
+            let gp = gamepad(0);
+            if gp.a.just_pressed() {
+                //if you press Z (gamepad a), call the generate_board function
+                os::client::exec("card_search", "generate_board", &[]);
+            }
+            //if crown isn't found, then show this text instead
+        } else {
+            centered_text("Find the Crown!", 10, CARD_FLIPPED_COLOR);
         }
-        //if crown isn't found, then show this text instead
-    } else {
-        centered_text("Find the Crown!", 10, CARD_FLIPPED_COLOR);
     }
-
-    state.save();
-});
+}
 
 fn is_crown_found(board: &Board) -> bool {
     for c in &board.cards {
