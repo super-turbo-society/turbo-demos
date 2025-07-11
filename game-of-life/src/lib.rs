@@ -26,7 +26,7 @@ impl GameState {
             // Randomize grid on A button press
             for row in 0..self.grid.len() {
                 for col in 0..self.grid[row].len() {
-                    self.grid[row][col] = random::rand() % 2 == 0;
+                    self.grid[row][col] = random::u32() % 2 == 0;
                 }
             }
         }

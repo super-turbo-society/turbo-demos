@@ -3,8 +3,11 @@ name = "counter"
 version = "1.0.0"
 edition = "2021"
 
+[package.metadata.turbo]
+user = "a42ef3a1-2d2c-4091-b3d0-a94e76903096"
+
 [dependencies]
-turbo = { version = "^3.0.0", package = "turbo-genesis-sdk" }
+turbo = { version = "4.0.0-alpha.17", package = "turbo-genesis-sdk" }
 
 [lib]
 crate-type = ["cdylib"]

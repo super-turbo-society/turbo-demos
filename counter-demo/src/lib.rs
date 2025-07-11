@@ -1,6 +1,6 @@
-use turbo::borsh::*;
+use turbo::*;
 
-//colors
+// colors
 const BACKGROUND_COLOR: u32 = 0x2B2B2Bff;
 const WHITE_COLOR: u32 = 0xFFFFFFff;
 const GREEN_COLOR: u32 = 0x00FF7Fff;
@@ -8,118 +8,104 @@ const RED_COLOR: u32 = 0xFF4040ff;
 const BUTTON_COLOR: u32 = 0x4169E1ff;
 const BUTTON_TEXT_COLOR: u32 = 0xF0F8FFff;
 
-turbo::go!({
-    clear(BACKGROUND_COLOR);
-    //draw the minus button
-    let (w, h) = (30, 20);
-    let (x, y) = (20, 180);
-    draw_button(w, h, x, y);
-    text!(
-        "-",
-        x = 32,
-        y = 187,
-        font = "large",
-        color = BUTTON_TEXT_COLOR
-    );
+#[turbo::game]
+struct GameState;
 
+impl GameState {
 
-    // Store the pointer struct once
-    let pointer = pointer();
+    fn update(&mut self) {
+        clear(BACKGROUND_COLOR);
 
-    // subtract 1 if minus button is clicked
-    if pointer.just_pressed() && pointer.intersects(x, y, w, h) {
-        let delta: i32 = -1;
-        let bytes = delta.to_le_bytes();
-        os::client::exec("counter", "increment_counter", &bytes);
+        let (w, h) = (30, 20);
+        let (x_minus, y_minus) = (20, 180);
+        let (x_plus, y_plus) = (82, 180);
+
+        draw_button(w, h, x_minus, y_minus);
+        draw_button(w, h, x_plus, y_plus);
+
+        text!("-", x = 32, y = 187, font = "large", color = BUTTON_TEXT_COLOR);
+        text!("+", x = 94, y = 187, font = "large", color = BUTTON_TEXT_COLOR);
+
+        let pointer = pointer::screen();
+        if pointer.just_pressed() {
+            if pointer.intersects(x_minus, y_minus, w, h) {
+                counter::IncrementCounter::Minus(1).exec();
+            }
+            if pointer.intersects(x_plus, y_plus, w, h) {
+                counter::IncrementCounter::Plus(1).exec();
+            }
+        }
+
+        if let Some(ref id) = os::client::user_id() {
+            let truncated = if id.len() > 8 {
+                format!("{}...", &id[..8])
+            } else {
+                id.to_string()
+            };
+            let user_line = format!("User: {}", truncated);
+            text!(&user_line, x = 10, y = 10, font = "medium", color = WHITE_COLOR);
+
+            let user_path = format!("users/{}", id);
+            let user_count = counter::watch::<i32>(&user_path).unwrap_or(0);
+            let user_line = format!("Your Count: {}", user_count);
+            text!(&user_line, x = 10, y = 25, font = "medium", color = WHITE_COLOR);
+
+            let global_count = counter::watch::<i32>("global_count").unwrap_or(0);
+            let color = if global_count < 0 { RED_COLOR } else { GREEN_COLOR };
+            let global_line = format!("Global Count: {}", global_count);
+            text!(&global_line, x = 10, y = 40, font = "medium", color = color);
+        }
     }
-
-    // draw the plus button
-    let (x, y) = (82, 180);
-    draw_button(w, h, x, y);
-    text!(
-        "+",
-        x = 94,
-        y = 187,
-        font = "large",
-        color = BUTTON_TEXT_COLOR
-    );
-
-    // add 1 if plus button is clicked
-    if pointer.just_pressed() && pointer.intersects(x, y, w, h) {
-        let delta: i32 = 1;
-        let bytes = delta.to_le_bytes();
-        os::client::exec("counter", "increment_counter", &bytes);
-    }
-
-
-    //draw texts on top of screen
-    let userid = os::client::user_id();
-    if let Some(ref id) = userid {
-        let truncated = if id.len() > 8 {
-            format!("{}...", &id[..8])
-        } else {
-            id.to_string()
-        };
-        let txt = format!("User: {}", truncated);
-        //draw the user ID, truncated for only 8 digits
-        text!(&txt, x = 10, y = 10, font = "medium", color = WHITE_COLOR);
-
-        //draw the user's saved counter
-        let filepath = format!("users/{}", id);
-        //read the number from the server using watch_file
-        let num = os::client::watch_file("counter", &filepath)
-            .data
-            .and_then(|file| i32::try_from_slice(&file.contents).ok())
-            .unwrap_or(0); //set to 0 if the file doesn't exist
-        let txt = format!("Your Count: {}", num);
-        text!(&txt, x = 10, y = 25, font = "medium", color = WHITE_COLOR);
-
-        //draw the global count
-        let filepath = "global_count";
-        //read the number from the server using watch_file
-        let num = os::client::watch_file("counter", &filepath)
-            .data
-            .and_then(|file| i32::try_from_slice(&file.contents).ok())
-            .unwrap_or(0); //set to 0 if the file doesn't exist
-        let txt = format!("Global Count: {}", num);
-
-        let color = if num < 0 { RED_COLOR } else { GREEN_COLOR };
-        text!(&txt, x = 10, y = 40, font = "medium", color = color);
-    }
-});
+}
 
 fn draw_button(w: i32, h: i32, x: i32, y: i32) {
     rect!(
         w = w,
         h = h,
-        y = y,
         x = x,
+        y = y,
         color = BUTTON_COLOR,
         border_radius = 2
     );
 }
 
-#[export_name = "turbo/increment_counter"]
-unsafe extern "C" fn on_increment_counter() -> usize {
-    let userid = os::server::get_user_id();
-    let file_path = format!("users/{}", userid);
-    //read the current number from the users file, or set it to 0 if it doesn't exist
-    let mut counter = os::server::read_or!(i32, &file_path, 0);
-    //get command data from the function call
-    let increment_amt = os::server::command!(i32);
+#[turbo::program]
+pub mod counter {
+    use super::*;
 
-    counter += increment_amt;
+    #[turbo::command(name = "increment_counter")]
+    pub enum IncrementCounter {
+        Plus(i32),
+        Minus(i32),
+    }
 
-    let Ok(_) = os::server::write!(&file_path, counter) else {
-        return os::server::CANCEL;
-    };
+    impl IncrementCounter {
+        pub fn amount(&self) -> i32 {
+            match self {
+                Self::Plus(n) => *n,
+                Self::Minus(n) => -*n,
+            }
+        }
+    }
 
-    let file_path = "global_count";
-    let mut counter = os::server::read_or!(i32, &file_path, 0);
-    counter += increment_amt;
-    let Ok(_) = os::server::write!(&file_path, counter) else {
-        return os::server::CANCEL;
-    };
-    os::server::log!("Counter: {}", counter);
-    return os::server::COMMIT;
+    impl CommandHandler for IncrementCounter {
+        fn run(&mut self, user_id: &str) -> Result<(), std::io::Error> {
+            os::server::log!("Running increment command: {self:?}");
+
+            let delta = self.amount();
+
+            let user_path = format!("users/{}", user_id);
+            let mut user_counter = os::server::fs::read(&user_path).unwrap_or(0);
+            user_counter += delta;
+            os::server::fs::write(&user_path, &user_counter)?;
+
+            let global_path = "global_count";
+            let mut global_counter = os::server::fs::read(global_path).unwrap_or(0);
+            global_counter += delta;
+            os::server::fs::write(global_path, &global_counter)?;
+
+            os::server::log!("Global Counter: {}", global_counter);
+            Ok(())
+        }
+    }
 }

@@ -34,13 +34,13 @@ impl GameState {
         }
 
         // Generate new pancakes at random intervals
-        if random::rand() % 64 == 0 {
+        if random::u32() % 64 == 0 {
             // Create a new pancake with random attributes
             let pancake = Pancake {
-                x: (random::rand() % 256) as f32,
+                x: (random::u32() % 256) as f32,
                 y: 0.0,
-                vel: (random::rand() % 3 + 1) as f32,
-                radius: (random::rand() % 10 + 5) as f32,
+                vel: (random::u32() % 3 + 1) as f32,
+                radius: (random::u32() % 10 + 5) as f32,
             };
             self.pancakes.push(pancake);
         }

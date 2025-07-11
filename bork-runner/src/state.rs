@@ -51,7 +51,7 @@ impl Enemy {
     pub fn new(vel_x: f32) -> Self {
         let max_height = CANVAS_HEIGHT as f32;
         let slots = (max_height / ENEMY_HEIGHT) as u32;
-        let slot = random::rand() % slots;
+        let slot = random::u32() % slots;
         let y = (slot as f32) * ENEMY_HEIGHT;
         Self {
             x: 256.0,

@@ -119,8 +119,8 @@ impl GameState {
         // Every 30s, spawn a heal at a random location
         if self.tick % (60 * 30) == 0 {
             self.powerups.push(Powerup {
-                x: (random::rand() % screen_w) as f32,
-                y: 24.0 + (random::rand() % screen_h / 2) as f32,
+                x: (random::u32() % screen_w) as f32,
+                y: 24.0 + (random::u32() % screen_h / 2) as f32,
                 width: 8,
                 height: 8,
                 effect: PowerupEffect::Heal,
@@ -131,8 +131,8 @@ impl GameState {
         // Spawn a heal every 10s when player's health is low
         if self.tick % (60 * 10) == 0 && self.player.health == 1 {
             self.powerups.push(Powerup {
-                x: (random::rand() % screen_w) as f32,
-                y: (random::rand() % screen_h) as f32,
+                x: (random::u32() % screen_w) as f32,
+                y: (random::u32() % screen_h) as f32,
                 width: 8,
                 height: 8,
                 effect: PowerupEffect::MaxHealthUp,
@@ -158,7 +158,7 @@ impl GameState {
                 text!("spawn rate: {}", spawn_rate; x = 4, y = 22, font = "small");
             }
             if self.tick % spawn_rate == 0 && self.enemies.len() < 24 {
-                self.enemies.push(match random::rand() % 8 {
+                self.enemies.push(match random::u32() % 8 {
                     0 => Enemy::tank(),
                     1 => Enemy::tank(),
                     2 => Enemy::shooter(),
@@ -224,7 +224,7 @@ impl GameState {
                     if enemy.health == 0 {
                         self.score += 1;
                         self.player.skill_points += enemy.points; // To ensure this triggers only once per threshold
-                        if random::rand() % 10 == 0 {
+                        if random::u32() % 10 == 0 {
                             self.powerups.push(Powerup {
                                 x: enemy.x,
                                 y: enemy.y,
@@ -236,8 +236,8 @@ impl GameState {
                             // Spawn additional power-up when player reaches skill point threshold
                             if self.player.skill_points > 500 { // Adjust the skill point threshold
                                 self.powerups.push(Powerup {
-                                    x: (random::rand() % screen_w) as f32,
-                                    y: (random::rand() % screen_h) as f32,
+                                    x: (random::u32() % screen_w) as f32,
+                                    y: (random::u32() % screen_h) as f32,
                                     width: 8,
                                     height: 8,
                                     effect: PowerupEffect::DamageBoost(ProjectileType::Splatter), // TODO: maybe randomize
@@ -354,7 +354,7 @@ impl GameState {
                 EnemyStrategy::TargetPlayer(intensity, speed, size) => {
                     // Logic for attacking with specified intensity
                     enemy.y += enemy.speed;
-                    if random::rand() % (250 / intensity as u32) == 0 {
+                    if random::u32() % (250 / intensity as u32) == 0 {
                         // Calculate angle from enemy to player
                         let angle = ((self.player.y - enemy.y).atan2(self.player.x - enemy.x) * 180.0) / std::f32::consts::PI;
 
@@ -377,7 +377,7 @@ impl GameState {
                 EnemyStrategy::ShootDown(intensity, speed, size) => {
                     // Logic for attacking with specified intensity
                     enemy.y += enemy.speed;
-                    if random::rand() % (250 / intensity as u32) == 0 {
+                    if random::u32() % (250 / intensity as u32) == 0 {
                         // Create and shoot projectiles from enemy towards the player
                         self.projectiles.push(Projectile {
                             x: enemy.x + (enemy.width as f32 * 0.5) - (size as f32 * 0.5),
@@ -406,7 +406,7 @@ impl GameState {
                         enemy.angle = std::f32::consts::PI - enemy.angle;
                     }
                     // 5% chance to randomly change angle
-                    else if random::rand() % 20 == 0 {
+                    else if random::u32() % 20 == 0 {
                         enemy.angle += std::f32::consts::PI / angle; // Change angle
                     }
                 },
@@ -465,7 +465,7 @@ impl GameState {
         let (screen_w, screen_h) = resolution();
 
         if self.hit_timer > 0 {
-            camera::move_xy(random::rand() as i32 % 3 - 1, random::rand() as i32 % 3 - 1);
+            camera::move_xy(random::u32() as i32 % 3 - 1, random::u32() as i32 % 3 - 1);
         } else {
             camera::reset();
         }
@@ -804,7 +804,7 @@ impl Enemy {
     pub fn tank() -> Self {
         let (screen_w, _) = resolution();
         Self {
-            x: (random::rand() % screen_w - 32) as f32,
+            x: (random::u32() % screen_w - 32) as f32,
             y: -32.0,
             width: 32,
             height: 32,
@@ -818,7 +818,7 @@ impl Enemy {
     pub fn shooter() -> Self {
         let (screen_w, _) = resolution();
         Self {
-            x: (random::rand() % screen_w - 16) as f32,
+            x: (random::u32() % screen_w - 16) as f32,
             y: -16.0,
             width: 16,
             height: 16,
@@ -832,7 +832,7 @@ impl Enemy {
     pub fn turret() -> Self {
         let (screen_w, _) = resolution();
         Self {
-            x: (random::rand() % screen_w - 16) as f32,
+            x: (random::u32() % screen_w - 16) as f32,
             y: -8.0,
             width: 16,
             height: 8,
@@ -846,7 +846,7 @@ impl Enemy {
     pub fn zipper() -> Self {
         let (screen_w, _) = resolution();
         Self {
-            x: (random::rand() % screen_w - 16) as f32,
+            x: (random::u32() % screen_w - 16) as f32,
             y: -16.0,
             width: 16,
             height: 16,
@@ -860,7 +860,7 @@ impl Enemy {
     pub fn meteor() -> Self {
         let (screen_w, _) = resolution();
         Self {
-            x: (random::rand() % screen_w - 8) as f32,
+            x: (random::u32() % screen_w - 8) as f32,
             y: -8.0,
             width: 8,
             height: 8,

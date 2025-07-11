@@ -128,11 +128,11 @@ impl GameState {
             self.coins.retain(|c| c.x > -5.0);
             // Generate new obstacles with dynamic gap size and more randomness
             if self.frame % 60 == 0 {
-                let height = (random::rand() % 50 + 20) as f32; // Random height between 20 and 70
+                let height = (random::u32() % 50 + 20) as f32; // Random height between 20 and 70
 
                 // Add more variability to the gap size
                 let base_gap = 50.0;
-                let gap_variability = (random::rand() % 40 - 20) as f32; // Random variability between -20 and 20
+                let gap_variability = (random::u32() % 40 - 20) as f32; // Random variability between -20 and 20
                 let gap = base_gap + (self.score / 100) as f32 + gap_variability;
 
                 // Add the top obstacle
@@ -152,18 +152,18 @@ impl GameState {
                 });
 
                 // Randomly generate an additional obstacle for more unpredictability
-                if random::rand() % 10 < 3 {
+                if random::u32() % 10 < 3 {
                     // 30% chance to add an additional obstacle
-                    let extra_height = (random::rand() % 50 + 10) as f32; // Random height between 10 and 60
-                    let extra_gap = base_gap + (random::rand() % 30 - 15) as f32; // Random variability between -15 and 15
+                    let extra_height = (random::u32() % 50 + 10) as f32; // Random height between 10 and 60
+                    let extra_gap = base_gap + (random::u32() % 30 - 15) as f32; // Random variability between -15 and 15
                     self.obstacles.push(Obstacle {
-                        x: 256.0 + (random::rand() % 30 + 20) as f32, // Random x position between 20 and 50
+                        x: 256.0 + (random::u32() % 30 + 20) as f32, // Random x position between 20 and 50
                         y: 144.0 - extra_height,
                         width: 10.0,
                         height: extra_height,
                     });
                     self.obstacles.push(Obstacle {
-                        x: 256.0 + (random::rand() % 30 + 20) as f32,
+                        x: 256.0 + (random::u32() % 30 + 20) as f32,
                         y: 0.0,
                         width: 10.0,
                         height: 144.0 - extra_height - extra_gap,
@@ -176,7 +176,7 @@ impl GameState {
                 // Adjust the frequency here
                 self.coins.push(Coin {
                     x: 256.0,
-                    y: (random::rand() % 120) as f32,
+                    y: (random::u32() % 120) as f32,
                 });
             }
 

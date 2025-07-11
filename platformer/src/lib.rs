@@ -49,7 +49,7 @@ impl GameState {
         self.player.handle_input();
         self.player.check_collision_tilemap(&self.tiles);
         self.player.update_position();
-        camera::focus_rect(self.player.x, self.player.y, 16, 16);
+        camera::focus((self.player.x as i32, self.player.y as i32));
         self.player.draw();
     }
 }

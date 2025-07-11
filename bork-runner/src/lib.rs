@@ -157,7 +157,7 @@ impl GameState {
         // Spawn and update enemies
         if t - self.last_enemy_spawn >= self.enemy_spawn_rate {
             let vel_x = -1.0 + ((t / 10) as f32 * -0.01).max(-1.);
-            let modifier = (random::rand() % 200) as f32 / 100.;
+            let modifier = (random::u32() % 200) as f32 / 100.;
             let vel_x = vel_x * modifier;
             self.enemies.push(Enemy::new(vel_x));
             self.last_enemy_spawn = t;
@@ -199,11 +199,11 @@ impl GameState {
             //     let initial_y = (rand() % CANVAS_HEIGHT) as f32;
             //     self.powerups.push(Powerup::new(CANVAS_WIDTH as f32, initial_y, 0.0, 2.0, PowerupType::DoubleJump));
             // }
-            if random::rand() % 100 < 2 {
+            if random::u32() % 100 < 2 {
                 // Example probability for Bat
                 self.powerups.push(Powerup::new(
                     CANVAS_WIDTH as f32,
-                    (random::rand() % CANVAS_HEIGHT) as f32,
+                    (random::u32() % CANVAS_HEIGHT) as f32,
                     0.0,
                     0.0,
                     PowerupType::Bat,
