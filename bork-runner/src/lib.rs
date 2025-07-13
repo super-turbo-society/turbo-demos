@@ -64,7 +64,7 @@ impl GameState {
 turbo::go!({
     let mut state = GameState::load();
 
-    let t = tick() as u32;
+    let t = time::tick() as u32;
 
     let gp = gamepad(0);
 
