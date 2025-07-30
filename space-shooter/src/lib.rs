@@ -1,6 +1,5 @@
 use turbo::*;
 
-
 #[turbo::game]
 struct GameState {
     tick: u32,
@@ -24,45 +23,45 @@ impl GameState {
     fn new() -> Self {
         let (screen_w, screen_h) = resolution();
         Self {
-        // Initialize all fields with default values
-        tick: 0,
-        notification_timer: 0,
-        hit_timer: 0,
-        score: 0,
-        tutorial_active: true,
-        help_messages: vec![
-            String::from("Use arrow keys to move"),
-            String::from("Press A to shoot projectiles"),
-        ],
+            // Initialize all fields with default values
+            tick: 0,
+            notification_timer: 0,
+            hit_timer: 0,
+            score: 0,
+            tutorial_active: true,
+            help_messages: vec![
+                String::from("Use arrow keys to move"),
+                String::from("Press A to shoot projectiles"),
+            ],
 
-        notifications: vec![
-            "Use arrow keys to move.".to_string(),
-            "Press SPACE or A to shoot.".to_string(),
-            "Defeat enemies and collect powerups.".to_string(),
-            "Try to not die. Good luck!".to_string(),
-        ],
-        player: Player {
-            x: ((screen_w / 2) - 8) as f32,
-            y: (screen_h - 64) as f32,
-            width: 16,
-            height: 16,
-            health: 3,
-            max_health: 3,
-            speed: 2.0,
-            color: 0xFF00FFFF,
-            accessory: None,
-            projectile_type: ProjectileType::Splatter,
-            projectile_damage: 1,
-            skill_points: 0,
-            skills: Skills {
-                speed_boost: false,
-                double_damage: false,
+            notifications: vec![
+                "Use arrow keys to move.".to_string(),
+                "Press SPACE or A to shoot.".to_string(),
+                "Defeat enemies and collect powerups.".to_string(),
+                "Try to not die. Good luck!".to_string(),
+            ],
+            player: Player {
+                x: ((screen_w / 2) - 8) as f32,
+                y: (screen_h - 64) as f32,
+                width: 16,
+                height: 16,
+                health: 3,
+                max_health: 3,
+                speed: 2.0,
+                color: 0xFF00FFFF,
+                accessory: None,
+                projectile_type: ProjectileType::Splatter,
+                projectile_damage: 1,
+                skill_points: 0,
+                skills: Skills {
+                    speed_boost: false,
+                    double_damage: false,
+                },
+                metrics: PlayerMetrics::new(),
             },
-            metrics: PlayerMetrics::new(),
-        },
-        projectiles: vec![],
-        enemies: vec![],
-        powerups: vec![],
+            projectiles: vec![],
+            enemies: vec![],
+            powerups: vec![],
         }
     }
     fn update(&mut self) {
@@ -81,7 +80,9 @@ impl GameState {
 
         if self.player.health == 0 {
             // Restart
-            if self.hit_timer == 0 && gamepad::get(0).start.just_pressed() || gamepad::get(0).a.just_pressed() {
+            if self.hit_timer == 0 && gamepad::get(0).start.just_pressed()
+                || gamepad::get(0).a.just_pressed()
+            {
                 *self = Self::new();
             }
         } else {
@@ -90,13 +91,17 @@ impl GameState {
                 self.player.y = (self.player.y - self.player.speed).max(0.0); // Move up
             }
             if gamepad::get(0).down.pressed() {
-                self.player.y = (self.player.y + self.player.speed).min((screen_h - self.player.height) as f32); // Move down
+                self.player.y =
+                    (self.player.y + self.player.speed).min((screen_h - self.player.height) as f32);
+                // Move down
             }
             if gamepad::get(0).left.pressed() {
                 self.player.x = (self.player.x - self.player.speed).max(0.0); // Move left
             }
             if gamepad::get(0).right.pressed() {
-                self.player.x = (self.player.x + self.player.speed).min((screen_w - self.player.width) as f32); // Move right
+                self.player.x =
+                    (self.player.x + self.player.speed).min((screen_w - self.player.width) as f32);
+                // Move right
             }
 
             // Shooting projectiles
@@ -140,7 +145,6 @@ impl GameState {
             });
         }
 
-
         // Start spawning enemies after intro dialog
         if self.tick > (self.notifications.len() as u32 + 1) * 240 {
             // Enemy spawning logic based on time elapsed
@@ -152,7 +156,7 @@ impl GameState {
             // Calculate current spawn interval based on time elapsed
             let spawn_rate = std::cmp::max(
                 minimum_spawn_rate,
-                initial_spawn_rate.saturating_sub(self.tick / speed_up_rate)
+                initial_spawn_rate.saturating_sub(self.tick / speed_up_rate),
             );
             if self.player.health > 0 {
                 text!("spawn rate: {}", spawn_rate; x = 4, y = 22, font = "small");
@@ -167,36 +171,46 @@ impl GameState {
                     5 => Enemy::zipper(),
                     6 => Enemy::turret(),
                     7 => Enemy::turret(),
-                    _ => unreachable!()
+                    _ => unreachable!(),
                 });
             }
         }
         // Handle player picking up power-ups
         self.powerups.retain(|powerup| {
-            if check_collision(powerup.x, powerup.y, powerup.width, powerup.height,
-                            self.player.x, self.player.y, self.player.width, self.player.height) {
+            if check_collision(
+                powerup.x,
+                powerup.y,
+                powerup.width,
+                powerup.height,
+                self.player.x,
+                self.player.y,
+                self.player.width,
+                self.player.height,
+            ) {
                 match &powerup.effect {
                     PowerupEffect::Heal => {
                         self.player.health = (self.player.health + 1).min(self.player.max_health);
                         self.player.skill_points += 1;
                         self.notifications.push("+1 Health".to_string());
-                    },
+                    }
                     PowerupEffect::MaxHealthUp => {
                         self.player.max_health = (self.player.max_health + 1).min(10);
                         self.player.health = self.player.max_health;
                         self.player.skill_points += 1;
                         self.notifications.push("Max Health +1".to_string());
-                    },
+                    }
                     PowerupEffect::SpeedBoost => {
                         self.player.speed *= 1.1;
                         self.player.skill_points += 1;
                         self.notifications.push("1.1x Speed Boost".to_string());
-                    },
+                    }
                     PowerupEffect::DamageBoost(projectile_type) => {
                         if self.player.projectile_type == projectile_type.clone() {
-                            self.notifications.push(format!("+1 {projectile_type:?} Damage"));
+                            self.notifications
+                                .push(format!("+1 {projectile_type:?} Damage"));
                             self.player.skill_points += 1;
-                            self.player.projectile_damage = (self.player.projectile_damage + 1).min(2);
+                            self.player.projectile_damage =
+                                (self.player.projectile_damage + 1).min(2);
                         }
                     }
                 }
@@ -215,8 +229,14 @@ impl GameState {
             }
             self.enemies.retain_mut(|enemy| {
                 let did_collide = check_collision(
-                    projectile.x, projectile.y, projectile.width, projectile.height,
-                    enemy.x, enemy.y, enemy.width, enemy.height
+                    projectile.x,
+                    projectile.y,
+                    projectile.width,
+                    projectile.height,
+                    enemy.x,
+                    enemy.y,
+                    enemy.width,
+                    enemy.height,
                 );
                 if did_collide {
                     enemy.health = enemy.health.saturating_sub(projectile.damage);
@@ -234,7 +254,8 @@ impl GameState {
                                 movement: PowerupMovement::Floating(0.1),
                             });
                             // Spawn additional power-up when player reaches skill point threshold
-                            if self.player.skill_points > 500 { // Adjust the skill point threshold
+                            if self.player.skill_points > 500 {
+                                // Adjust the skill point threshold
                                 self.powerups.push(Powerup {
                                     x: (random::u32() % screen_w) as f32,
                                     y: (random::u32() % screen_h) as f32,
@@ -253,31 +274,31 @@ impl GameState {
                         }
                         ProjectileType::Splatter => {
                             // Splatter creates fragments on impact, affecting a wider area
-                            let splash_angles = [45.0, 135.0, 225.0, 315.0];  // Diagonal angles
+                            let splash_angles = [45.0, 135.0, 225.0, 315.0]; // Diagonal angles
                             for &angle in splash_angles.iter() {
                                 splashes.push(Projectile {
                                     x: projectile.x,
                                     y: projectile.y,
                                     width: projectile.width,
                                     height: projectile.height,
-                                    velocity: projectile.velocity / 2.0,  // Reduced velocity for splash projectiles
+                                    velocity: projectile.velocity / 2.0, // Reduced velocity for splash projectiles
                                     angle,
-                                    damage: projectile.damage / 2,  // Reduced damage for splash projectiles
+                                    damage: projectile.damage / 2, // Reduced damage for splash projectiles
                                     projectile_type: ProjectileType::Fragment,
                                     projectile_owner: ProjectileOwner::Player,
-                                    ttl: Some(10)
+                                    ttl: Some(10),
                                 });
                             }
-                        },
+                        }
                         ProjectileType::Fragment => {
                             // ...
-                        },
+                        }
                         ProjectileType::Laser => {
                             // ...
-                        },
+                        }
                         ProjectileType::Bomb => {
                             // ...
-                        },
+                        }
                     }
                 }
                 enemy.health > 0
@@ -292,22 +313,32 @@ impl GameState {
                 return projectile_active;
             }
             let did_collide = check_collision(
-                projectile.x, projectile.y, projectile.width, projectile.height,
-                self.player.x, self.player.y, self.player.width, self.player.height
+                projectile.x,
+                projectile.y,
+                projectile.width,
+                projectile.height,
+                self.player.x,
+                self.player.y,
+                self.player.width,
+                self.player.height,
             );
             if did_collide {
-                if self.player.health != 0{
+                if self.player.health != 0 {
                     let prev_hp = self.player.health;
                     self.player.health = self.player.health.saturating_sub(projectile.damage);
                     // hit timer is longer on final hit
-                    self.hit_timer = if prev_hp > 0 && self.player.health == 0 { 20 } else { 10 };
+                    self.hit_timer = if prev_hp > 0 && self.player.health == 0 {
+                        20
+                    } else {
+                        10
+                    };
+                    camera::shake(2);
                     projectile_active = false // Remove the projectile on collision
                 }
             }
 
             projectile_active
         });
-
 
         // Add projectile splashes
         for projectile in splashes {
@@ -328,23 +359,29 @@ impl GameState {
 
         // Remove expired and out-of-bounds projectiles
         self.projectiles.retain(|projectile| {
-            projectile.ttl.map_or(true, |ttl| ttl > 0) ||
-            projectile.y < -(projectile.height as f32) ||
-            projectile.x < -(projectile.width as f32) ||
-            projectile.x > screen_w as f32 ||
-            projectile.y > screen_h as f32
+            projectile.ttl.map_or(true, |ttl| ttl > 0)
+                || projectile.y < -(projectile.height as f32)
+                || projectile.x < -(projectile.width as f32)
+                || projectile.x > screen_w as f32
+                || projectile.y > screen_h as f32
         });
 
         // Check enemy x player collisions
         self.enemies.retain(|enemy| {
             let did_collide = check_collision(
-                self.player.x, self.player.y, self.player.width, self.player.height,
-                enemy.x, enemy.y, enemy.width, enemy.height
+                self.player.x,
+                self.player.y,
+                self.player.width,
+                self.player.height,
+                enemy.x,
+                enemy.y,
+                enemy.width,
+                enemy.height,
             );
             if did_collide {
                 // Collision detected, reduce player health
                 self.player.health = self.player.health.saturating_sub(1); // Adjust damage as needed
-                // return false;
+                                                                           // return false;
             }
             return enemy.y < screen_h as f32;
         });
@@ -356,7 +393,9 @@ impl GameState {
                     enemy.y += enemy.speed;
                     if random::u32() % (250 / intensity as u32) == 0 {
                         // Calculate angle from enemy to player
-                        let angle = ((self.player.y - enemy.y).atan2(self.player.x - enemy.x) * 180.0) / std::f32::consts::PI;
+                        let angle = ((self.player.y - enemy.y).atan2(self.player.x - enemy.x)
+                            * 180.0)
+                            / std::f32::consts::PI;
 
                         // Create and shoot projectiles from enemy towards the player
                         self.projectiles.push(Projectile {
@@ -373,7 +412,7 @@ impl GameState {
                             ttl: None,
                         });
                     }
-                },
+                }
                 EnemyStrategy::ShootDown(intensity, speed, size) => {
                     // Logic for attacking with specified intensity
                     enemy.y += enemy.speed;
@@ -393,10 +432,10 @@ impl GameState {
                             ttl: None,
                         });
                     }
-                },
+                }
                 EnemyStrategy::MoveDown => {
                     enemy.y += enemy.speed;
-                },
+                }
                 EnemyStrategy::RandomZigZag(angle) => {
                     // Logic for dodging attacks, using angle to determine movement
                     enemy.x += enemy.speed * enemy.angle.cos();
@@ -409,7 +448,7 @@ impl GameState {
                     else if random::u32() % 20 == 0 {
                         enemy.angle += std::f32::consts::PI / angle; // Change angle
                     }
-                },
+                }
             }
         }
 
@@ -422,20 +461,19 @@ impl GameState {
                     if powerup.y <= 0.0 || powerup.y >= screen_h as f32 {
                         powerup.movement = PowerupMovement::Floating(-speed);
                     }
-                },
+                }
                 PowerupMovement::Drifting(speed) => {
                     powerup.x += speed;
                     // Optionally, reverse the direction if it reaches the screen bounds
                     if powerup.x <= 0.0 || powerup.x >= screen_w as f32 {
                         powerup.movement = PowerupMovement::Drifting(-speed);
                     }
-                },
+                }
                 PowerupMovement::Static => {
                     // Static powerups do not move
-                },
+                }
             }
         }
-
 
         // Enable skills
         if self.score > 100 && !self.player.skills.speed_boost {
@@ -464,10 +502,9 @@ impl GameState {
     fn draw_game_elements(self: &GameState) {
         let (screen_w, screen_h) = resolution();
 
-        if self.hit_timer > 0 {
-            camera::move_xy(random::u32() as i32 % 3 - 1, random::u32() as i32 % 3 - 1);
-        } else {
-            camera::reset();
+        // Remove the camera shake
+        if self.hit_timer == 0 {
+            camera::remove_shake();
         }
 
         // Draw moving parallax stars in the background
@@ -492,9 +529,6 @@ impl GameState {
         for powerup in &self.powerups {
             draw_powerup(powerup, self.tick);
         }
-
-        // Reset camera
-        //camera::reset();
 
         // Render notifications
         draw_notifications(self, screen_w, screen_h);
@@ -539,7 +573,6 @@ impl GameState {
         }
     }
 }
-
 
 fn draw_player(player: &Player) {
     rect!(
