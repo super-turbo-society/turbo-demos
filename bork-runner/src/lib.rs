@@ -7,28 +7,28 @@ use state::*;
 
 #[turbo::game]
 struct GameState {
-        is_ready: bool,
-        dog_x: f32,
-        dog_y: f32,
-        last_bork: u32,
-        bork_rate: u32,
-        bork_range: f32,
-        last_enemy_spawn: u32,
-        enemy_spawn_rate: u32,
-        is_jumping: bool,
-        energy: u32,
-        max_energy: u32,
-        recharge_rate: u32,
-        vel_y: f32,
-        borks: Vec<Bork>,
-        enemies: Vec<Enemy>,
-        powerups: Vec<Powerup>,
-        score: u32,
-        health: u32,
-        has_bat: bool,
-        last_bat_swing: u32,
-        can_fire_multiple_borks: bool,
-        last_game_over: u32,
+    is_ready: bool,
+    dog_x: f32,
+    dog_y: f32,
+    last_bork: u32,
+    bork_rate: u32,
+    bork_range: f32,
+    last_enemy_spawn: u32,
+    enemy_spawn_rate: u32,
+    is_jumping: bool,
+    energy: u32,
+    max_energy: u32,
+    recharge_rate: u32,
+    vel_y: f32,
+    borks: Vec<Bork>,
+    enemies: Vec<Enemy>,
+    powerups: Vec<Powerup>,
+    score: u32,
+    health: u32,
+    has_bat: bool,
+    last_bat_swing: u32,
+    can_fire_multiple_borks: bool,
+    last_game_over: u32,
 }
 
 impl GameState {
@@ -79,20 +79,26 @@ impl GameState {
                 }
             }
 
-            // Swing bat
-            if gp.right.just_pressed() && self.has_bat {
-                // Bat melee attack logic
+            // Swing bat on press, but only if cooldown has elapsed
+            if gp.right.just_pressed()
+                && self.has_bat
+                && t.wrapping_sub(self.last_bat_swing) >= BAT_COOLDOWN
+            {
+                self.last_bat_swing = t;
+            }
+
+            // While within the active window (half the cooldown), apply hits each frame
+            if self.has_bat && t.wrapping_sub(self.last_bat_swing) < BAT_ACTIVE_WINDOW {
                 for enemy in self.enemies.iter_mut() {
                     if self.dog_x < enemy.x + ENEMY_WIDTH
                         && self.dog_x + BAT_RANGE > enemy.x
                         && self.dog_y < enemy.y + ENEMY_HEIGHT
                         && self.dog_y + BAT_RANGE > enemy.y
                     {
-                        enemy.hits = enemy.max_hits; // Mark the enemy as hit by the bat
-                                                    // self.score += 15; // Increase score for hitting with the bat
+                        enemy.hits = enemy.max_hits;
+                        self.score += 15;
                     }
                 }
-                self.last_bat_swing = t;
             }
 
             // Physics and jump logic
@@ -189,16 +195,6 @@ impl GameState {
 
         // Spawning powerups
         if self.is_ready {
-            // if rand() % 100 < 10 { // Example probability for SpeedBoost
-            //     self.powerups.push(Powerup::new(CANVAS_WIDTH as f32, (rand() % CANVAS_HEIGHT) as f32, 0.0, 0.0, PowerupType::SpeedBoost));
-            // }
-            // if rand() % 100 < 5 { // Example probability for MultiBork
-            //     self.powerups.push(Powerup::new(CANVAS_WIDTH as f32, (rand() % CANVAS_HEIGHT) as f32, 0.0, 0.0, PowerupType::MultiBork));
-            // }
-            // if rand() % 100 < 3 { // Example probability for DoubleJump
-            //     let initial_y = (rand() % CANVAS_HEIGHT) as f32;
-            //     self.powerups.push(Powerup::new(CANVAS_WIDTH as f32, initial_y, 0.0, 2.0, PowerupType::DoubleJump));
-            // }
             if random::u32() % 100 < 2 {
                 // Example probability for Bat
                 self.powerups.push(Powerup::new(
@@ -216,9 +212,10 @@ impl GameState {
             match powerup.powerup_type {
                 PowerupType::DoubleJump => {
                     // Sinusoidal movement
+                    powerup.x -= 2.0;
                     powerup.y += f32::sin(powerup.angle) * 2.0; // Adjust amplitude as needed
                     powerup.angle += 0.1; // Adjust frequency as needed
-                                        // Grant an extra jump
+                                          // Grant an extra jump
                     self.energy = 2;
                 }
                 PowerupType::SpeedBoost => {
@@ -255,19 +252,18 @@ impl GameState {
                 }
                 false // Remove the powerup after applying its effect
             } else {
-                true // Keep the powerup if it hasn't been collected
+                powerup.x > -16.0 // Keep the powerup if it hasn't been collected
             }
         });
 
         // Draw game elements
         clear(0x00ffffff);
-        
-        
+
         // Draw speed lines
         let line_count = 15; // Number of speed lines
         let max_speed = 25; // Maximum speed of the lines
         let line_width = 128; // Screen width
-        
+
         for i in 0..line_count {
             let speed = (i + 1) as u32 * max_speed / line_count; // Varying speeds for each line
             let height = 1;
@@ -288,11 +284,7 @@ impl GameState {
                 _ => ("three_balloons", "doge_worried"),
             };
             let speed = if self.vel_y > 0. { 1.0 } else { 0.5 };
-            sprite!(
-                balloons,
-                x = self.dog_x - DOGE_WIDTH,
-                y = self.dog_y - 16.,
-            );
+            sprite!(balloons, x = self.dog_x - DOGE_WIDTH, y = self.dog_y - 16.,);
             sprite!(
                 doge,
                 x = self.dog_x - DOGE_WIDTH,
@@ -306,6 +298,9 @@ impl GameState {
                 y = self.dog_y,
                 animation_speed = 2.0,
             );
+        }
+        if t - self.last_bat_swing < BAT_ACTIVE_WINDOW {
+            // TODO draw the bat
         }
         for bork in self.borks.iter() {
             bork.draw();
@@ -407,5 +402,3 @@ impl GameState {
         }
     }
 }
-
-

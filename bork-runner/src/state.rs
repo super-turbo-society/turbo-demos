@@ -11,6 +11,8 @@ pub const ENEMY_HEIGHT: f32 = 16.0;
 pub const POWERUP_WIDTH: f32 = 16.0;
 pub const POWERUP_HEIGHT: f32 = 16.0;
 pub const BAT_RANGE: f32 = 10.0;
+pub const BAT_COOLDOWN: u32 = 60; // total ticks between swings
+pub const BAT_ACTIVE_WINDOW: u32 = BAT_COOLDOWN / 2; // ticks during which hits register
 
 #[turbo::serialize]
 pub struct Bork {
@@ -97,6 +99,7 @@ impl Powerup {
         match self.powerup_type {
             PowerupType::DoubleJump => {
                 sprite!("double_jump", x = self.x, y = self.y);
+                circ!(d = 16, color = 0x00ffffff, x = self.x, y = self.y);
                 rect!(
                     w = POWERUP_WIDTH,
                     h = POWERUP_HEIGHT,
@@ -107,6 +110,7 @@ impl Powerup {
             }
             PowerupType::SpeedBoost => {
                 sprite!("speed_boost", x = self.x, y = self.y);
+                circ!(d = 16, color = 0x00ff00ff, x = self.x, y = self.y);
                 rect!(
                     w = POWERUP_WIDTH,
                     h = POWERUP_HEIGHT,
@@ -117,6 +121,7 @@ impl Powerup {
             }
             PowerupType::MultiBork => {
                 sprite!("multi_bork", x = self.x, y = self.y);
+                circ!(d = 16, color = 0xffff00ff, x = self.x, y = self.y);
                 rect!(
                     w = POWERUP_WIDTH,
                     h = POWERUP_HEIGHT,
