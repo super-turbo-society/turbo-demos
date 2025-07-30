@@ -1,5 +1,4 @@
-use borsh::{BorshDeserialize, BorshSerialize};
-use turbo::prelude::*;
+use crate::*;
 
 pub const CANVAS_WIDTH: u32 = 256;
 pub const CANVAS_HEIGHT: u32 = 144;
@@ -13,7 +12,7 @@ pub const POWERUP_WIDTH: f32 = 16.0;
 pub const POWERUP_HEIGHT: f32 = 16.0;
 pub const BAT_RANGE: f32 = 10.0;
 
-#[derive(Debug, Clone, PartialEq, BorshDeserialize, BorshSerialize)]
+#[turbo::serialize]
 pub struct Bork {
     pub x: f32,
     pub y: f32,
@@ -39,7 +38,7 @@ impl Bork {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, BorshDeserialize, BorshSerialize)]
+#[turbo::serialize]
 pub struct Enemy {
     pub x: f32,
     pub y: f32,
@@ -52,7 +51,7 @@ impl Enemy {
     pub fn new(vel_x: f32) -> Self {
         let max_height = CANVAS_HEIGHT as f32;
         let slots = (max_height / ENEMY_HEIGHT) as u32;
-        let slot = rand() % slots;
+        let slot = random::u32() % slots;
         let y = (slot as f32) * ENEMY_HEIGHT;
         Self {
             x: 256.0,
@@ -74,7 +73,7 @@ impl Enemy {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, BorshDeserialize, BorshSerialize)]
+#[turbo::serialize]
 pub struct Powerup {
     pub x: f32,
     pub y: f32,
@@ -140,7 +139,8 @@ impl Powerup {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, BorshDeserialize, BorshSerialize)]
+#[turbo::serialize]
+#[derive(PartialEq)]
 pub enum PowerupType {
     DoubleJump,
     SpeedBoost,
