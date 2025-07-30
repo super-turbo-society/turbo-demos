@@ -1,6 +1,5 @@
 use turbo::*;
 
-
 #[turbo::game]
 struct GameState {
     grid: Vec<Vec<bool>>,
@@ -69,7 +68,6 @@ impl GameState {
                 }
             }
         }
-
     }
 }
 
@@ -90,4 +88,3 @@ fn count_alive_neighbours(grid: &Vec<Vec<bool>>, x: usize, y: usize) -> i32 {
     }
     count
 }
-
