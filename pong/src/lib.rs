@@ -1,5 +1,19 @@
 use turbo::*;
 
+#[turbo::serialize]
+struct Paddle {
+    x: f32,
+    y: f32,
+    height: f32,
+}
+#[turbo::serialize]
+struct Ball {
+    x: f32,
+    y: f32,
+    velocity_x: f32,
+    velocity_y: f32,
+    radius: f32,
+}
 
 #[turbo::game]
 struct GameState {
@@ -9,7 +23,6 @@ struct GameState {
     paddle2: Paddle,
     ball: Ball,
 }
-
 impl GameState {
     fn new() -> Self {
         let canvas_size = resolution();
@@ -21,13 +34,26 @@ impl GameState {
         Self {
             p1_score: 0,
             p2_score: 0,
-            paddle1: Paddle { x: 10.0, y: h / 2.0 - paddle_height / 2.0, height: paddle_height },
-            paddle2: Paddle { x: w - paddle_width - 10.0, y: h / 2.0 - paddle_height / 2.0, height: paddle_height },
-            ball: Ball { x: w / 2.0, y: h / 2.0, velocity_x: 2.0, velocity_y: 2.0, radius: ball_radius }, 
+            paddle1: Paddle {
+                x: 10.0,
+                y: h / 2.0 - paddle_height / 2.0,
+                height: paddle_height,
+            },
+            paddle2: Paddle {
+                x: w - paddle_width - 10.0,
+                y: h / 2.0 - paddle_height / 2.0,
+                height: paddle_height,
+            },
+            ball: Ball {
+                x: w / 2.0,
+                y: h / 2.0,
+                velocity_x: 2.0,
+                velocity_y: 2.0,
+                radius: ball_radius,
+            },
         }
     }
     fn update(&mut self) {
-
         let paddle_speed = 4.0;
 
         let canvas_size = resolution();
@@ -121,19 +147,4 @@ impl GameState {
             x = (screen_w as i32 / 2) + 64
         );
     }
-}
-
-#[turbo::serialize]
-struct Paddle {
-    x: f32,
-    y: f32,
-    height: f32,
-}
-#[turbo::serialize]
-struct Ball {
-    x: f32,
-    y: f32,
-    velocity_x: f32,
-    velocity_y: f32,
-    radius: f32,
 }
