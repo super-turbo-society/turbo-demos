@@ -2,7 +2,6 @@ use turbo::*;
 
 const TILE_SIZE: i32 = 16;
 const GRAVITY: f32 = 0.6;
-
 const PLAYER_MOVE_SPEED_MAX: f32 = 2.0;
 const PLAYER_ACCELERATION: f32 = 1.0;
 const PLAYER_DECELERATION: f32 = 0.5;
