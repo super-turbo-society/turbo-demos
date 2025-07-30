@@ -3,7 +3,6 @@ use turbo::*;
 const BOARD_SIZE: u8 = 16;
 const CARD_SIZE: (u8, u8) = (16, 24);
 const ROW_SPACING: u8 = 12;
-
 const CARD_COLOR: u32 = 0x1E3A8Aff;
 const CARD_HIGHLIGHT: u32 = 0x2563EBff;
 const CARD_FLIPPED_COLOR: u32 = 0xF0F0F0ff;
@@ -28,7 +27,7 @@ impl GameState {
             camera::reset();
         }
 
-        self.board = card_search::watch::<card_search::Board>("board");
+        self.board = card_search::Board::watch("board").parse();
 
         if let Some(b) = &mut self.board {
             let crown_found = is_crown_found(b);
@@ -99,7 +98,13 @@ fn draw_checkerboard() {
             let x = col * tile_width;
             let y = row * tile_height;
             let color = if (row + col) % 2 == 0 { dark } else { light };
-            rect!(x = x, y = y, w = tile_width as u8, h = tile_height as u8, color = color);
+            rect!(
+                x = x,
+                y = y,
+                w = tile_width as u8,
+                h = tile_height as u8,
+                color = color
+            );
         }
     }
 }
@@ -113,7 +118,6 @@ fn centered_pos(text: &str, char_width: i32, full_width: i32) -> i32 {
     (full_width - (text.len() as i32 * char_width)) / 2
 }
 
-#[turbo::program]
 pub mod card_search {
     use super::*;
 
@@ -126,7 +130,11 @@ pub mod card_search {
 
     impl Card {
         pub fn new(id: u8) -> Self {
-            Self { is_crown: false, id, is_flipped: false }
+            Self {
+                is_crown: false,
+                id,
+                is_flipped: false,
+            }
         }
 
         pub fn get_position_from_id(&self) -> (u32, u32) {
@@ -142,8 +150,10 @@ pub mod card_search {
         pub fn is_hovered(&self, pos: (i32, i32)) -> bool {
             let (x, y) = self.get_position_from_id();
             let (px, py) = pos;
-            px >= x as i32 && px <= x as i32 + CARD_SIZE.0 as i32 &&
-            py >= y as i32 && py <= y as i32 + CARD_SIZE.1 as i32
+            px >= x as i32
+                && px <= x as i32 + CARD_SIZE.0 as i32
+                && py >= y as i32
+                && py <= y as i32 + CARD_SIZE.1 as i32
         }
 
         pub fn draw(&self, pointer: (i32, i32)) {
@@ -155,7 +165,14 @@ pub mod card_search {
             if self.is_flipped {
                 color = CARD_FLIPPED_COLOR;
             }
-            rect!(x = x, y = y, w = CARD_SIZE.0, h = CARD_SIZE.1, color = color, border_radius = 2);
+            rect!(
+                x = x,
+                y = y,
+                w = CARD_SIZE.0,
+                h = CARD_SIZE.1,
+                color = color,
+                border_radius = 2
+            );
             if self.is_flipped && self.is_crown {
                 sprite!("crown", x = x, y = y);
             }
@@ -168,12 +185,12 @@ pub mod card_search {
         }
     }
 
-    #[turbo::serialize]
+    #[turbo::os::document(program = "card_search")]
     pub struct Board {
         pub cards: Vec<Card>,
     }
 
-    #[turbo::command(name = "card_click")]
+    #[turbo::os::command(program = "card_search", name = "card_click")]
     pub struct CardClick(pub u8);
     impl CommandHandler for CardClick {
         fn run(&mut self, user_id: &str) -> Result<(), std::io::Error> {
@@ -192,19 +209,19 @@ pub mod card_search {
         }
     }
 
-    #[turbo::command(name = "generate_board")]
+    #[turbo::os::command(program = "card_search", name = "generate_board")]
     pub struct GenerateBoard;
     impl CommandHandler for GenerateBoard {
         fn run(&mut self, _user_id: &str) -> Result<(), std::io::Error> {
             let mut board = super::generate_board();
-            let crown_id = os::server::random_number::<u32>() % BOARD_SIZE as u32;
+            let crown_id = random::between(0, BOARD_SIZE);
             for card in &mut board.cards {
-                if card.id as u32 == crown_id {
+                if card.id == crown_id {
                     card.is_crown = true;
                 }
             }
             os::server::fs::write("board", &board)?;
-            os::server::log!("Crown: {}", crown_id);
+            log!("Crown: {}", crown_id);
             Ok(())
         }
     }
