@@ -1,6 +1,5 @@
-use turbo::*;
 use turbo::gamepad::Gamepad;
-
+use turbo::*;
 
 #[turbo::game]
 struct GameState {
@@ -13,7 +12,7 @@ impl GameState {
     fn new() -> Self {
         let (w, h) = resolution();
         let w = w as f32;
-        let h = h as f32; 
+        let h = h as f32;
         Self {
             winner: None,
             tanks: vec![
@@ -49,7 +48,7 @@ impl GameState {
         let mut tank2 = tanks.next().unwrap();
 
         // Draw stuff
-        rect!(w = 256,h = 144, color = 0x222222ff);
+        rect!(w = 256, h = 144, color = 0x222222ff);
         draw_blocks(&self.blocks);
         draw_tank(&tank1);
         draw_tank(&tank2);
@@ -74,7 +73,6 @@ impl GameState {
                 (false, true) => Some(Winner::P1),
             }
         };
-
     }
 }
 
