@@ -1,5 +1,18 @@
 use turbo::*;
 
+#[turbo::serialize]
+struct Obstacle {
+    x: f32,
+    y: f32,
+    width: f32,
+    height: f32,
+}
+
+#[turbo::serialize]
+struct Coin {
+    x: f32,
+    y: f32,
+}
 
 #[turbo::game]
 struct GameState {
@@ -24,26 +37,25 @@ struct GameState {
 impl GameState {
     fn new() -> Self {
         Self {
-        frame: 0,
-        player_x: 30.0,
-        player_y: 10.0,
-        velocity_y: 0.0,
-        obstacles: vec![],
-        coins: vec![],
-        score: 0,
-        lives: 1,
-        is_game_over: false,
-        is_started: false,
-        speed: 2.0,
-        collision_cooldown: 0,
-        acceleration: 0.001,
-        max_speed: 5.0,
-        bg_x: 0.0,
-        fg_x: 0.0,
+            frame: 0,
+            player_x: 30.0,
+            player_y: 10.0,
+            velocity_y: 0.0,
+            obstacles: vec![],
+            coins: vec![],
+            score: 0,
+            lives: 1,
+            is_game_over: false,
+            is_started: false,
+            speed: 2.0,
+            collision_cooldown: 0,
+            acceleration: 0.001,
+            max_speed: 5.0,
+            bg_x: 0.0,
+            fg_x: 0.0,
         }
     }
     fn update(&mut self) {
-
         let input = gamepad::get(0);
 
         if !self.is_started {
@@ -298,19 +310,4 @@ impl GameState {
             self.frame += 1;
         }
     }
-}
-
-
-#[turbo::serialize]
-struct Obstacle {
-    x: f32,
-    y: f32,
-    width: f32,
-    height: f32,
-}
-
-#[turbo::serialize]
-struct Coin {
-    x: f32,
-    y: f32,
 }
