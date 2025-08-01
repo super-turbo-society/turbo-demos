@@ -1,5 +1,4 @@
-use borsh::{BorshDeserialize, BorshSerialize};
-use turbo::prelude::*;
+use crate::*;
 
 pub const CANVAS_WIDTH: u32 = 256;
 pub const CANVAS_HEIGHT: u32 = 144;
@@ -12,8 +11,10 @@ pub const ENEMY_HEIGHT: f32 = 16.0;
 pub const POWERUP_WIDTH: f32 = 16.0;
 pub const POWERUP_HEIGHT: f32 = 16.0;
 pub const BAT_RANGE: f32 = 10.0;
+pub const BAT_COOLDOWN: u32 = 60; // total ticks between swings
+pub const BAT_ACTIVE_WINDOW: u32 = BAT_COOLDOWN / 2; // ticks during which hits register
 
-#[derive(Debug, Clone, PartialEq, BorshDeserialize, BorshSerialize)]
+#[turbo::serialize]
 pub struct Bork {
     pub x: f32,
     pub y: f32,
@@ -39,7 +40,7 @@ impl Bork {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, BorshDeserialize, BorshSerialize)]
+#[turbo::serialize]
 pub struct Enemy {
     pub x: f32,
     pub y: f32,
@@ -52,7 +53,7 @@ impl Enemy {
     pub fn new(vel_x: f32) -> Self {
         let max_height = CANVAS_HEIGHT as f32;
         let slots = (max_height / ENEMY_HEIGHT) as u32;
-        let slot = rand() % slots;
+        let slot = random::u32() % slots;
         let y = (slot as f32) * ENEMY_HEIGHT;
         Self {
             x: 256.0,
@@ -74,7 +75,7 @@ impl Enemy {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, BorshDeserialize, BorshSerialize)]
+#[turbo::serialize]
 pub struct Powerup {
     pub x: f32,
     pub y: f32,
@@ -98,6 +99,7 @@ impl Powerup {
         match self.powerup_type {
             PowerupType::DoubleJump => {
                 sprite!("double_jump", x = self.x, y = self.y);
+                circ!(d = 16, color = 0x00ffffff, x = self.x, y = self.y);
                 rect!(
                     w = POWERUP_WIDTH,
                     h = POWERUP_HEIGHT,
@@ -108,6 +110,7 @@ impl Powerup {
             }
             PowerupType::SpeedBoost => {
                 sprite!("speed_boost", x = self.x, y = self.y);
+                circ!(d = 16, color = 0x00ff00ff, x = self.x, y = self.y);
                 rect!(
                     w = POWERUP_WIDTH,
                     h = POWERUP_HEIGHT,
@@ -118,6 +121,7 @@ impl Powerup {
             }
             PowerupType::MultiBork => {
                 sprite!("multi_bork", x = self.x, y = self.y);
+                circ!(d = 16, color = 0xffff00ff, x = self.x, y = self.y);
                 rect!(
                     w = POWERUP_WIDTH,
                     h = POWERUP_HEIGHT,
@@ -140,7 +144,8 @@ impl Powerup {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, BorshDeserialize, BorshSerialize)]
+#[turbo::serialize]
+#[derive(PartialEq)]
 pub enum PowerupType {
     DoubleJump,
     SpeedBoost,

@@ -1,6 +1,7 @@
+use turbo::*;
+
 const TILE_SIZE: i32 = 16;
 const GRAVITY: f32 = 0.6;
-
 const PLAYER_MOVE_SPEED_MAX: f32 = 2.0;
 const PLAYER_ACCELERATION: f32 = 1.0;
 const PLAYER_DECELERATION: f32 = 0.5;
@@ -9,11 +10,14 @@ const PLAYER_MAX_JUMP_FORCE: f32 = 5.5;
 const PLAYER_JUMP_POWER_DUR: i32 = 6;
 const PLAYER_COYOTE_TIMER_DUR: i32 = 3;
 
-turbo::init! {
-    struct GameState {
-        player: Player,
-        tiles: Vec<Tile>,
-    } = {
+#[turbo::game]
+struct GameState {
+    player: Player,
+    tiles: Vec<Tile>,
+}
+
+impl GameState {
+    fn new() -> Self {
         let mut tiles = Vec::new();
 
         //Bottom layer of tiles
@@ -30,29 +34,26 @@ turbo::init! {
         tiles.push(Tile::new(11, 9));
         tiles.push(Tile::new(17, 11));
 
-        GameState {
+        Self {
             player: Player::new(200., 125.),
             tiles,
         }
     }
+    fn update(&mut self) {
+        clear(0xadd8e6ff);
+        for t in &mut self.tiles {
+            t.draw();
+        }
+
+        self.player.handle_input();
+        self.player.check_collision_tilemap(&self.tiles);
+        self.player.update_position();
+        camera::focus((self.player.x as i32, self.player.y as i32));
+        self.player.draw();
+    }
 }
 
-turbo::go!({
-    let mut state = GameState::load();
-    clear(0xadd8e6ff);
-    for t in &mut state.tiles {
-        t.draw();
-    }
-
-    state.player.handle_input();
-    state.player.check_collision_tilemap(&state.tiles);
-    state.player.update_position();
-    camera::focus_rect(state.player.x, state.player.y, 16, 16);
-    state.player.draw();
-    state.save();
-});
-
-#[derive(BorshDeserialize, BorshSerialize, Debug, Clone, PartialEq)]
+#[turbo::serialize]
 struct Player {
     x: f32,
     y: f32,
@@ -82,7 +83,7 @@ impl Player {
         }
     }
     fn handle_input(&mut self) {
-        let gp = gamepad(0);
+        let gp = gamepad::get(0);
         /////JUMPING LOGIC/////
         // If the player has just pressed jump -> add min jump force
         if (gp.up.just_pressed() || gp.start.just_pressed())
@@ -209,7 +210,7 @@ impl Player {
     }
 }
 
-#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
+#[turbo::serialize]
 struct Tile {
     grid_x: usize,
     grid_y: usize,
