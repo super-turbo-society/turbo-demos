@@ -1,8 +1,8 @@
-name = "Space Shooter"
+name = "space-shooter"
 version = "0.1.0"
-authors = ["Turbo"]
-description = "A thrilling projectile combat adventure in space"
+description = "An awesome game made in Turbo!"
+authors = ["Anonymous"]
 
 [canvas]
-width = 512
+width = 256
 height = 512
